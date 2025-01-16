@@ -4,8 +4,8 @@ public final class org/jetbrains/jewel/intui/markdown/bridge/BridgeMarkdownBlock
 }
 
 public final class org/jetbrains/jewel/intui/markdown/bridge/BridgeProvideMarkdownStylingKt {
-	public static final fun ProvideMarkdownStyling (Lcom/intellij/openapi/project/Project;Ljava/lang/String;Lorg/jetbrains/jewel/markdown/rendering/MarkdownStyling;Lorg/jetbrains/jewel/markdown/processing/MarkdownProcessor;Lorg/jetbrains/jewel/markdown/rendering/MarkdownBlockRenderer;Lkotlin/jvm/functions/Function2;Landroidx/compose/runtime/Composer;II)V
-	public static final fun ProvideMarkdownStyling (Ljava/lang/String;Lorg/jetbrains/jewel/markdown/rendering/MarkdownStyling;Lorg/jetbrains/jewel/markdown/processing/MarkdownProcessor;Lorg/jetbrains/jewel/markdown/rendering/MarkdownBlockRenderer;Lorg/jetbrains/jewel/foundation/code/highlighting/CodeHighlighter;Lkotlin/jvm/functions/Function2;Landroidx/compose/runtime/Composer;II)V
+	public static final fun ProvideMarkdownStyling (Lcom/intellij/openapi/project/Project;Ljava/lang/String;Lorg/jetbrains/jewel/markdown/rendering/MarkdownStyling;Lorg/jetbrains/jewel/markdown/MarkdownMode;Lorg/jetbrains/jewel/markdown/processing/MarkdownProcessor;Lorg/jetbrains/jewel/markdown/rendering/MarkdownBlockRenderer;Lkotlin/jvm/functions/Function2;Landroidx/compose/runtime/Composer;II)V
+	public static final fun ProvideMarkdownStyling (Ljava/lang/String;Lorg/jetbrains/jewel/markdown/rendering/MarkdownStyling;Lorg/jetbrains/jewel/markdown/MarkdownMode;Lorg/jetbrains/jewel/markdown/processing/MarkdownProcessor;Lorg/jetbrains/jewel/markdown/rendering/MarkdownBlockRenderer;Lorg/jetbrains/jewel/foundation/code/highlighting/CodeHighlighter;Lkotlin/jvm/functions/Function2;Landroidx/compose/runtime/Composer;II)V
 }
 
 public final class org/jetbrains/jewel/intui/markdown/bridge/styling/BridgeMarkdownStylingKt {
@@ -74,3 +74,4 @@ public final class org/jetbrains/jewel/intui/markdown/bridge/styling/extensions/
 	public static final fun create-rAjV9yQ (Lorg/jetbrains/jewel/markdown/extensions/github/tables/GfmTableMetrics$Companion;FLandroidx/compose/foundation/layout/PaddingValues;Landroidx/compose/ui/Alignment$Horizontal;Landroidx/compose/ui/Alignment$Horizontal;)Lorg/jetbrains/jewel/markdown/extensions/github/tables/GfmTableMetrics;
 	public static synthetic fun create-rAjV9yQ$default (Lorg/jetbrains/jewel/markdown/extensions/github/tables/GfmTableMetrics$Companion;FLandroidx/compose/foundation/layout/PaddingValues;Landroidx/compose/ui/Alignment$Horizontal;Landroidx/compose/ui/Alignment$Horizontal;ILjava/lang/Object;)Lorg/jetbrains/jewel/markdown/extensions/github/tables/GfmTableMetrics;
 }
+

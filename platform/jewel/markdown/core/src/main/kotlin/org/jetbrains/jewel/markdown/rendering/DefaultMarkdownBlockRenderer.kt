@@ -205,19 +205,19 @@ public open class DefaultMarkdownBlockRenderer(
     ) {
         Column(
             Modifier.drawBehind {
-                val isLtr = layoutDirection == Ltr
-                val lineWidthPx = styling.lineWidth.toPx()
-                val x = if (isLtr) lineWidthPx / 2 else size.width - lineWidthPx / 2
+                    val isLtr = layoutDirection == Ltr
+                    val lineWidthPx = styling.lineWidth.toPx()
+                    val x = if (isLtr) lineWidthPx / 2 else size.width - lineWidthPx / 2
 
-                drawLine(
-                    styling.lineColor,
-                    Offset(x, 0f),
-                    Offset(x, size.height),
-                    lineWidthPx,
-                    styling.strokeCap,
-                    styling.pathEffect,
-                )
-            }
+                    drawLine(
+                        styling.lineColor,
+                        Offset(x, 0f),
+                        Offset(x, size.height),
+                        lineWidthPx,
+                        styling.strokeCap,
+                        styling.pathEffect,
+                    )
+                }
                 .padding(styling.padding),
             verticalArrangement = Arrangement.spacedBy(rootStyling.blockVerticalSpacing),
         ) {
@@ -363,7 +363,7 @@ public open class DefaultMarkdownBlockRenderer(
                     FencedBlockInfo(
                         mimeType.displayName(),
                         styling.infoPosition.horizontalAlignment
-                        ?: error("No horizontal alignment for position ${styling.infoPosition.name}"),
+                            ?: error("No horizontal alignment for position ${styling.infoPosition.name}"),
                         styling.infoTextStyle,
                         Modifier.fillMaxWidth().padding(styling.infoPadding),
                     )
@@ -375,7 +375,7 @@ public open class DefaultMarkdownBlockRenderer(
                     FencedBlockInfo(
                         mimeType.displayName(),
                         styling.infoPosition.horizontalAlignment
-                        ?: error("No horizontal alignment for position ${styling.infoPosition.name}"),
+                            ?: error("No horizontal alignment for position ${styling.infoPosition.name}"),
                         styling.infoTextStyle,
                         Modifier.fillMaxWidth().padding(styling.infoPadding),
                     )
@@ -387,7 +387,7 @@ public open class DefaultMarkdownBlockRenderer(
     @Composable
     private fun Code(content: String, mimeType: MimeType, styling: MarkdownStyling.Code.Fenced) {
         val annotatedCode by
-        LocalCodeHighlighter.current.highlight(content, mimeType).collectAsState(AnnotatedString(content))
+            LocalCodeHighlighter.current.highlight(content, mimeType).collectAsState(AnnotatedString(content))
         CodeText(annotatedCode, styling)
     }
 

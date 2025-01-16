@@ -55,7 +55,7 @@ public fun MarkdownPreview(modifier: Modifier = Modifier, rawMarkdown: CharSeque
     // potentially involving ViewModels, dependency injection, etc.
     val processor = remember {
         MarkdownProcessor(
-            listOf(GitHubAlertProcessorExtension, AutolinkProcessorExtension, GitHubTableProcessorExtension),
+            listOf(GitHubAlertProcessorExtension, AutolinkProcessorExtension, GitHubTableProcessorExtension)
         )
     }
 

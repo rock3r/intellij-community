@@ -76,3 +76,4 @@ public final class org/jetbrains/jewel/markdown/extensions/github/tables/RowBack
 	public static fun valueOf (Ljava/lang/String;)Lorg/jetbrains/jewel/markdown/extensions/github/tables/RowBackgroundStyle;
 	public static fun values ()[Lorg/jetbrains/jewel/markdown/extensions/github/tables/RowBackgroundStyle;
 }
+
