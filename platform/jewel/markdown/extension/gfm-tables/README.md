@@ -7,7 +7,7 @@ CommonMark. Tables are parsed by the `commonmark-ext-gfm-tables` library, and re
 The default table styling matches the GitHub styling:
 
 | Light theme                                                             | Dark theme                                                            |
-|-------------------------------------------------------------------------|-----------------------------------------------------------------------|
+ |-------------------------------------------------------------------------|-----------------------------------------------------------------------|
 | ![Screenshot in the light theme](../../../art/docs/gfm-table-light.png) | ![Screenshot in the dark theme](../../../art/docs/gfm-table-dark.png) |
 
 ## Usage
