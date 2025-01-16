@@ -60,11 +60,15 @@ import org.jetbrains.jewel.ui.component.Divider
 import org.jetbrains.jewel.ui.component.HorizontallyScrollableContainer
 import org.jetbrains.jewel.ui.component.Text
 
+/**
+ * Default implementation of [MarkdownBlockRenderer] that uses the provided styling, extensions, and inline renderer to
+ * render [MarkdownBlock]s into Compose UI elements.
+ */
 @ExperimentalJewelApi
 public open class DefaultMarkdownBlockRenderer(
-    private val rootStyling: MarkdownStyling,
-    private val rendererExtensions: List<MarkdownRendererExtension> = emptyList(),
-    private val inlineRenderer: InlineMarkdownRenderer = DefaultInlineMarkdownRenderer(rendererExtensions),
+    override val rootStyling: MarkdownStyling,
+    override val rendererExtensions: List<MarkdownRendererExtension> = emptyList(),
+    override val inlineRenderer: InlineMarkdownRenderer = DefaultInlineMarkdownRenderer(rendererExtensions),
 ) : MarkdownBlockRenderer {
     @Composable
     override fun render(
@@ -201,19 +205,19 @@ public open class DefaultMarkdownBlockRenderer(
     ) {
         Column(
             Modifier.drawBehind {
-                    val isLtr = layoutDirection == Ltr
-                    val lineWidthPx = styling.lineWidth.toPx()
-                    val x = if (isLtr) lineWidthPx / 2 else size.width - lineWidthPx / 2
+                val isLtr = layoutDirection == Ltr
+                val lineWidthPx = styling.lineWidth.toPx()
+                val x = if (isLtr) lineWidthPx / 2 else size.width - lineWidthPx / 2
 
-                    drawLine(
-                        styling.lineColor,
-                        Offset(x, 0f),
-                        Offset(x, size.height),
-                        lineWidthPx,
-                        styling.strokeCap,
-                        styling.pathEffect,
-                    )
-                }
+                drawLine(
+                    styling.lineColor,
+                    Offset(x, 0f),
+                    Offset(x, size.height),
+                    lineWidthPx,
+                    styling.strokeCap,
+                    styling.pathEffect,
+                )
+            }
                 .padding(styling.padding),
             verticalArrangement = Arrangement.spacedBy(rootStyling.blockVerticalSpacing),
         ) {
@@ -359,19 +363,19 @@ public open class DefaultMarkdownBlockRenderer(
                     FencedBlockInfo(
                         mimeType.displayName(),
                         styling.infoPosition.horizontalAlignment
-                            ?: error("No horizontal alignment for position ${styling.infoPosition.name}"),
+                        ?: error("No horizontal alignment for position ${styling.infoPosition.name}"),
                         styling.infoTextStyle,
                         Modifier.fillMaxWidth().padding(styling.infoPadding),
                     )
                 }
 
-                render(block, mimeType, styling)
+                Code(block.content, mimeType, styling)
 
                 if (styling.infoPosition.verticalAlignment == Alignment.Bottom) {
                     FencedBlockInfo(
                         mimeType.displayName(),
                         styling.infoPosition.horizontalAlignment
-                            ?: error("No horizontal alignment for position ${styling.infoPosition.name}"),
+                        ?: error("No horizontal alignment for position ${styling.infoPosition.name}"),
                         styling.infoTextStyle,
                         Modifier.fillMaxWidth().padding(styling.infoPadding),
                     )
@@ -381,12 +385,16 @@ public open class DefaultMarkdownBlockRenderer(
     }
 
     @Composable
-    public open fun render(block: FencedCodeBlock, mimeType: MimeType, styling: MarkdownStyling.Code.Fenced) {
-        val content = block.content
-        val highlightedCode by
-            LocalCodeHighlighter.current.highlight(content, mimeType).collectAsState(AnnotatedString(content))
+    private fun Code(content: String, mimeType: MimeType, styling: MarkdownStyling.Code.Fenced) {
+        val annotatedCode by
+        LocalCodeHighlighter.current.highlight(content, mimeType).collectAsState(AnnotatedString(content))
+        CodeText(annotatedCode, styling)
+    }
+
+    @Composable
+    private fun CodeText(annotatedCode: AnnotatedString, styling: MarkdownStyling.Code.Fenced) {
         Text(
-            text = highlightedCode,
+            text = annotatedCode,
             style = styling.editorTextStyle,
             modifier =
                 Modifier.focusProperties { canFocus = false }
@@ -451,4 +459,19 @@ public open class DefaultMarkdownBlockRenderer(
             content()
         }
     }
+
+    public override fun createCopy(
+        rootStyling: MarkdownStyling?,
+        rendererExtensions: List<MarkdownRendererExtension>?,
+        inlineRenderer: InlineMarkdownRenderer?,
+    ): MarkdownBlockRenderer =
+        DefaultMarkdownBlockRenderer(
+            rootStyling ?: this.rootStyling,
+            rendererExtensions ?: this.rendererExtensions,
+            inlineRenderer ?: this.inlineRenderer,
+        )
+
+    @ExperimentalJewelApi
+    override operator fun plus(extension: MarkdownRendererExtension): MarkdownBlockRenderer =
+        DefaultMarkdownBlockRenderer(rootStyling, rendererExtensions = rendererExtensions + extension, inlineRenderer)
 }
