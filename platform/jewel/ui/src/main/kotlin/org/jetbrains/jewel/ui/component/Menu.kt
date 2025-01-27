@@ -381,7 +381,6 @@ internal fun MenuItem(
                         menuManager.closeAll(localInputModeManager.inputMode, true)
                     },
                     enabled = enabled,
-                    role = Role.Button,
                     interactionSource = interactionSource,
                     indication = null,
                 )
@@ -519,7 +518,6 @@ public fun MenuSubmenuItem(
                 .clickable(
                     onClick = { itemState = itemState.copy(selected = !itemState.isSelected) },
                     enabled = enabled,
-                    role = Role.Button,
                     interactionSource = interactionSource,
                     indication = null,
                 )
