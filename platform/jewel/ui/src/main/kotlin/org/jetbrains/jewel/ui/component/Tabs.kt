@@ -76,9 +76,9 @@ public fun TabContentScope.SimpleTabContent(
 public fun TabContentScope.SimpleTabContent(
     label: String,
     state: TabState,
+    vararg painterHints: PainterHint,
     modifier: Modifier = Modifier,
     iconKey: IconKey? = null,
-    vararg painterHints: PainterHint,
 ) {
     SimpleTabContent(
         state = state,
@@ -109,9 +109,9 @@ public fun TabContentScope.SimpleTabContent(
 
 @Composable
 internal fun TabImpl(
-    modifier: Modifier = Modifier,
     isActive: Boolean,
     tabData: TabData,
+    modifier: Modifier = Modifier,
     interactionSource: MutableInteractionSource = remember { MutableInteractionSource() },
 ) {
     val tabStyle =
