@@ -60,8 +60,7 @@ internal fun InputField(
     style: InputFieldStyle,
     outline: Outline,
     outputTransformation: OutputTransformation?,
-    decorator: TextFieldDecorator?,
-    undecorated: Boolean = decorator == null,
+    decoratorProducer: (InputFieldState) -> TextFieldDecorator?,
     scrollState: ScrollState,
 ) {
     var inputFieldState by remember(interactionSource) { mutableStateOf(InputFieldState.of(enabled = enabled)) }
@@ -80,6 +79,8 @@ internal fun InputField(
     val backgroundColor by colors.backgroundFor(inputFieldState)
     val shape = RoundedCornerShape(style.metrics.cornerSize)
 
+    val decorator = remember(inputFieldState) { decoratorProducer(inputFieldState) }
+    val undecorated = decorator == null
     val backgroundModifier =
         Modifier.thenIf(!undecorated && backgroundColor.isSpecified) { background(backgroundColor, shape) }
 

@@ -1,23 +1,22 @@
 package org.jetbrains.jewel.samples.standalone.view.component
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import org.jetbrains.jewel.ui.Outline
-import org.jetbrains.jewel.ui.component.GroupHeader
+import org.jetbrains.jewel.ui.component.HeightAutoSizingTextArea
 import org.jetbrains.jewel.ui.component.Text
 import org.jetbrains.jewel.ui.component.TextArea
-import org.jetbrains.jewel.ui.component.VerticallyScrollableContainer
 
 @Suppress("SpellCheckingInspection")
 private const val LOREM_IPSUM =
@@ -35,76 +34,107 @@ private const val LOREM_IPSUM =
 
 @Composable
 fun TextAreas() {
-    VerticallyScrollableContainer(Modifier.fillMaxSize()) {
-        Column(Modifier.padding(vertical = 4.dp)) {
-            Row(
-                Modifier.padding(horizontal = 16.dp).height(200.dp),
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-                verticalAlignment = Alignment.Top,
-            ) {
-                TextArea(state = rememberTextFieldState(LOREM_IPSUM), modifier = Modifier.weight(1f).fillMaxHeight())
+    AutoSizingTextArea()
+    //    VerticallyScrollableContainer(Modifier.fillMaxSize()) {
+    //        Column(Modifier.padding(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    //            NormalTextAreas()
+    //            GroupHeader("Read-only")
+    //            ReadOnlyTextAreas()
+    //            GroupHeader("Auto-sizing")
+    //        }
+    //    }
+}
 
-                TextArea(
-                    state = rememberTextFieldState(LOREM_IPSUM),
-                    modifier = Modifier.weight(1f).fillMaxHeight(),
-                    enabled = false,
-                )
+@Composable
+private fun NormalTextAreas() {
+    Row(
+        Modifier.padding(horizontal = 16.dp).height(200.dp),
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+        verticalAlignment = Alignment.Top,
+    ) {
+        TextArea(state = rememberTextFieldState(LOREM_IPSUM), modifier = Modifier.weight(1f).fillMaxHeight())
 
-                TextArea(
-                    state = rememberTextFieldState(""),
-                    modifier = Modifier.weight(1f).fillMaxHeight(),
-                    outline = Outline.Error,
-                    placeholder = { Text("Text area with error") },
-                )
+        TextArea(
+            state = rememberTextFieldState(LOREM_IPSUM),
+            modifier = Modifier.weight(1f).fillMaxHeight(),
+            enabled = false,
+        )
 
-                TextArea(
-                    state = rememberTextFieldState(""),
-                    modifier = Modifier.weight(1f).fillMaxHeight(),
-                    outline = Outline.Warning,
-                    placeholder = { Text("Text area with warning") },
-                )
-            }
+        TextArea(
+            state = rememberTextFieldState(""),
+            modifier = Modifier.weight(1f).fillMaxHeight(),
+            outline = Outline.Error,
+            placeholder = { Text("Text area with error") },
+        )
 
-            Spacer(Modifier.height(16.dp))
+        TextArea(
+            state = rememberTextFieldState(""),
+            modifier = Modifier.weight(1f).fillMaxHeight(),
+            outline = Outline.Warning,
+            placeholder = { Text("Text area with warning") },
+        )
+    }
+}
 
-            GroupHeader("Read-only")
+@Composable
+private fun ReadOnlyTextAreas() {
+    Row(
+        Modifier.padding(horizontal = 16.dp).height(200.dp),
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+        verticalAlignment = Alignment.Top,
+    ) {
+        TextArea(
+            state = rememberTextFieldState(LOREM_IPSUM),
+            modifier = Modifier.weight(1f).fillMaxHeight(),
+            readOnly = true,
+        )
 
-            Spacer(Modifier.height(16.dp))
+        TextArea(
+            state = rememberTextFieldState(LOREM_IPSUM),
+            modifier = Modifier.weight(1f).fillMaxHeight(),
+            enabled = false,
+            readOnly = true,
+        )
 
-            Row(
-                Modifier.padding(horizontal = 16.dp).height(200.dp),
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-                verticalAlignment = Alignment.Top,
-            ) {
-                TextArea(
-                    state = rememberTextFieldState(LOREM_IPSUM),
-                    modifier = Modifier.weight(1f).fillMaxHeight(),
-                    readOnly = true,
-                )
+        TextArea(
+            state = rememberTextFieldState("Error state"),
+            modifier = Modifier.weight(1f).fillMaxHeight(),
+            outline = Outline.Error,
+            placeholder = { Text("Text area with error") },
+            readOnly = true,
+        )
 
-                TextArea(
-                    state = rememberTextFieldState(LOREM_IPSUM),
-                    modifier = Modifier.weight(1f).fillMaxHeight(),
-                    enabled = false,
-                    readOnly = true,
-                )
+        TextArea(
+            state = rememberTextFieldState("Warning state"),
+            modifier = Modifier.weight(1f).fillMaxHeight(),
+            outline = Outline.Warning,
+            placeholder = { Text("Text area with warning") },
+            readOnly = true,
+        )
+    }
+}
 
-                TextArea(
-                    state = rememberTextFieldState("Error state"),
-                    modifier = Modifier.weight(1f).fillMaxHeight(),
-                    outline = Outline.Error,
-                    placeholder = { Text("Text area with error") },
-                    readOnly = true,
-                )
+@Composable
+private fun AutoSizingTextArea() {
+    Row(
+        modifier = Modifier.height(300.dp).fillMaxWidth().padding(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+        verticalAlignment = Alignment.Top,
+    ) {
+        val textFieldState1 = rememberTextFieldState()
+        TextArea(
+            state = textFieldState1,
+            modifier = Modifier.weight(1f).heightIn(50.dp, 150.dp),
+            placeholder = { Text("Decorated, with a height between 50 and 150 dp. Type in here!") },
+        )
 
-                TextArea(
-                    state = rememberTextFieldState("Warning state"),
-                    modifier = Modifier.weight(1f).fillMaxHeight(),
-                    outline = Outline.Warning,
-                    placeholder = { Text("Text area with warning") },
-                    readOnly = true,
-                )
-            }
-        }
+        val textFieldState3 = rememberTextFieldState()
+        val scrollState2 = rememberScrollState()
+        HeightAutoSizingTextArea(
+            state = textFieldState3,
+            scrollState = scrollState2,
+            modifier = Modifier.weight(1f).heightIn(50.dp, 150.dp),
+            undecorated = true,
+        )
     }
 }

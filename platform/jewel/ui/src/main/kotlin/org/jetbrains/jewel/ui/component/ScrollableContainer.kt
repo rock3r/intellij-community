@@ -7,7 +7,6 @@ import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.rememberScrollState
@@ -20,8 +19,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.PointerEventType
-import androidx.compose.ui.input.pointer.PointerIcon
-import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.Placeable
@@ -29,7 +26,6 @@ import androidx.compose.ui.layout.layoutId
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import kotlin.time.Duration
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -43,10 +39,11 @@ import org.jetbrains.jewel.ui.component.styling.ScrollbarVisibility.WhenScrollin
 import org.jetbrains.jewel.ui.theme.scrollbarStyle
 import org.jetbrains.skiko.OS
 import org.jetbrains.skiko.hostOs
+import kotlin.time.Duration
 
-private const val ID_CONTENT = "VerticallyScrollableContainer_content"
-private const val ID_VERTICAL_SCROLLBAR = "VerticallyScrollableContainer_verticalScrollbar"
-private const val ID_HORIZONTAL_SCROLLBAR = "VerticallyScrollableContainer_horizontalScrollbar"
+private const val ID_CONTENT = "ScrollableContainer_content"
+private const val ID_VERTICAL_SCROLLBAR = "ScrollableContainer_verticalScrollbar"
+private const val ID_HORIZONTAL_SCROLLBAR = "ScrollableContainer_horizontalScrollbar"
 
 @Composable
 public fun VerticallyScrollableContainer(
@@ -79,33 +76,6 @@ public fun VerticallyScrollableContainer(
         scrollbarStyle = style,
     ) {
         Box(Modifier.layoutId(ID_CONTENT).verticalScroll(scrollState)) { content() }
-    }
-}
-
-@Composable
-internal fun TextAreaScrollableContainer(
-    scrollState: ScrollState,
-    style: ScrollbarStyle,
-    contentModifier: Modifier,
-    content: @Composable () -> Unit,
-) {
-    var keepVisible by remember { mutableStateOf(false) }
-    val scope = rememberCoroutineScope()
-
-    ScrollableContainerImpl(
-        verticalScrollbar = {
-            VerticalScrollbar(
-                scrollState,
-                style = style,
-                modifier = Modifier.pointerHoverIcon(PointerIcon.Default).padding(1.dp),
-                keepVisible = keepVisible,
-            )
-        },
-        horizontalScrollbar = null,
-        modifier = Modifier.withKeepVisible(style.scrollbarVisibility.lingerDuration, scope) { keepVisible = it },
-        scrollbarStyle = style,
-    ) {
-        Box(contentModifier.layoutId(ID_CONTENT)) { content() }
     }
 }
 
@@ -386,7 +356,22 @@ public fun ScrollableContainer(
     }
 }
 
-private fun Modifier.withKeepVisible(
+/**
+ * Helper modifier that can be used to keep another Composable visible while the mouse is moving over the composable
+ * this is applied to.
+ *
+ * The [onKeepVisibleChange] lambda will be called once when the hover starts with the `true` value. After the mouse
+ * stops moving over this composable for [lingerDuration], the [onKeepVisibleChange] lambda will be called once again
+ * with the `false` value. The [lingerDuration] countdown is reset if the mouse moves again over this composable.
+ *
+ * @param lingerDuration The [Duration] to wait after the mouse stops moving, before [onKeepVisibleChange] is called
+ *   again.
+ * @param scope The [CoroutineScope] to use to wait for the linger duration.
+ * @param onKeepVisibleChange A lambda that will be called with the value `true` when the mouse movement (re)starts, and
+ *   `false` after it stops (after having waited for [lingerDuration] to pass)
+ */
+@ExperimentalJewelApi
+public fun Modifier.withKeepVisible(
     lingerDuration: Duration,
     scope: CoroutineScope,
     onKeepVisibleChange: (Boolean) -> Unit,

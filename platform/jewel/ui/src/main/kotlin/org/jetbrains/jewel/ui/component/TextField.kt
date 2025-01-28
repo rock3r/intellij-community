@@ -77,7 +77,7 @@ public fun TextField(
         style = style,
         outline = outline,
         outputTransformation = outputTransformation,
-        decorator =
+        decoratorProducer = { fieldState ->
             if (!undecorated) {
                 TextFieldDecorator { innerTextField ->
                     val minSize = style.metrics.minSize
@@ -96,7 +96,8 @@ public fun TextField(
                 }
             } else {
                 null
-            },
+            }
+        },
         scrollState = rememberScrollState(),
     )
 }
