@@ -41,6 +41,39 @@ import org.jetbrains.jewel.ui.Outline
 import org.jetbrains.jewel.ui.component.styling.TextFieldStyle
 import org.jetbrains.jewel.ui.theme.textFieldStyle
 
+/**
+ * A text input field that follows the standard visual styling with customizable appearance and behavior.
+ *
+ * Provides a single-line text input component that supports various states including enabled/disabled,
+ * read-only, and focused states. The text field can be customized with icons, placeholder text, and
+ * different visual styles.
+ *
+ * **Guidelines:** [on IJP SDK webhelp](https://plugins.jetbrains.com/docs/intellij/text-field.html)
+ *
+ * **Usage example:**
+ * [`TextFields.kt`](https://github.com/JetBrains/intellij-community/blob/master/platform/jewel/samples/standalone/src/main/kotlin/org/jetbrains/jewel/samples/standalone/view/component/TextFields.kt)
+ *
+ * **Swing equivalent:** [`JTextField`](https://docs.oracle.com/javase/tutorial/uiswing/components/textfield.html)
+ *
+ * @param state The state object that controls the text field's content and selection
+ * @param modifier Modifier to be applied to the text field
+ * @param enabled Controls the enabled state of the text field. When false, the field will not be editable
+ * @param readOnly When true, the text field is readable but not editable
+ * @param inputTransformation Optional transformation applied to input before updating the field's content
+ * @param textStyle The typography style to be applied to the text field's content
+ * @param keyboardOptions Options controlling keyboard input behavior
+ * @param onKeyboardAction Optional handler for keyboard actions
+ * @param onTextLayout Optional callback for text layout changes
+ * @param interactionSource Source of interactions for this text field
+ * @param style The visual styling configuration for the text field
+ * @param outline The outline style to be applied to the text field
+ * @param placeholder Optional placeholder content shown when the field is empty
+ * @param leadingIcon Optional icon shown before the text content
+ * @param trailingIcon Optional icon shown after the text content
+ * @param outputTransformation Optional transformation applied to displayed text
+ * @param undecorated When true, removes the standard visual decoration
+ * @see javax.swing.JTextField
+ */
 @Suppress("DuplicatedCode") // The dupe is scheduled for removal
 @Composable
 public fun TextField(

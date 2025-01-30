@@ -57,6 +57,30 @@ import org.jetbrains.jewel.ui.theme.dropdownStyle
     message = "Use ListComboBox instead. This component will be removed in a future release.",
     level = DeprecationLevel.WARNING,
 )
+/**
+ * A dropdown component that displays custom content and opens a menu when clicked.
+ *
+ * Provides a customizable dropdown that can contain any content in its main area and displays
+ * a popup menu when clicked. The dropdown supports various states including enabled/disabled,
+ * focused, and hovered, adapting its appearance accordingly.
+ *
+ * **Guidelines:** [on IJP SDK webhelp](https://plugins.jetbrains.com/docs/intellij/popups-and-menus.html#dropdown)
+ *
+ * **Usage example:**
+ * [`Dropdowns.kt`](https://github.com/JetBrains/intellij-community/blob/master/platform/jewel/samples/standalone/src/main/kotlin/org/jetbrains/jewel/samples/standalone/view/component/Dropdowns.kt)
+ *
+ * **Swing equivalent:** [`JComboBox`](https://docs.oracle.com/javase/tutorial/uiswing/components/combobox.html)
+ *
+ * @param modifier Modifier to be applied to the dropdown container
+ * @param enabled Controls whether the dropdown can be interacted with
+ * @param menuModifier Modifier to be applied to the popup menu
+ * @param outline The outline style to be applied to the dropdown
+ * @param interactionSource Source of interactions for this dropdown
+ * @param style The visual styling configuration for the dropdown
+ * @param menuContent Builder for the menu content using [MenuScope]
+ * @param content The content to be displayed in the dropdown's main area
+ * @see javax.swing.JComboBox
+ */
 @Composable
 public fun Dropdown(
     modifier: Modifier = Modifier,
@@ -172,6 +196,19 @@ public fun Dropdown(
     }
 }
 
+/**
+ * State holder for dropdown components that tracks various interaction states.
+ *
+ * This class maintains the state of a dropdown, including enabled/disabled state, focus,
+ * hover, and press states. It implements [FocusableComponentState] for consistent behavior
+ * with other focusable components.
+ *
+ * The state is stored efficiently using a bit-masked value, where each bit represents a
+ * different state flag.
+ *
+ * @property state The raw bit-masked state value
+ * @see FocusableComponentState
+ */
 @Immutable
 @JvmInline
 public value class DropdownState(public val state: ULong) : FocusableComponentState {

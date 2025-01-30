@@ -52,6 +52,31 @@ import org.jetbrains.jewel.ui.focusOutline
 import org.jetbrains.jewel.ui.icon.IconKey
 import org.jetbrains.jewel.ui.painter.hints.Stateful
 
+/**
+ * A clickable text link that follows the standard visual styling with customizable appearance.
+ *
+ * Provides a text link that can be clicked to trigger an action. The link supports various states
+ * including enabled/disabled, focused, and hovered, with optional underline behavior based on
+ * the style configuration.
+ *
+ * **Guidelines:** [on IJP SDK webhelp](https://plugins.jetbrains.com/docs/intellij/links.html)
+ *
+ * **Usage example:**
+ * [`Links.kt`](https://github.com/JetBrains/intellij-community/blob/master/platform/jewel/samples/standalone/src/main/kotlin/org/jetbrains/jewel/samples/standalone/view/component/Links.kt)
+ *
+ * **Swing equivalent:** [`JLabel`](https://docs.oracle.com/javase/tutorial/uiswing/components/label.html)
+ * with HTML link styling
+ *
+ * @param text The text to be displayed as a link
+ * @param onClick Called when the link is clicked
+ * @param modifier Modifier to be applied to the link
+ * @param enabled Controls whether the link can be interacted with
+ * @param textStyle The typography style to be applied to the link text
+ * @param overflow How the text should handle overflow
+ * @param interactionSource Source of interactions for this link
+ * @param style The visual styling configuration for the link
+ * @see javax.swing.JLabel
+ */
 @Composable
 public fun Link(
     text: String,
@@ -76,6 +101,32 @@ public fun Link(
     )
 }
 
+/**
+ * A link styled specifically for external links, with appropriate visual treatment.
+ *
+ * Similar to [Link] but with styling that indicates the link leads to an external resource.
+ * This variant typically includes visual cues (like an external link icon) to help users
+ * understand that clicking will take them outside the current context.
+ *
+ * **Guidelines:** [on IJP SDK webhelp](https://plugins.jetbrains.com/docs/intellij/links.html#external-links)
+ *
+ * **Usage example:**
+ * [`Links.kt`](https://github.com/JetBrains/intellij-community/blob/master/platform/jewel/samples/standalone/src/main/kotlin/org/jetbrains/jewel/samples/standalone/view/component/Links.kt)
+ *
+ * **Swing equivalent:** [`JLabel`](https://docs.oracle.com/javase/tutorial/uiswing/components/label.html)
+ * with HTML link styling and external link icon
+ *
+ * @param text The text to be displayed as a link
+ * @param onClick Called when the link is clicked
+ * @param modifier Modifier to be applied to the link
+ * @param enabled Controls whether the link can be interacted with
+ * @param textStyle The typography style to be applied to the link text
+ * @param overflow How the text should handle overflow
+ * @param interactionSource Source of interactions for this link
+ * @param style The visual styling configuration for the link
+ * @see Link
+ * @see javax.swing.JLabel
+ */
 @Composable
 public fun ExternalLink(
     text: String,
@@ -100,6 +151,34 @@ public fun ExternalLink(
     )
 }
 
+/**
+ * A link that opens a dropdown menu when clicked.
+ *
+ * Combines the visual styling of a [Link] with dropdown menu functionality. When clicked,
+ * it displays a popup menu below the link. This is useful for providing additional options
+ * or actions related to the link's context.
+ *
+ * **Guidelines:** [on IJP SDK webhelp](https://plugins.jetbrains.com/docs/intellij/links.html#dropdown-links)
+ *
+ * **Usage example:**
+ * [`Links.kt`](https://github.com/JetBrains/intellij-community/blob/master/platform/jewel/samples/standalone/src/main/kotlin/org/jetbrains/jewel/samples/standalone/view/component/Links.kt)
+ *
+ * **Swing equivalent:** [`JLabel`](https://docs.oracle.com/javase/tutorial/uiswing/components/label.html)
+ * with popup menu
+ *
+ * @param text The text to be displayed as a link
+ * @param modifier Modifier to be applied to the link
+ * @param enabled Controls whether the link can be interacted with
+ * @param textStyle The typography style to be applied to the link text
+ * @param overflow How the text should handle overflow
+ * @param interactionSource Source of interactions for this link
+ * @param style The visual styling configuration for the link
+ * @param menuModifier Modifier to be applied to the dropdown menu
+ * @param menuStyle The visual styling configuration for the menu
+ * @param menuContent Builder for the menu content using [MenuScope]
+ * @see Link
+ * @see PopupMenu
+ */
 @Composable
 public fun DropdownLink(
     text: String,

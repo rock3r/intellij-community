@@ -39,6 +39,26 @@ import org.jetbrains.jewel.ui.component.styling.InlineBannerStyle
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 import org.jetbrains.jewel.ui.theme.inlineBannerStyle
 
+/**
+ * An informational inline banner that displays a message with optional actions.
+ *
+ * Provides a visually distinct area for showing informational messages, with support for an icon,
+ * text content, and optional action buttons. The banner uses a style appropriate for informational
+ * content.
+ *
+ * **Guidelines:** [on IJP SDK webhelp](https://plugins.jetbrains.com/docs/intellij/inline-banner.html)
+ *
+ * **Usage example:**
+ * [`InlineBanners.kt`](https://github.com/JetBrains/intellij-community/blob/master/platform/jewel/samples/standalone/src/main/kotlin/org/jetbrains/jewel/samples/standalone/view/component/InlineBanners.kt)
+ *
+ * @param text The message to be displayed in the banner
+ * @param modifier Modifier to be applied to the banner
+ * @param icon Optional icon to be displayed before the text. Defaults to an information icon
+ * @param actions Optional composable that provides action buttons in a flow layout
+ * @param actionIcons Optional composable that provides action icons in a row layout
+ * @param style The visual styling configuration for the banner
+ * @param textStyle The typography style to be applied to the banner's text content
+ */
 @Composable
 public fun InformationInlineBanner(
     text: String,
@@ -60,6 +80,26 @@ public fun InformationInlineBanner(
     )
 }
 
+/**
+ * A success-themed inline banner that displays a positive message with optional actions.
+ *
+ * Provides a visually distinct area for showing success or completion messages, with support for an icon,
+ * text content, and optional action buttons. The banner uses a style appropriate for positive
+ * feedback.
+ *
+ * **Guidelines:** [on IJP SDK webhelp](https://plugins.jetbrains.com/docs/intellij/inline-banner.html)
+ *
+ * **Usage example:**
+ * [`InlineBanners.kt`](https://github.com/JetBrains/intellij-community/blob/master/platform/jewel/samples/standalone/src/main/kotlin/org/jetbrains/jewel/samples/standalone/view/component/InlineBanners.kt)
+ *
+ * @param text The message to be displayed in the banner
+ * @param modifier Modifier to be applied to the banner
+ * @param icon Optional icon to be displayed before the text. Defaults to a success icon
+ * @param actions Optional composable that provides action buttons in a flow layout
+ * @param actionIcons Optional composable that provides action icons in a row layout
+ * @param style The visual styling configuration for the banner
+ * @param textStyle The typography style to be applied to the banner's text content
+ */
 @Composable
 public fun SuccessInlineBanner(
     text: String,
@@ -81,6 +121,26 @@ public fun SuccessInlineBanner(
     )
 }
 
+/**
+ * A warning-themed inline banner that displays a cautionary message with optional actions.
+ *
+ * Provides a visually distinct area for showing warning messages that require attention, with support for an icon,
+ * text content, and optional action buttons. The banner uses a style appropriate for warning
+ * notifications.
+ *
+ * **Guidelines:** [on IJP SDK webhelp](https://plugins.jetbrains.com/docs/intellij/inline-banner.html)
+ *
+ * **Usage example:**
+ * [`InlineBanners.kt`](https://github.com/JetBrains/intellij-community/blob/master/platform/jewel/samples/standalone/src/main/kotlin/org/jetbrains/jewel/samples/standalone/view/component/InlineBanners.kt)
+ *
+ * @param text The message to be displayed in the banner
+ * @param modifier Modifier to be applied to the banner
+ * @param icon Optional icon to be displayed before the text. Defaults to a warning icon
+ * @param actions Optional composable that provides action buttons in a flow layout
+ * @param actionIcons Optional composable that provides action icons in a row layout
+ * @param style The visual styling configuration for the banner
+ * @param textStyle The typography style to be applied to the banner's text content
+ */
 @Composable
 public fun WarningInlineBanner(
     text: String,
@@ -102,6 +162,26 @@ public fun WarningInlineBanner(
     )
 }
 
+/**
+ * An error-themed inline banner that displays a critical message with optional actions.
+ *
+ * Provides a visually distinct area for showing error messages that require immediate attention, with support for an icon,
+ * text content, and optional action buttons. The banner uses a style appropriate for error
+ * notifications.
+ *
+ * **Guidelines:** [on IJP SDK webhelp](https://plugins.jetbrains.com/docs/intellij/inline-banner.html)
+ *
+ * **Usage example:**
+ * [`InlineBanners.kt`](https://github.com/JetBrains/intellij-community/blob/master/platform/jewel/samples/standalone/src/main/kotlin/org/jetbrains/jewel/samples/standalone/view/component/InlineBanners.kt)
+ *
+ * @param text The message to be displayed in the banner
+ * @param modifier Modifier to be applied to the banner
+ * @param icon Optional icon to be displayed before the text. Defaults to an error icon
+ * @param actions Optional composable that provides action buttons in a flow layout
+ * @param actionIcons Optional composable that provides action icons in a row layout
+ * @param style The visual styling configuration for the banner
+ * @param textStyle The typography style to be applied to the banner's text content
+ */
 @Composable
 public fun ErrorInlineBanner(
     text: String,
