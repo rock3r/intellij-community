@@ -31,6 +31,8 @@ def get_type(table):
 
 def get_shape(table):
     # type: (np.ndarray) -> str
+    if table.dtype.names is not None:
+        return str((table.shape[0], len(table.dtype.names)))
     if table.ndim == 1:
         return str((table.shape[0], 1))
     else:
@@ -39,13 +41,19 @@ def get_shape(table):
 
 def get_head(table):
     # type: (np.ndarray) -> str
+    column_names = table.dtype.names
+    if column_names:
+        return TABLE_TYPE_NEXT_VALUE_SEPARATOR.join([str(column_names[i]) for i in range(len(column_names))])
     return "None"
 
 
 def get_column_types(table):
     # type: (np.ndarray) -> str
     table = __create_table(table[:1])
-    cols_types = [str(t) for t in table.dtypes] if is_pd else table.get_cols_types()
+    try:
+        cols_types = [str(t) for t in table.dtypes] if is_pd else table.get_cols_types()
+    except AttributeError:
+        cols_types = table.get_cols_types()
 
     return NP_ROWS_TYPE + TABLE_TYPE_NEXT_VALUE_SEPARATOR + \
         TABLE_TYPE_NEXT_VALUE_SEPARATOR.join(cols_types)
@@ -172,7 +180,8 @@ class _NpTable:
             return ['<th>0</th>\n']
 
         if self.type == WITH_TYPES:
-            return ['<th>{}</th>\n'.format(name) for name in self.array.dtype.names]
+            columns_names = self.array.dtype.names
+            return ['<th>{}</th>\n'.format(str(columns_names[i])) for i in range(len(columns_names))]
 
         return ['<th>{}</th>\n'.format(i) for i in range(len(self.array[0]))]
 
@@ -321,7 +330,12 @@ def __create_table(command, start_index=None, end_index=None, format=None):
         np_array = command
 
     if is_pd:
-        sorted_df = __sort_df(pd.DataFrame(np_array), sort_keys)
+        if isinstance(np_array, np.recarray):
+            sorted_df = pd.DataFrame()
+            for record in np_array:
+                sorted_df = pd.concat([sorted_df, pd.DataFrame(record.tolist())])
+        else:
+            sorted_df = __sort_df(pd.DataFrame(np_array), sort_keys)
         if start_index is not None and end_index is not None:
             sorted_df_slice = sorted_df.iloc[start_index:end_index]
             # to apply "format" we should not have None inside DFs

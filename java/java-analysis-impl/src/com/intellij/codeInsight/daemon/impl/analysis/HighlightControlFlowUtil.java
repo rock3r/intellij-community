@@ -35,6 +35,7 @@ import com.siyeh.ig.psiutils.ExpressionUtils;
 import com.siyeh.ig.psiutils.VariableAccessUtils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.jetbrains.annotations.PropertyKey;
 
 import java.util.*;
 import java.util.function.Predicate;
@@ -172,7 +173,7 @@ public final class HighlightControlFlowUtil {
       for (PsiMethod constructor : constructors) {
         PsiCodeBlock ctrBody = constructor.getBody();
         if (ctrBody == null) return false;
-        for (PsiMethod redirectedConstructor : JavaHighlightUtil.getChainedConstructors(constructor)) {
+        for (PsiMethod redirectedConstructor : JavaPsiConstructorUtil.getChainedConstructors(constructor)) {
           PsiCodeBlock body = redirectedConstructor.getBody();
           if (body != null && variableDefinitelyAssignedIn(field, body, true)) continue nextConstructor;
         }
@@ -205,14 +206,6 @@ public final class HighlightControlFlowUtil {
       }
     }
     return false;
-  }
-
-  static boolean isRecursivelyCalledConstructor(@NotNull PsiMethod constructor) {
-    JavaHighlightUtil.ConstructorVisitorInfo info = new JavaHighlightUtil.ConstructorVisitorInfo();
-    JavaHighlightUtil.visitConstructorChain(constructor, info);
-    if (info.recursivelyCalledConstructor == null) return false;
-    // our constructor is reached from some other constructor by constructor chain
-    return info.visitedConstructors.indexOf(info.recursivelyCalledConstructor) <= info.visitedConstructors.indexOf(constructor);
   }
 
   public static boolean isAssigned(@NotNull PsiParameter parameter) {
@@ -370,7 +363,7 @@ public final class HighlightControlFlowUtil {
           // static variables already initialized in class initializers
           if (variable.hasModifierProperty(PsiModifier.STATIC)) return null;
           // as a last chance, field may be initialized in this() call
-          for (PsiMethod redirectedConstructor : JavaHighlightUtil.getChainedConstructors(constructor)) {
+          for (PsiMethod redirectedConstructor : JavaPsiConstructorUtil.getChainedConstructors(constructor)) {
             // variable must be initialized before its usage
             //???
             //if (startOffset < redirectedConstructor.getTextRange().getStartOffset()) continue;
@@ -429,7 +422,7 @@ public final class HighlightControlFlowUtil {
               return null;
             }
             // as a last chance, field may be initialized in this() call
-            for (PsiMethod redirectedConstructor : JavaHighlightUtil.getChainedConstructors(constructor)) {
+            for (PsiMethod redirectedConstructor : JavaPsiConstructorUtil.getChainedConstructors(constructor)) {
               // variable must be initialized before its usage
               if (offset < redirectedConstructor.getTextRange().getStartOffset()) continue;
               PsiCodeBlock redirectedBody = redirectedConstructor.getBody();
@@ -775,18 +768,27 @@ public final class HighlightControlFlowUtil {
       if (label != null && PsiTreeUtil.isAncestor(label.getGuardExpression(), context, false)) {
         return null;
       }
-      if (!isEffectivelyFinal(variable, lambdaExpression, context)) {
-        String text = JavaErrorBundle.message("lambda.variable.must.be.final");
-        HighlightInfo.Builder builder = HighlightInfo.newHighlightInfo(HighlightInfoType.ERROR).range(context).descriptionAndTooltip(text);
-        IntentionAction action1 = getQuickFixFactory().createVariableAccessFromInnerClassFix(variable, lambdaExpression);
-        builder.registerFix(action1, null, null, null, null);
-        IntentionAction action = getQuickFixFactory().createMakeVariableEffectivelyFinalFix(variable);
-        if (action != null) {
-          builder.registerFix(action, null, null, null, null);
-        }
-        ErrorFixExtensionPoint.registerFixes(builder, context, "lambda.variable.must.be.final");
-        return builder;
+      HighlightInfo.Builder builder = checkVariableMustBeEffectivelyFinal(variable, context, lambdaExpression, "lambda.variable.must.be.final");
+      if (builder != null) return builder;
+    }
+    return null;
+  }
+
+  private static HighlightInfo.Builder checkVariableMustBeEffectivelyFinal(@NotNull PsiVariable variable,
+                                                                           @NotNull PsiJavaCodeReferenceElement context,
+                                                                           @NotNull PsiElement scope,
+                                                                           @NotNull @PropertyKey(resourceBundle = JavaErrorBundle.BUNDLE) String messageKey) {
+    if (!isEffectivelyFinal(variable, scope, context)) {
+      String text = JavaErrorBundle.message(messageKey);
+      HighlightInfo.Builder builder = HighlightInfo.newHighlightInfo(HighlightInfoType.ERROR).range(context).descriptionAndTooltip(text);
+      IntentionAction action1 = getQuickFixFactory().createVariableAccessFromInnerClassFix(variable, scope);
+      builder.registerFix(action1, null, null, null, null);
+      IntentionAction action2 = getQuickFixFactory().createMakeVariableEffectivelyFinalFix(variable);
+      if (action2 != null) {
+        builder.registerFix(action2, null, null, null, null);
       }
+      ErrorFixExtensionPoint.registerFixes(builder, context, messageKey);
+      return builder;
     }
     return null;
   }
@@ -803,18 +805,9 @@ public final class HighlightControlFlowUtil {
     if (!PsiTreeUtil.isAncestor(guardExpression, context, false)) return null;
     //this assignment is covered by com.intellij.codeInsight.daemon.impl.analysis.HighlightUtil.checkOutsideDeclaredCantBeAssignmentInGuard
     boolean isAssignment = context instanceof PsiReferenceExpression ref && PsiUtil.isAccessedForWriting(ref);
-    if (!isAssignment && !PsiTreeUtil.isAncestor(guardExpression, variable, false) &&
-        !isEffectivelyFinal(variable, refLabel, context)) {
-      String message = JavaErrorBundle.message("guarded.pattern.variable.must.be.final");
-      HighlightInfo.Builder builder = HighlightInfo.newHighlightInfo(HighlightInfoType.ERROR).range(context).descriptionAndTooltip(message);
-      IntentionAction action = getQuickFixFactory().createVariableAccessFromInnerClassFix(variable, refLabel);
-      builder.registerFix(action, null, null, null, null);
-      IntentionAction action2 = getQuickFixFactory().createMakeVariableEffectivelyFinalFix(variable);
-      if (action2 != null) {
-        builder.registerFix(action2, null, null, null, null);
-      }
-      ErrorFixExtensionPoint.registerFixes(builder, context, "guarded.pattern.variable.must.be.final");
-      return builder;
+    if (!isAssignment && !PsiTreeUtil.isAncestor(guardExpression, variable, false)) {
+      HighlightInfo.Builder builder = checkVariableMustBeEffectivelyFinal(variable, context, refLabel, "guarded.pattern.variable.must.be.final");
+      if (builder != null) return builder;
     }
     return null;
   }

@@ -5,18 +5,14 @@ import com.intellij.ide.IdeBundle
 import com.intellij.openapi.actionSystem.DataKey
 import com.intellij.openapi.actionSystem.DataSink
 import com.intellij.openapi.actionSystem.UiDataProvider
-import com.intellij.openapi.components.service
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.ui.popup.ListItemDescriptor
 import com.intellij.ui.CollectionListModel
 import com.intellij.ui.components.JBList
 import com.intellij.ui.popup.list.GroupedItemsListRenderer
-import com.intellij.xdebugger.XDebugSession
 import com.intellij.xdebugger.XDebuggerBundle
 import com.intellij.xdebugger.frame.XExecutionStack
 import com.intellij.xdebugger.frame.XExecutionStack.AdditionalDisplayInfo
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.future.asCompletableFuture
 import org.jetbrains.annotations.ApiStatus
 import org.jetbrains.annotations.Nls
 import java.awt.Component
@@ -46,11 +42,8 @@ class XDebuggerThreadsList(
   companion object {
     val THREADS_LIST: DataKey<XDebuggerThreadsList> = DataKey.create("THREADS_LIST")
 
-    fun createDefault(): XDebuggerThreadsList {
-      return create(XDebuggerGroupedFrameListRenderer())
-    }
-
-    fun create(renderer: ListCellRenderer<StackInfo>): XDebuggerThreadsList {
+    fun createDefault(withDescription: Boolean): XDebuggerThreadsList {
+      val renderer = if (withDescription) XDebuggerGroupedFrameListRendererWithDescription() else XDebuggerGroupedFrameListRenderer()
       val list = XDebuggerThreadsList(renderer)
       list.doInit()
       return list
@@ -125,8 +118,7 @@ class XDebuggerThreadsList(
     model.removeAll()
   }
 
-  private class XDebuggerGroupedFrameListRenderer() : GroupedItemsListRenderer<StackInfo>(XDebuggerListItemDescriptor()) {
-    private val myOriginalRenderer = XDebuggerThreadsListRenderer()
+  private open class XDebuggerGroupedFrameListRenderer : GroupedItemsListRenderer<StackInfo>(XDebuggerListItemDescriptor()) {
 
     init {
       mySeparatorComponent.setCaptionCentered(false)
@@ -139,12 +131,21 @@ class XDebuggerThreadsList(
       isSelected: Boolean,
       cellHasFocus: Boolean,
     ): Component {
-      return myOriginalRenderer.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus)
+      @Suppress("UNCHECKED_CAST") val renderer = itemComponent as? ListCellRenderer<StackInfo> ?: throw IllegalStateException("Invalid component $itemComponent")
+      return renderer.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus)
     }
 
     override fun createItemComponent(): JComponent {
       createLabel()
       return XDebuggerThreadsListRenderer()
+    }
+  }
+
+  private class XDebuggerGroupedFrameListRendererWithDescription : XDebuggerGroupedFrameListRenderer() {
+
+    override fun createItemComponent(): JComponent {
+      createLabel()
+      return XDebuggerThreadsListRendererWithDescription()
     }
   }
 
@@ -159,57 +160,23 @@ class XDebuggerThreadsList(
   }
 }
 
-
-private val logger = Logger.getInstance(StackInfo::class.java)
-
 data class StackInfo internal constructor(
   @Nls val displayText: String,
   val icon: Icon?,
   @Nls val additionalDisplayText: AdditionalDisplayInfo?,
-  val stack: XExecutionStack?,
-  val session: XDebugSession?,
+  val stack: XExecutionStack?
 ) {
 
   companion object {
-    fun from(executionStack: XExecutionStack, session: XDebugSession): StackInfo = StackInfo(executionStack.displayName, executionStack.icon, executionStack.additionalDisplayInfo, executionStack, session)
-    fun error(@Nls error: String, session: XDebugSession): StackInfo = StackInfo(error, null, null, null, session)
+    fun from(executionStack: XExecutionStack): StackInfo = StackInfo(executionStack.displayName, executionStack.icon, executionStack.additionalDisplayInfo, executionStack)
+    fun error(@Nls error: String): StackInfo = StackInfo(error, null, null, null)
 
-    val LOADING: StackInfo = StackInfo(XDebuggerBundle.message("stack.frame.loading.text"), null, null, null, null)
+    val LOADING: StackInfo = StackInfo(XDebuggerBundle.message("stack.frame.loading.text"), null, null, null)
   }
 
   @Volatile
   @Nls
-  private var description: String? = null
+  internal var description: String = if (stack == null) "" else IdeBundle.message("progress.text.loading")
 
   override fun toString(): String = displayText
-
-  @Nls
-  fun getDescription(): String {
-    val currentDescription = description
-    if (currentDescription != null) {
-      return currentDescription
-    }
-
-    if (session == null || stack == null) {
-      return ""
-    }
-    @Nls val loadingText = IdeBundle.message("progress.text.loading")
-    description = loadingText
-    @Suppress("SSBasedInspection")
-    session.project.service<XDebuggerExecutionStackDescriptionService>().getExecutionStackDescription(stack, session).asCompletableFuture().whenCompleteAsync { result: String?, exception: Throwable? ->
-      if (exception is CancellationException) {
-        return@whenCompleteAsync
-      }
-      if (exception != null) {
-        logger.error(exception)
-      }
-      if (result != null) {
-        @Suppress("HardCodedStringLiteral")
-        description = result
-      }
-    }
-    return loadingText
-  }
-
-  fun supportsDescription(): Boolean = session?.project?.service<XDebuggerExecutionStackDescriptionService>()?.isAvailable() == true
 }

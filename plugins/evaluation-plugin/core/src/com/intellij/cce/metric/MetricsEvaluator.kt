@@ -2,8 +2,6 @@
 package com.intellij.cce.metric
 
 import com.intellij.cce.core.Session
-import com.intellij.openapi.diagnostic.Logger
-
 
 class MetricsEvaluator private constructor(private val evaluationType: String) {
   companion object {
@@ -58,7 +56,7 @@ class MetricsEvaluator private constructor(private val evaluationType: String) {
     }
   }
 
-  fun result(): List<MetricInfo> {
+  fun globalMetricInfos(): List<MetricInfo> {
     return metrics.map {
       MetricInfo(
         name = it.name,

@@ -63,7 +63,7 @@ public abstract class ExecutionWithDebuggerToolsTestCase extends ExecutionTestCa
   @Override
   protected void setUp() throws Exception {
     super.setUp();
-    myLogAllCommands = false; // reset for every test
+    myLogAllCommands = logAllCommands(); // reset for every test
   }
 
   private static class InvokeRatherLaterRequest {
@@ -75,6 +75,14 @@ public abstract class ExecutionWithDebuggerToolsTestCase extends ExecutionTestCa
       myDebuggerCommand = debuggerCommand;
       myDebugProcess = debugProcess;
     }
+  }
+
+  /**
+   * Determines whether all commands executed within the debugger test case are logged in the output.
+   * You can override it changing {@link #myLogAllCommands} right in the test.
+   */
+  protected boolean logAllCommands() {
+    return true;
   }
 
   public final List<InvokeRatherLaterRequest> myRatherLaterRequests = new ArrayList<>();
@@ -307,10 +315,15 @@ public abstract class ExecutionWithDebuggerToolsTestCase extends ExecutionTestCa
         protected void commandCancelled() {
           pumpDebuggerThread(request);
         }
+
+        @Override
+        public @NotNull Priority getPriority() {
+          return Priority.LOWEST;
+        }
       });
     }
     else {
-      request.myDebugProcess.getManagerThread().schedule(new DebuggerCommandImpl() {
+      request.myDebugProcess.getManagerThread().schedule(new DebuggerCommandImpl(PrioritizedTask.Priority.LOWEST) {
         @Override
         protected void action() {
           pumpDebuggerThread(request);
@@ -608,7 +621,7 @@ public abstract class ExecutionWithDebuggerToolsTestCase extends ExecutionTestCa
     public void paused(SuspendContextImpl suspendContext) {
       // Need to add SuspendContextCommandImpl because the stepping pause is not now in SuspendContextCommandImpl
       DebuggerManagerThreadImpl debuggerManagerThread = suspendContext.getManagerThread();
-      debuggerManagerThread.invoke(new SuspendContextCommandImpl(suspendContext) {
+      debuggerManagerThread.invokeNow(new SuspendContextCommandImpl(suspendContext) {
         @Override
         public void contextAction(@NotNull SuspendContextImpl suspendContext) {
           pausedImpl(suspendContext);

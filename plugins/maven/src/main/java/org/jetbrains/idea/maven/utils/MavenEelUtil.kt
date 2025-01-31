@@ -29,11 +29,11 @@ import com.intellij.openapi.util.registry.Registry
 import com.intellij.platform.eel.EelApi
 import com.intellij.platform.eel.LocalEelApi
 import com.intellij.platform.eel.fs.getPath
-import com.intellij.platform.eel.impl.utils.where
 import com.intellij.platform.eel.provider.asNioPath
 import com.intellij.platform.eel.provider.asNioPathOrNull
 import com.intellij.platform.eel.provider.getEelDescriptor
 import com.intellij.platform.eel.provider.utils.fetchLoginShellEnvVariablesBlocking
+import com.intellij.platform.eel.provider.utils.where
 import com.intellij.platform.ide.progress.runWithModalProgressBlocking
 import com.intellij.platform.ide.progress.withBackgroundProgress
 import com.intellij.platform.util.progress.withProgressText
@@ -48,10 +48,25 @@ import org.jetbrains.idea.maven.config.MavenConfigSettings
 import org.jetbrains.idea.maven.execution.SyncBundle
 import org.jetbrains.idea.maven.project.*
 import org.jetbrains.idea.maven.server.MavenServerManager
+import org.jetbrains.idea.maven.utils.MavenUtil.CONF_DIR
+import org.jetbrains.idea.maven.utils.MavenUtil.DOT_M2_DIR
+import org.jetbrains.idea.maven.utils.MavenUtil.ENV_M2_HOME
+import org.jetbrains.idea.maven.utils.MavenUtil.MAVEN_NOTIFICATION_GROUP
+import org.jetbrains.idea.maven.utils.MavenUtil.MAVEN_REPO_LOCAL
+import org.jetbrains.idea.maven.utils.MavenUtil.PROP_FORCED_M2_HOME
+import org.jetbrains.idea.maven.utils.MavenUtil.REPOSITORY_DIR
+import org.jetbrains.idea.maven.utils.MavenUtil.SETTINGS_XML
+import org.jetbrains.idea.maven.utils.MavenUtil.doResolveLocalRepository
+import org.jetbrains.idea.maven.utils.MavenUtil.getMavenHomePath
+import org.jetbrains.idea.maven.utils.MavenUtil.isEmptyOrSpaces
+import org.jetbrains.idea.maven.utils.MavenUtil.isMavenUnitTestModeEnabled
+import org.jetbrains.idea.maven.utils.MavenUtil.isValidMavenHome
+import org.jetbrains.idea.maven.utils.MavenUtil.resolveGlobalSettingsFile
+import org.jetbrains.idea.maven.utils.MavenUtil.resolveUserSettingsPath
 import java.nio.file.Path
 import javax.swing.event.HyperlinkEvent
 
-object MavenEelUtil : MavenUtil() {
+object MavenEelUtil  {
   @JvmStatic
   fun EelApi?.resolveM2Dir(): Path {
     val localUserHome = Path.of(SystemProperties.getUserHome())
@@ -126,7 +141,7 @@ object MavenEelUtil : MavenUtil() {
       result.add(MavenInSpecificPath(home))
     }
 
-    val path = runBlockingMaybeCancellable { where("mvn") }?.asNioPathOrNull()?.parent?.parent
+    val path = runBlockingMaybeCancellable { exec.where("mvn") }?.asNioPathOrNull()?.parent?.parent
     if (path != null && isValidMavenHome(path)) {
       result.add(MavenInSpecificPath(path))
     }

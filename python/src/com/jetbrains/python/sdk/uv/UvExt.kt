@@ -22,11 +22,11 @@ import kotlin.io.path.pathString
 internal val Sdk.isUv: Boolean
   get() = sdkAdditionalData is UvSdkAdditionalData
 
-internal suspend fun uvLock(module: Module): VirtualFile? {
-  return withContext(Dispatchers.IO) {
-    findAmongRoots(module, UV_LOCK)
+internal val Sdk.uvUsePackageManagement: Boolean
+  get() {
+    val data = sdkAdditionalData as? UvSdkAdditionalData ?: return false
+    return data.usePip
   }
-}
 
 internal suspend fun pyProjectToml(module: Module): VirtualFile? {
   return withContext(Dispatchers.IO) {
@@ -39,7 +39,6 @@ internal fun suggestedSdkName(basePath: Path): @NlsSafe String {
 }
 
 val UV_ICON: Icon = PythonIcons.UV
-const val UV_LOCK: String = "uv.lock"
 
 // FIXME: move pyprojecttoml code out to common package
 const val PY_PROJECT_TOML: String = "pyproject.toml"

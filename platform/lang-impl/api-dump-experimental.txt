@@ -143,9 +143,6 @@ c:com.intellij.codeInsight.actions.VcsFacade
 *f:com.intellij.codeInsight.codeVision.CodeVisionProvider$Companion
 - sf:EP_NAME:java.lang.String
 - f:getProvidersExtensionPoint():com.intellij.openapi.extensions.ExtensionPointName
-*:com.intellij.codeInsight.daemon.impl.InjectedLanguageHighlightingRangeReducer
-- sf:EP_NAME:com.intellij.openapi.extensions.ExtensionPointName
-- a:reduceRange(com.intellij.psi.PsiFile,com.intellij.openapi.editor.Editor):java.util.List
 *:com.intellij.codeInsight.daemon.impl.focusMode.FocusModeProvider
 - a:calcFocusZones(com.intellij.psi.PsiFile):java.util.List
 *:com.intellij.codeInsight.editorActions.TypingActionsExtension
@@ -205,6 +202,8 @@ f:com.intellij.codeInsight.highlighting.HighlightUsagesHandler
 *f:com.intellij.codeInsight.hints.InlayHintsUtils
 - sf:INSTANCE:com.intellij.codeInsight.hints.InlayHintsUtils
 - f:computeCodeVisionUnderReadAction(kotlin.jvm.functions.Function0):com.intellij.codeInsight.codeVision.CodeVisionState
+- f:computeCodeVisionUnderReadAction(Z,kotlin.jvm.functions.Function0):com.intellij.codeInsight.codeVision.CodeVisionState
+- bs:computeCodeVisionUnderReadAction$default(com.intellij.codeInsight.hints.InlayHintsUtils,Z,kotlin.jvm.functions.Function0,I,java.lang.Object):com.intellij.codeInsight.codeVision.CodeVisionState
 - f:getDefaultInlayHintsProviderPopupActions(com.intellij.codeInsight.hints.SettingsKey,java.util.function.Supplier):java.util.List
 - f:getTextRangeWithoutLeadingCommentsAndWhitespaces(com.intellij.psi.PsiElement):com.intellij.openapi.util.TextRange
 - sf:isFirstInLine(com.intellij.psi.PsiElement):Z
@@ -863,9 +862,6 @@ f:com.intellij.unscramble.AnalyzeStacktraceUtil
 - *sf:EP_CONTENT_PROVIDER:com.intellij.openapi.extensions.ProjectExtensionPointName
 *:com.intellij.unscramble.StacktraceTabContentProvider
 - a:createRunTabDescriptor(com.intellij.openapi.project.Project,java.lang.String,kotlin.coroutines.Continuation):java.lang.Object
-*f:com.intellij.util.gist.GistAstMarker
-- <init>(com.intellij.openapi.fileTypes.FileType,java.lang.String,kotlin.jvm.functions.Function1):V
-- f:accepts(com.intellij.openapi.project.Project,com.intellij.openapi.vfs.VirtualFile):Z
 *f:com.intellij.util.gist.GistModificationTracker
 - com.intellij.openapi.util.ModificationTracker
 - <init>(com.intellij.openapi.vfs.VirtualFile):V

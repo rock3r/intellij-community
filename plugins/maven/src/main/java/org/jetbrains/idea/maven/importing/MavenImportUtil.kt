@@ -68,7 +68,7 @@ object MavenImportUtil {
   private const val PHASE_TEST_COMPILE = "test-compile"
 
   private const val GOAL_COMPILE = "compile"
-  private const val GOAL_TEST_COMPILE = "test-compile"
+  private const val GOAL_TEST_COMPILE = "testCompile"
 
   private const val EXECUTION_COMPILE = "default-compile"
   private const val EXECUTION_TEST_COMPILE = "default-testCompile"
@@ -79,19 +79,27 @@ object MavenImportUtil {
   }
 
   internal fun getSourceLanguageLevel(mavenProject: MavenProject): LanguageLevel? {
-    return getMavenLanguageLevel(mavenProject, true, false)
+    return MavenLanguageLevelFinder(mavenProject, true, false).getMavenLanguageLevel()
+  }
+
+  internal fun getSourceLanguageLevel(mavenProject: MavenProject, executionId: String): LanguageLevel? {
+    return MavenLanguageLevelFinder(mavenProject, true, false, executionId).getMavenLanguageLevel()
   }
 
   internal fun getTestSourceLanguageLevel(mavenProject: MavenProject): LanguageLevel? {
-    return getMavenLanguageLevel(mavenProject, true, true)
+    return MavenLanguageLevelFinder(mavenProject, true, true).getMavenLanguageLevel()
   }
 
   internal fun getTargetLanguageLevel(mavenProject: MavenProject): LanguageLevel? {
-    return getMavenLanguageLevel(mavenProject, false, false)
+    return MavenLanguageLevelFinder(mavenProject, false, false).getMavenLanguageLevel()
+  }
+
+  internal fun getTargetLanguageLevel(mavenProject: MavenProject, executionId: String): LanguageLevel? {
+    return MavenLanguageLevelFinder(mavenProject, false, false, executionId).getMavenLanguageLevel()
   }
 
   internal fun getTestTargetLanguageLevel(mavenProject: MavenProject): LanguageLevel? {
-    return getMavenLanguageLevel(mavenProject, false, true)
+    return MavenLanguageLevelFinder(mavenProject, false, true).getMavenLanguageLevel()
   }
 
   internal fun getLanguageLevel(mavenProject: MavenProject, supplier: Supplier<LanguageLevel?>): LanguageLevel {
@@ -152,13 +160,13 @@ object MavenImportUtil {
     val executions = plugin.executions
     if (executions == null || executions.isEmpty()) return false
     val compileExec = executions.find { isCompileExecution(it) }
-    val testExec = executions.find { isTestExecution(it) }
+    val testExec = executions.find { isTestCompileExecution(it) }
     if (compileExec == null) return testExec != null
     if (testExec == null) return true
     return !JDOMUtil.areElementsEqual(compileExec.configurationElement, testExec.configurationElement)
   }
 
-  private fun isTestExecution(e: MavenPlugin.Execution): Boolean {
+  private fun isTestCompileExecution(e: MavenPlugin.Execution): Boolean {
     return checkExecution(e, PHASE_TEST_COMPILE, GOAL_TEST_COMPILE, EXECUTION_TEST_COMPILE)
   }
 
@@ -209,29 +217,50 @@ object MavenImportUtil {
     return compileSourceRootEncoder.decode(suffix)
   }
 
-  private fun getMavenLanguageLevel(mavenProject: MavenProject, isSource: Boolean, isTest: Boolean): LanguageLevel? {
-    val useReleaseCompilerProp = isReleaseCompilerProp(mavenProject)
-    val releaseLevel = if (useReleaseCompilerProp) getMavenLanguageLevelFromRelease(mavenProject, isTest) else null
-    return releaseLevel ?: getMavenLanguageLevelFromSourceOrTarget(mavenProject, isSource, isTest)
-  }
+  private class MavenLanguageLevelFinder(
+    val mavenProject: MavenProject,
+    val isSource: Boolean,
+    val isTest: Boolean,
+    val executionId: String? = null,
+  ) {
+    fun getMavenLanguageLevel(): LanguageLevel? {
+      val useReleaseCompilerProp = isReleaseCompilerProp(mavenProject)
+      val releaseLevel = if (useReleaseCompilerProp) getCompilerLevel("release") else null
+      return releaseLevel ?: getCompilerLevel(if (isSource) "source" else "target")
+    }
 
-  private fun getMavenLanguageLevelFromRelease(mavenProject: MavenProject, isTest: Boolean): LanguageLevel? {
-    val mavenProjectReleaseLevel = if (isTest) mavenProject.testReleaseLevel else mavenProject.releaseLevel
-    return LanguageLevel.parse(mavenProjectReleaseLevel)
-  }
+    private fun getConfigs(): List<Element> {
+      if (null != executionId) return compilerExecutions(mavenProject)
+        .filter { it.executionId == executionId }
+        .mapNotNull { it.configurationElement }
 
-  private fun getMavenLanguageLevelFromSourceOrTarget(project: MavenProject, isSource: Boolean, isTest: Boolean): LanguageLevel? {
-    val mavenProjectLanguageLevel = if (isTest) {
-      if (isSource) project.testSourceLevel else project.testTargetLevel
+      if (isTest) return mavenProject.testCompilerConfigs
+
+      val nonDefaultExecutions = getNonDefaultCompilerExecutions(mavenProject).toSet()
+
+      return mavenProject.compilerExecutions
+               .filter { !nonDefaultExecutions.contains(it.executionId) }
+               .mapNotNull { it.configurationElement } +
+             mavenProject.pluginConfig
     }
-    else {
-      if (isSource) project.sourceLevel else project.targetLevel
+
+    private fun getCompilerLevel(levelName: String): LanguageLevel? {
+      if (isTest) {
+        val testLevelName = "test${levelName.replaceFirstChar { it.titlecase() }}"
+        val testLevel = doGetCompilerLevel(testLevelName)
+        if (null != testLevel) return testLevel
+      }
+      return doGetCompilerLevel(levelName)
     }
-    var level = LanguageLevel.parse(mavenProjectLanguageLevel)
-    if (level == null && StringUtil.isNotEmpty(mavenProjectLanguageLevel)) {
-      level = LanguageLevel.HIGHEST
+
+    private fun doGetCompilerLevel(levelName: String): LanguageLevel? {
+      val configs = getConfigs()
+      val fallbackProperty = "maven.compiler.$levelName"
+      val levels = configs.mapNotNull { LanguageLevel.parse(findChildValueByPath(it, levelName)) }
+      val maxLevel = levels.maxWithOrNull(Comparator.naturalOrder())?.toJavaVersion()?.toFeatureString()
+      val level = maxLevel ?: mavenProject.properties.getProperty(fallbackProperty)
+      return LanguageLevel.parse(level)
     }
-    return level
   }
 
   @JvmStatic
@@ -313,11 +342,6 @@ object MavenImportUtil {
     return type == StandardMavenModuleType.MAIN_ONLY || type == StandardMavenModuleType.TEST_ONLY
   }
 
-  internal fun isTestModule(project: Project, moduleName: String): Boolean {
-    val type = getMavenModuleType(project, moduleName)
-    return type == StandardMavenModuleType.TEST_ONLY
-  }
-
   @JvmStatic
   fun findPomXml(module: Module): VirtualFile? {
     val project = module.project
@@ -375,69 +399,56 @@ object MavenImportUtil {
 
   internal val MavenProject.declaredAnnotationProcessors: List<String>
     get() {
-      return compilerConfigs.flatMap { getDeclaredAnnotationProcessors(it) }
+      return compilerConfigsOrPluginConfig.flatMap { getDeclaredAnnotationProcessors(it) }
     }
 
-  private val MavenProject.sourceLevel: String?
+  private val MavenProject.compilerConfigsOrPluginConfig: List<Element>
     get() {
-      return getCompilerLevel(false, "source")
-    }
-
-  private val MavenProject.targetLevel: String?
-    get() {
-      return getCompilerLevel(false, "target")
-    }
-
-  private val MavenProject.releaseLevel: String?
-    get() {
-      return getCompilerLevel(false, "release")
-    }
-
-  private val MavenProject.testSourceLevel: String?
-    get() {
-      return getCompilerLevel(true, "source")
-    }
-
-  private val MavenProject.testTargetLevel: String?
-    get() {
-      return getCompilerLevel(true, "target")
-    }
-
-  private val MavenProject.testReleaseLevel: String?
-    get() {
-      return getCompilerLevel(true, "release")
-    }
-
-  private fun MavenProject.getCompilerLevel(forTests: Boolean, level: String): String? {
-    val configs = if (forTests) testCompilerConfigs else compilerConfigs
-    val finalLevel = if (forTests) "test${level.replaceFirstChar { it.titlecase() }}" else level
-    val fallbackProperty = "maven.compiler.$finalLevel"
-    val levels = configs.mapNotNull { LanguageLevel.parse(findChildValueByPath(it, finalLevel)) }
-    val maxLevel = levels.maxWithOrNull(Comparator.naturalOrder())?.toJavaVersion()?.toFeatureString()
-    return maxLevel ?: properties.getProperty(fallbackProperty)
-  }
-
-  private val MavenProject.compilerConfigs: List<Element>
-    get() {
-      val configurations: List<Element> = compileExecutionConfigurations
+      val configurations: List<Element> = compilerConfigs
       if (!configurations.isEmpty()) return configurations
+      return pluginConfig
+    }
+
+  private val MavenProject.pluginConfig: List<Element>
+    get() {
       val configuration: Element? = getPluginConfiguration(COMPILER_PLUGIN_GROUP_ID, COMPILER_PLUGIN_ARTIFACT_ID)
       return ContainerUtil.createMaybeSingletonList(configuration)
     }
 
-  private val MavenProject.compileExecutionConfigurations: List<Element>
+  private val MavenProject.compilerExecutions: List<MavenPlugin.Execution>
     get() {
-      val plugin: MavenPlugin? = findCompilerPlugin()
+      val plugin = findCompilerPlugin()
       if (plugin == null) return emptyList()
-      return plugin.compileExecutionConfigurations
+      return plugin.getCompileExecutions()
+    }
+
+  private val MavenProject.compilerConfigs: List<Element>
+    get() {
+      return compilerExecutions.mapNotNull { it.configurationElement }
     }
 
   private val MavenProject.testCompilerConfigs: List<Element>
     get() {
-      val plugin: MavenPlugin? = findCompilerPlugin()
+      val plugin = findCompilerPlugin()
       if (plugin == null) return emptyList()
-      return plugin.testCompileExecutionConfigurations
+      return plugin.getTestCompileExecutionConfigurations()
     }
+
+  private fun MavenPlugin.getCompileExecutions(): List<MavenPlugin.Execution> {
+    return executions.filter { isCompileExecution(it) }
+  }
+
+  private fun MavenPlugin.getTestCompileExecutions(): List<MavenPlugin.Execution> {
+    return executions.filter { isTestCompileExecution(it) }
+  }
+
+  internal fun MavenPlugin.getCompileExecutionConfigurations(): List<Element> {
+    return getCompileExecutions().mapNotNull { it.configurationElement }
+  }
+
+  internal fun MavenPlugin.getTestCompileExecutionConfigurations(): List<Element> {
+    return getTestCompileExecutions().mapNotNull { it.configurationElement }
+  }
 
   private fun MavenProject.getDeclaredAnnotationProcessors(compilerConfig: Element): MutableList<String> {
     val result: MutableList<String> = ArrayList()
@@ -492,7 +503,7 @@ object MavenImportUtil {
       return emptyMap()
     }
 
-  private fun MavenProject.getAnnotationProcessorOptionsFromCompilerConfig(compilerConfig: Element): Map<String, String> {
+  private fun getAnnotationProcessorOptionsFromCompilerConfig(compilerConfig: Element): Map<String, String> {
     val res: MutableMap<String, String> = LinkedHashMap()
 
     val compilerArgument: String? = compilerConfig.getChildText("compilerArgument")
@@ -521,7 +532,7 @@ object MavenImportUtil {
     return res
   }
 
-  private fun MavenProject.getAnnotationProcessorOptionsFromProcessorPlugin(bscMavenPlugin: MavenPlugin): Map<String, String> {
+  private fun getAnnotationProcessorOptionsFromProcessorPlugin(bscMavenPlugin: MavenPlugin): Map<String, String> {
     var cfg: Element? = bscMavenPlugin.getGoalConfiguration("process")
     if (cfg == null) {
       cfg = bscMavenPlugin.configurationElement
@@ -541,7 +552,7 @@ object MavenImportUtil {
     return res
   }
 
-  private fun MavenProject.addAnnotationProcessorOptionFromParameterString(compilerArguments: String?, res: MutableMap<String, String>) {
+  private fun addAnnotationProcessorOptionFromParameterString(compilerArguments: String?, res: MutableMap<String, String>) {
     if (!compilerArguments.isNullOrBlank()) {
       val parametersList = ParametersList()
       parametersList.addParametersString(compilerArguments)

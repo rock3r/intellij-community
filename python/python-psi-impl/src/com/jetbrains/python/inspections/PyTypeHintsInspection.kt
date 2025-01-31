@@ -72,7 +72,7 @@ class PyTypeHintsInspection : PyInspection() {
         checkTypeVarRedefinition(target)
       }
 
-      if (QualifiedName.fromDottedString(PyTypingTypeProvider.TYPING_PARAM_SPEC) in calleeQName) {
+      if (QualifiedName.fromDottedString(PyTypingTypeProvider.PARAM_SPEC) in calleeQName) {
         checkParamSpecArguments(node, getTargetFromAssignment(node))
       }
 
@@ -88,7 +88,11 @@ class PyTypeHintsInspection : PyInspection() {
 
       checkInstanceAndClassChecks(node)
 
-      checkParenthesesOnGenerics(node)
+      if (PyTypingTypeProvider.isInsideTypeHint(node, myTypeEvalContext) &&
+          !isInsideTypingAnnotatedMetadata(node)
+      ) {
+        checkParenthesesOnGenerics(node)
+      }
     }
 
     private fun getTargetFromAssignment(node: PyCallExpression): PyExpression? {
@@ -105,6 +109,7 @@ class PyTypeHintsInspection : PyInspection() {
       checkPlainGenericInheritance(superClassExpressions)
       checkGenericDuplication(superClassExpressions)
       checkGenericCompleteness(node)
+      checkMetaClass(node.metaClassExpression)
     }
 
     override fun visitPySubscriptionExpression(node: PySubscriptionExpression) {
@@ -156,7 +161,7 @@ class PyTypeHintsInspection : PyInspection() {
         return
       }
 
-      if (myTypeEvalContext.getType(node) is PyPositionalVariadicType) {
+      if (Ref.deref(PyTypingTypeProvider.getType(node, myTypeEvalContext)) is PyPositionalVariadicType) {
         checkTypeVarTupleUnpacked(node)
       }
 
@@ -524,8 +529,15 @@ class PyTypeHintsInspection : PyInspection() {
 
     private fun checkInstanceAndClassChecksOnExpression(base: PyExpression) {
       val type = myTypeEvalContext.getType(base)
-      if (type is PyTypeVarType && !type.isDefinition ||
-          type is PyCollectionType && type.elementTypes.any { it is PyTypeVarType } && !type.isDefinition) {
+      if (
+      // T = TypeVar("T"); isinstance(x, T)
+        type is PyClassType && !type.isDefinition && type.classQName.orEmpty() in PyTypingTypeProvider.TYPE_PARAMETER_FACTORIES ||
+        // TODO should be caught by the type checker relying on the type hints for `isinstance`
+        // p: T; isinstance(x, p)
+        type is PyTypeVarType && !type.isDefinition ||
+        // T = TypeVar("T"); isinstance(x, list[T])
+        type is PyCollectionType && type.elementTypes.any { it is PyTypeVarType } && !type.isDefinition
+      ) {
         registerProblem(base,
                         PyPsiBundle.message("INSP.type.hints.type.variables.cannot.be.used.with.instance.class.checks"),
                         ProblemHighlightType.GENERIC_ERROR)
@@ -677,9 +689,6 @@ class PyTypeHintsInspection : PyInspection() {
     private fun checkParenthesesOnGenerics(call: PyCallExpression) {
       val callee = call.callee
       if (callee is PyReferenceExpression) {
-        // Bail out if we're inside an Annotated[...] expression, and we're not the first argument
-        if (isInsideTypingAnnotatedMetadata(call)) return
-
         if (PyResolveUtil.resolveImportedElementQNameLocally(callee).any { PyTypingTypeProvider.GENERIC_CLASSES.contains(it.toString()) }) {
           registerProblem(call,
                           PyPsiBundle.message("INSP.type.hints.generics.should.be.specified.through.square.brackets"),
@@ -687,7 +696,7 @@ class PyTypeHintsInspection : PyInspection() {
                           null,
                           ReplaceWithSubscriptionQuickFix())
         }
-        else if (PyTypingTypeProvider.isInsideTypeHint(call, myTypeEvalContext)) {
+        else {
           multiFollowAssignmentsChain(callee)
             .asSequence()
             .map { if (it is PyFunction) it.containingClass else it }
@@ -729,6 +738,15 @@ class PyTypeHintsInspection : PyInspection() {
           registerProblem(it, PyPsiBundle.message("INSP.type.hints.cannot.inherit.from.generic.multiple.times"),
                           ProblemHighlightType.GENERIC_ERROR)
         }
+    }
+
+    private fun checkMetaClass(metaClassExpression: PyExpression?) {
+      if (metaClassExpression != null) {
+        val metaClassType = myTypeEvalContext.getType(metaClassExpression)
+        if (metaClassType is PyCollectionType && metaClassType.elementTypes.any { it is PyTypeVarType }) {
+          registerProblem(metaClassExpression, PyPsiBundle.message("INSP.type.hints.metaclass.cannot.be.generic"))
+        }
+      }
     }
 
     private fun checkGenericCompleteness(cls: PyClass) {
@@ -793,7 +811,11 @@ class PyTypeHintsInspection : PyInspection() {
             .filterIsInstance<PyReferenceExpression>()
             .flatMap { multiFollowAssignmentsChain(it, this::followNotTypeVar).asSequence() }
             .filterIsInstance<PyTargetExpression>()
-            .filter { myTypeEvalContext.getType(it) is PyTypeVarType }
+            .filter {
+              val pyClassType = myTypeEvalContext.getType(it) as? PyClassType
+              if (pyClassType == null || pyClassType.isDefinition) return@filter false
+              return@filter pyClassType.classQName.orEmpty() in PyTypingTypeProvider.TYPE_PARAMETER_FACTORIES
+            }
             .toSet()
 
           if (generic) genericTypeVars.addAll(superClassTypeVars) else nonGenericTypeVars.addAll(superClassTypeVars)
@@ -1008,8 +1030,11 @@ class PyTypeHintsInspection : PyInspection() {
     private fun isSdkAvailable(element: PsiElement): Boolean =
       PythonSdkUtil.findPythonSdk(ModuleUtilCore.findModuleForPsiElement(element)) != null
 
-    private fun isParamSpecOrConcatenate(expression: PyExpression, context: TypeEvalContext) : Boolean =
-      PyTypingTypeProvider.isConcatenate(expression, context) || PyTypingTypeProvider.isParamSpec(expression, context)
+    private fun isParamSpecOrConcatenate(expression: PyExpression, context: TypeEvalContext): Boolean {
+      if (expression !is PyReferenceExpression) return false
+      val parametersType = Ref.deref(PyTypingTypeProvider.getType(expression, context))
+      return parametersType is PyParamSpecType || parametersType is PyConcatenateType
+    } 
 
     private fun checkTypingMemberParameters(index: PyExpression, isCallable: Boolean) {
       val parameters = if (index is PyTupleExpression) index.elements else arrayOf(index)

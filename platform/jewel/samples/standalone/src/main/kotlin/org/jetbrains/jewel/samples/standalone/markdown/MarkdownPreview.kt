@@ -39,7 +39,7 @@ import org.jetbrains.jewel.ui.component.VerticallyScrollableContainer
 import org.jetbrains.jewel.ui.component.scrollbarContentSafePadding
 
 @Composable
-fun MarkdownPreview(modifier: Modifier = Modifier, rawMarkdown: CharSequence) {
+public fun MarkdownPreview(modifier: Modifier = Modifier, rawMarkdown: CharSequence) {
     val isDark = JewelTheme.isDark
 
     val markdownStyling = remember(isDark) { if (isDark) MarkdownStyling.dark() else MarkdownStyling.light() }

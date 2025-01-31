@@ -3,20 +3,17 @@ package org.jetbrains.kotlin.idea.k2.codeinsight.inspections.diagnosticBased
 
 import com.intellij.codeInspection.ProblemsHolder
 import com.intellij.codeInspection.util.InspectionMessage
-import com.intellij.codeInspection.util.IntentionFamilyName
-import com.intellij.modcommand.ModPsiUpdater
-import com.intellij.openapi.project.Project
 import org.jetbrains.kotlin.analysis.api.KaSession
 import org.jetbrains.kotlin.analysis.api.fir.diagnostics.KaFirDiagnostic
 import org.jetbrains.kotlin.idea.base.resources.KotlinBundle
-import org.jetbrains.kotlin.idea.codeinsight.api.applicable.inspections.KotlinDiagnosticBasedInspectionBase
+import org.jetbrains.kotlin.idea.codeinsight.api.applicable.inspections.KotlinKtDiagnosticBasedInspectionBase
 import org.jetbrains.kotlin.idea.codeinsight.api.applicable.inspections.KotlinModCommandQuickFix
 import org.jetbrains.kotlin.psi.KtElement
 import org.jetbrains.kotlin.psi.KtVisitor
 import org.jetbrains.kotlin.psi.KtVisitorVoid
 import kotlin.reflect.KClass
 
-class KotlinUnreachableCodeInspection : KotlinDiagnosticBasedInspectionBase<KtElement, KaFirDiagnostic.UnreachableCode, Unit>() {
+class KotlinUnreachableCodeInspection : KotlinKtDiagnosticBasedInspectionBase<KtElement, KaFirDiagnostic.UnreachableCode, Unit>() {
     override val diagnosticType: KClass<KaFirDiagnostic.UnreachableCode>
         get() = KaFirDiagnostic.UnreachableCode::class
 
@@ -31,21 +28,10 @@ class KotlinUnreachableCodeInspection : KotlinDiagnosticBasedInspectionBase<KtEl
         context: Unit
     ): @InspectionMessage String = KotlinBundle.message("unreachable.code")
 
-    override fun createQuickFix(
+    override fun createQuickFixes(
         element: KtElement,
         context: Unit
-    ): KotlinModCommandQuickFix<KtElement> =
-        object : KotlinModCommandQuickFix<KtElement>() {
-            override fun getFamilyName(): @IntentionFamilyName String = KotlinBundle.message("unreachable.code.family")
-
-            override fun applyFix(
-                project: Project,
-                element: KtElement,
-                updater: ModPsiUpdater
-            ) {
-                // nothing
-            }
-        }
+    ): Array<KotlinModCommandQuickFix<KtElement>> = emptyArray()
 
     override fun buildVisitor(
         holder: ProblemsHolder,

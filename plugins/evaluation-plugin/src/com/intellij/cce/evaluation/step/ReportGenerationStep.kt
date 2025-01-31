@@ -5,7 +5,6 @@ package com.intellij.cce.evaluation.step
 import com.intellij.cce.evaluable.EvaluableFeature
 import com.intellij.cce.evaluable.EvaluationStrategy
 import com.intellij.cce.evaluation.FilteredSessionsStorage
-import com.intellij.cce.metric.MetricInfo
 import com.intellij.cce.metric.MetricsEvaluator
 import com.intellij.cce.report.*
 import com.intellij.cce.util.Progress
@@ -129,8 +128,6 @@ class ReportGenerationStep<T : EvaluationStrategy>(
       title to MetricsEvaluator.withMetrics(title, feature.getMetrics())
     }.toMap()
 
-    val globalMetrics = mutableListOf<MetricInfo>()
-
     for (sessionFile in sessionFiles.filter { it.value.size == sessionStorages.size }) {
       val fileEvaluations = mutableListOf<FileEvaluationInfo>()
       var sessionsInfo: FileSessionsInfo? = null
@@ -145,7 +142,6 @@ class ReportGenerationStep<T : EvaluationStrategy>(
         )
         val evaluator = title2evaluator.getValue(file.evaluationType)
         val metricsEvaluation = evaluator.evaluate(sessionsEvaluation.sessions)
-        globalMetrics.addAll(metricsEvaluation)
 
         val sessionIndividualEvaluationMap = metricsEvaluation
           .flatMap { it.individualScores?.entries ?: emptySet() }
@@ -175,9 +171,10 @@ class ReportGenerationStep<T : EvaluationStrategy>(
     for (errorsStorage in errorStorages) {
       reportGenerators.forEach { it.generateErrorReports(errorsStorage.getErrors()) }
     }
+    val globalMetricInfos = title2evaluator.values.flatMap(MetricsEvaluator::globalMetricInfos)
 
     return reportGenerators.map {
-      ReportInfo(it.type, it.generateGlobalReport(globalMetrics))
+      ReportInfo(it.type, it.generateGlobalReport(globalMetricInfos))
     }
   }
 }

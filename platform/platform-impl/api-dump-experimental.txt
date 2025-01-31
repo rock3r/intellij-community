@@ -105,7 +105,6 @@ f:com.intellij.openapi.actionSystem.ActionGroupUtil
 - sf:FIT_CONTENT_WIDTH:com.intellij.openapi.editor.ComponentInlayAlignment
 - sf:FIT_VIEWPORT_WIDTH:com.intellij.openapi.editor.ComponentInlayAlignment
 - sf:FIT_VIEWPORT_X_SPAN:com.intellij.openapi.editor.ComponentInlayAlignment
-- sf:OVERLAY_RIGHT:com.intellij.openapi.editor.ComponentInlayAlignment
 - sf:STRETCH_TO_CONTENT_WIDTH:com.intellij.openapi.editor.ComponentInlayAlignment
 - s:getEntries():kotlin.enums.EnumEntries
 - s:valueOf(java.lang.String):com.intellij.openapi.editor.ComponentInlayAlignment
@@ -320,16 +319,6 @@ c:com.intellij.openapi.wm.impl.welcomeScreen.TabbedWelcomeScreen
 - setDefaultRenderer(java.lang.Class,javax.swing.table.TableCellRenderer):V
 - setModel(com.intellij.ui.treeStructure.treetable.TreeTableModel):V
 - setRowSorter(javax.swing.RowSorter):V
-*f:com.intellij.ui.components.SearchFieldWithExtension
-- javax.swing.JPanel
-- *sf:Companion:com.intellij.ui.components.SearchFieldWithExtension$Companion
-- <init>(javax.swing.JComponent,com.intellij.ui.SearchTextField):V
-- f:getTextField():javax.swing.JTextField
-- getUIClassID():java.lang.String
-- hasFocus():Z
-- requestFocus():V
-- setBackground(java.awt.Color):V
-*f:com.intellij.ui.components.SearchFieldWithExtension$Companion
 *:com.intellij.ui.content.custom.options.ContentLayoutStateSettings
 - a:getDisplayName():java.lang.String
 - a:isEnabled():Z
@@ -425,6 +414,9 @@ f:com.intellij.ui.dsl.builder.components.ValidationTooltipKt
 - s:getEntries():kotlin.enums.EnumEntries
 - s:valueOf(java.lang.String):com.intellij.ui.dsl.builder.components.ValidationType
 - s:values():com.intellij.ui.dsl.builder.components.ValidationType[]
+f:com.intellij.util.SwingBindingsKt
+- *sf:bindSelectedTabIn(javax.swing.JTabbedPane,kotlinx.coroutines.flow.MutableStateFlow,kotlinx.coroutines.CoroutineScope):V
+- *sf:bindTextIn(javax.swing.text.JTextComponent,kotlinx.coroutines.flow.MutableStateFlow,kotlinx.coroutines.CoroutineScope):V
 *f:com.intellij.util.ui.RestartDialogImpl
 - *sf:Companion:com.intellij.util.ui.RestartDialogImpl$Companion
 - <init>():V

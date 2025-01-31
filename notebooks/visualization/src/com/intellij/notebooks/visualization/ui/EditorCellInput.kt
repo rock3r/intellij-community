@@ -5,6 +5,7 @@ import com.intellij.notebooks.ui.visualization.NotebookUtil.notebookAppearance
 import com.intellij.notebooks.visualization.NotebookCellInlayController
 import com.intellij.notebooks.visualization.NotebookCellLines
 import com.intellij.notebooks.visualization.ui.cellsDnD.EditorCellDraggableBar
+import com.intellij.notebooks.visualization.ui.jupyterToolbars.EditorCellActionsToolbarManager
 import com.intellij.openapi.editor.Inlay
 import com.intellij.openapi.editor.impl.EditorImpl
 import com.intellij.openapi.util.Disposer
@@ -34,7 +35,7 @@ class EditorCellInput(
   val draggableBar: EditorCellDraggableBar = EditorCellDraggableBar(editor, this)
 
   val cellActionsToolbar: EditorCellActionsToolbarManager? =
-    if (Registry.`is`("jupyter.per.cell.management.actions.toolbar")) EditorCellActionsToolbarManager(editor, cell)
+    if (Registry.`is`("jupyter.per.cell.management.actions.toolbar") && editor.isOrdinaryNotebookEditor()) EditorCellActionsToolbarManager(editor, cell)
     else null
 
   var folded: Boolean = false

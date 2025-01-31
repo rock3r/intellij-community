@@ -59,7 +59,7 @@ internal class SettingsSyncConfigurable(private val coroutineScope: CoroutineSco
   private val wasUsedBefore = AtomicBooleanProperty(SettingsSyncLocalSettings.getInstance().userId != null)
   private val userAccountsList = arrayListOf<UserProviderHolder>()
   private val syncPanelHolder = SettingsSyncPanelHolder()
-  private val hasMultipleProviders = AtomicBooleanProperty(RemoteCommunicatorHolder.getAvailableProviders().size > 1)
+  private val hasMultipleProviders = AtomicBooleanProperty(RemoteCommunicatorHolder.getExternalProviders().isNotEmpty())
 
   init {
     syncEnabler.addListener(this)
@@ -325,6 +325,7 @@ internal class SettingsSyncConfigurable(private val coroutineScope: CoroutineSco
     }
   }
 
+  @Suppress("HardCodedStringLiteral")
   private fun updateSyncOptionText() {
     val message = if (enableSyncOption.get() == InitSyncType.GET_FROM_SERVER) {
       message("enable.dialog.get.settings.from.account.text")

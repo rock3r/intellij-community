@@ -2572,6 +2572,11 @@ public abstract class K1QuickFixTestGenerated extends AbstractK1QuickFixTest {
                 runTest("testData/quickfix/autoImports/callablesDeclaredInClasses/genericTypeExtension2.kt");
             }
 
+            @TestMetadata("infixExtensionForInfixCall.kt")
+            public void testInfixExtensionForInfixCall() throws Exception {
+                runTest("testData/quickfix/autoImports/callablesDeclaredInClasses/infixExtensionForInfixCall.kt");
+            }
+
             @TestMetadata("intTypeExtensionFunction.kt")
             public void testIntTypeExtensionFunction() throws Exception {
                 runTest("testData/quickfix/autoImports/callablesDeclaredInClasses/intTypeExtensionFunction.kt");
@@ -2655,6 +2660,11 @@ public abstract class K1QuickFixTestGenerated extends AbstractK1QuickFixTest {
             @TestMetadata("noImportIrrelevantFunctions4.kt")
             public void testNoImportIrrelevantFunctions4() throws Exception {
                 runTest("testData/quickfix/autoImports/callablesDeclaredInClasses/noImportIrrelevantFunctions4.kt");
+            }
+
+            @TestMetadata("noImportRegularExtensionForInfixCall.kt")
+            public void testNoImportRegularExtensionForInfixCall() throws Exception {
+                runTest("testData/quickfix/autoImports/callablesDeclaredInClasses/noImportRegularExtensionForInfixCall.kt");
             }
 
             @TestMetadata("noImportThisExtensionReceiverWrongType.kt")
@@ -3893,16 +3903,6 @@ public abstract class K1QuickFixTestGenerated extends AbstractK1QuickFixTest {
             @TestMetadata("mixedNamedAndPositionalArgumentsSubtype.kt")
             public void testMixedNamedAndPositionalArgumentsSubtype() throws Exception {
                 runTest("testData/quickfix/checkArguments/addNameToArgument/mixedNamedAndPositionalArgumentsSubtype.kt");
-            }
-
-            @TestMetadata("mixedNamedAndPositionalArgumentsUsedNamed.kt")
-            public void testMixedNamedAndPositionalArgumentsUsedNamed() throws Exception {
-                runTest("testData/quickfix/checkArguments/addNameToArgument/mixedNamedAndPositionalArgumentsUsedNamed.kt");
-            }
-
-            @TestMetadata("mixedNamedAndPositionalArgumentsUsedPositional.kt")
-            public void testMixedNamedAndPositionalArgumentsUsedPositional() throws Exception {
-                runTest("testData/quickfix/checkArguments/addNameToArgument/mixedNamedAndPositionalArgumentsUsedPositional.kt");
             }
         }
 
@@ -5454,6 +5454,11 @@ public abstract class K1QuickFixTestGenerated extends AbstractK1QuickFixTest {
                     @TestMetadata("extensionFunOnClassNoClassObject2.kt")
                     public void testExtensionFunOnClassNoClassObject2() throws Exception {
                         runTest("testData/quickfix/createFromUsage/createFunction/call/extension/extensionFunOnClassNoClassObject2.kt");
+                    }
+
+                    @TestMetadata("extensionFunOnGenericType.kt")
+                    public void testExtensionFunOnGenericType() throws Exception {
+                        runTest("testData/quickfix/createFromUsage/createFunction/call/extension/extensionFunOnGenericType.kt");
                     }
 
                     @TestMetadata("extensionFunOnInterface.kt")
@@ -7121,6 +7126,11 @@ public abstract class K1QuickFixTestGenerated extends AbstractK1QuickFixTest {
                     runTest("testData/quickfix/createFromUsage/createVariable/parameter/recursiveBound.kt");
                 }
 
+                @TestMetadata("unknownTypeInReturn.kt")
+                public void testUnknownTypeInReturn() throws Exception {
+                    runTest("testData/quickfix/createFromUsage/createVariable/parameter/unknownTypeInReturn.kt");
+                }
+
                 @TestMetadata("withPackageName.kt")
                 public void testWithPackageName() throws Exception {
                     runTest("testData/quickfix/createFromUsage/createVariable/parameter/withPackageName.kt");
@@ -7143,6 +7153,16 @@ public abstract class K1QuickFixTestGenerated extends AbstractK1QuickFixTest {
 
                 private void runTest(String testDataFilePath) throws Exception {
                     KotlinTestUtils.runTest(this::doTest, this, testDataFilePath);
+                }
+
+                @TestMetadata("destructuring.kt")
+                public void testDestructuring() throws Exception {
+                    runTest("testData/quickfix/createFromUsage/createVariable/primaryParameter/destructuring.kt");
+                }
+
+                @TestMetadata("insideInterface.kt")
+                public void testInsideInterface() throws Exception {
+                    runTest("testData/quickfix/createFromUsage/createVariable/primaryParameter/insideInterface.kt");
                 }
 
                 @TestMetadata("localValNoReceiver.kt")
@@ -7188,6 +7208,11 @@ public abstract class K1QuickFixTestGenerated extends AbstractK1QuickFixTest {
                 @TestMetadata("topLevelValNoReceiver.kt")
                 public void testTopLevelValNoReceiver() throws Exception {
                     runTest("testData/quickfix/createFromUsage/createVariable/primaryParameter/topLevelValNoReceiver.kt");
+                }
+
+                @TestMetadata("unresolvedRight.kt")
+                public void testUnresolvedRight() throws Exception {
+                    runTest("testData/quickfix/createFromUsage/createVariable/primaryParameter/unresolvedRight.kt");
                 }
 
                 @TestMetadata("valOnCompanionObject.kt")
@@ -16529,6 +16554,11 @@ public abstract class K1QuickFixTestGenerated extends AbstractK1QuickFixTest {
             runTest("testData/quickfix/supertypeInitialization/someParametersAlreadyExist.kt");
         }
 
+        @TestMetadata("someParametersAlreadyExistNoTypeConflicts.kt")
+        public void testSomeParametersAlreadyExistNoTypeConflicts() throws Exception {
+            runTest("testData/quickfix/supertypeInitialization/someParametersAlreadyExistNoTypeConflicts.kt");
+        }
+
         @TestMetadata("value.kt")
         public void testValue() throws Exception {
             runTest("testData/quickfix/supertypeInitialization/value.kt");
@@ -16552,6 +16582,11 @@ public abstract class K1QuickFixTestGenerated extends AbstractK1QuickFixTest {
         @TestMetadata("vararg4.kt")
         public void testVararg4() throws Exception {
             runTest("testData/quickfix/supertypeInitialization/vararg4.kt");
+        }
+
+        @TestMetadata("vararg5.kt")
+        public void testVararg5() throws Exception {
+            runTest("testData/quickfix/supertypeInitialization/vararg5.kt");
         }
     }
 

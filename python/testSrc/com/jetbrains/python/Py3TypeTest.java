@@ -3303,8 +3303,7 @@ public class Py3TypeTest extends PyTestCase {
   }
 
   // PY-78125
-  // Special case: `TypedDict` type is inferred for a dict literal with string-only keys
-  public void _testDictOfLiteralsWithStringOnlyKeys() {
+  public void testDictOfLiteralsWithStringOnlyKeys() {
     doTest("dict[str, int | str]", """
       from typing import Literal
 
@@ -3350,6 +3349,34 @@ public class Py3TypeTest extends PyTestCase {
     doTest("Generator[Path, None, None]", """
       import pathlib
       expr = pathlib.Path("").iterdir()
+      """);
+  }
+
+  // PY-78653
+  public void testTypeVarConstraints() {
+    doTest("tuple[str, str]", """
+      from typing import TypeVar
+      
+      AnyStr = TypeVar('AnyStr', str, bytes)
+      
+      def concat(x: AnyStr, y: AnyStr) -> AnyStr:
+          return x + y
+      
+      class MyStr(str): ...
+      
+      s1 = concat(MyStr('apple'), MyStr('pie'))
+      s2 = concat(MyStr('apple'), 'pie')
+      expr = (s1, s2)
+      """);
+    doTest("tuple[str, str]", """
+      def concat[AnyStr: (str, bytes)](x: AnyStr, y: AnyStr) -> AnyStr:
+          return x + y
+      
+      class MyStr(str): ...
+      
+      s1 = concat(MyStr('apple'), MyStr('pie'))
+      s2 = concat(MyStr('apple'), 'pie')
+      expr = (s1, s2)
       """);
   }
 

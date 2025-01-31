@@ -13,7 +13,6 @@ import com.intellij.openapi.editor.event.EditorMouseListener
 import com.intellij.openapi.editor.event.EditorMouseMotionListener
 import com.intellij.openapi.editor.ex.EditorEx
 import com.intellij.openapi.editor.ex.FocusChangeListener
-import com.intellij.openapi.observable.util.addKeyListener
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.util.registry.Registry
 import com.intellij.terminal.JBTerminalSystemSettingsProviderBase
@@ -24,7 +23,10 @@ import org.jetbrains.annotations.NonNls
 import org.jetbrains.plugins.terminal.action.SendShortcutToTerminalAction
 import org.jetbrains.plugins.terminal.block.output.TerminalEventsHandler
 import java.awt.AWTEvent
-import java.awt.event.*
+import java.awt.event.InputEvent
+import java.awt.event.KeyEvent
+import java.awt.event.MouseEvent
+import java.awt.event.MouseWheelListener
 import javax.swing.KeyStroke
 
 /**
@@ -48,6 +50,7 @@ internal abstract class TerminalEventDispatcher(
   private val editor: EditorEx,
   private val parentDisposable: Disposable,
 ) : IdeEventQueue.EventDispatcher {
+  private val sendShortcutAction = SendShortcutToTerminalAction(this)
   private var myRegistered = false
   private var actionsToSkip: List<AnAction> = emptyList()
 
@@ -80,7 +83,7 @@ internal abstract class TerminalEventDispatcher(
     this.actionsToSkip = actionsToSkip
     if (!myRegistered) {
       IdeEventQueue.getInstance().addDispatcher(this, parentDisposable)
-      sendShortcutAction.register(editor.contentComponent, this)
+      sendShortcutAction.register(editor.contentComponent)
       myRegistered = true
     }
   }
@@ -94,9 +97,6 @@ internal abstract class TerminalEventDispatcher(
       myRegistered = false
     }
   }
-
-  private val sendShortcutAction: SendShortcutToTerminalAction
-    get() = ActionManager.getInstance().getAction("Terminal.SendShortcut") as SendShortcutToTerminalAction
 
   private fun skipAction(e: KeyEvent): Boolean {
     val eventShortcut = KeyboardShortcut(KeyStroke.getKeyStrokeForEvent(e), null)
@@ -136,6 +136,9 @@ internal abstract class TerminalEventDispatcher(
       "HideAllWindows",
       "NextWindow",
       "PreviousWindow",
+      "NextTab",
+      "PreviousTab",
+      "ShowContent",
       "NextProjectWindow",
       "PreviousProjectWindow",
       "ShowBookmarks",
@@ -168,7 +171,24 @@ internal abstract class TerminalEventDispatcher(
       "TerminalIncreaseFontSize",
       "TerminalDecreaseFontSize",
       "TerminalResetFontSize",
+      "Terminal.Escape",
       "Terminal.CopySelectedText",
+      "Terminal.Paste",
+      "Terminal.LineUp",
+      "Terminal.LineDown",
+      "Terminal.PageUp",
+      "Terminal.PageDown",
+      "Terminal.RenameSession",
+      "Terminal.NewTab",
+      "Terminal.CloseTab",
+      "Terminal.SplitVertically",
+      "Terminal.SplitHorizontally",
+      "Terminal.NextSplitter",
+      "Terminal.PrevSplitter",
+      "Terminal.MoveToolWindowTabLeft",
+      "Terminal.MoveToolWindowTabRight",
+      "Terminal.ClearBuffer",
+      "Terminal.Find",
     )
 
     fun getActionsToSkip(): List<AnAction> {
