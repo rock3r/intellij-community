@@ -422,6 +422,16 @@ class ListComboBoxUiTest {
         comboBox.assertTextEquals("Item 2", includeEditableText = false)
     }
 
+    @Test
+    fun `clicking an item in the popup closes the popup`() {
+        injectEditableListComboBox(FocusRequester(), isEnabled = true)
+
+        chevronContainer.performClick()
+        popupMenu.assertIsDisplayed()
+        composeRule.onNodeWithTag("Item 2").performClick()
+        popupMenu.assertDoesNotExist()
+    }
+
     private fun editableListComboBox(): SemanticsNodeInteraction {
         val focusRequester = FocusRequester()
         injectEditableListComboBox(focusRequester, isEnabled = true)
