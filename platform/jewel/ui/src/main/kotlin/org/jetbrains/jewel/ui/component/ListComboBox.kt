@@ -42,6 +42,7 @@ import org.jetbrains.jewel.ui.theme.comboBoxStyle
 @Composable
 public fun ListComboBox(
     items: List<String>,
+    key: (index: Int, item: String) -> Any = { itemIndex, _ -> itemIndex },
     modifier: Modifier = Modifier,
     isEnabled: Boolean = true,
     initialSelectedIndex: Int = 0,
@@ -146,6 +147,7 @@ public fun ListComboBox(
     ) {
         PopupContent(
             items = items,
+            key = key,
             previewSelectedItemIndex = previewSelectedIndex,
             listState = listState,
             popupMaxHeight = popupMaxHeight,
@@ -164,6 +166,7 @@ public fun ListComboBox(
 @Composable
 public fun EditableListComboBox(
     items: List<String>,
+    key: (index: Int, item: String) -> Any = { itemIndex, _ -> itemIndex },
     modifier: Modifier = Modifier,
     isEnabled: Boolean = true,
     initialSelectedIndex: Int = 0,
@@ -268,6 +271,7 @@ public fun EditableListComboBox(
         popupContent = {
             PopupContent(
                 items = items,
+                key = key,
                 previewSelectedItemIndex = previewSelectedIndex,
                 listState = listState,
                 popupMaxHeight = popupMaxHeight,
@@ -318,6 +322,7 @@ private fun SelectableLazyListState.selectedItemIndex(): Int = selectedKeys.firs
 @Composable
 private fun PopupContent(
     items: List<String>,
+    key: (index: Int, item: String) -> Any,
     previewSelectedItemIndex: Int,
     listState: SelectableLazyListState,
     popupMaxHeight: Dp,
@@ -341,7 +346,7 @@ private fun PopupContent(
         ) { ->
             itemsIndexed(
                 items = items,
-                key = { itemIndex, _ -> itemIndex }, // TODO pass in from user?
+                key = key,
                 itemContent = { index, item ->
                     Box(
                         modifier =
