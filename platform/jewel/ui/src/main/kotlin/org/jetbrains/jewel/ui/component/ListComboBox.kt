@@ -42,7 +42,6 @@ import org.jetbrains.jewel.ui.theme.comboBoxStyle
 @Composable
 public fun ListComboBox(
     items: List<String>,
-    key: (index: Int, item: String) -> Any = { itemIndex, _ -> itemIndex },
     modifier: Modifier = Modifier,
     isEnabled: Boolean = true,
     initialSelectedIndex: Int = 0,
@@ -147,7 +146,7 @@ public fun ListComboBox(
     ) {
         PopupContent(
             items = items,
-            key = key,
+            key = { itemIndex, _ -> itemIndex },
             previewSelectedItemIndex = previewSelectedIndex,
             listState = listState,
             popupMaxHeight = popupMaxHeight,
@@ -166,7 +165,6 @@ public fun ListComboBox(
 @Composable
 public fun EditableListComboBox(
     items: List<String>,
-    key: (index: Int, item: String) -> Any = { itemIndex, _ -> itemIndex },
     modifier: Modifier = Modifier,
     isEnabled: Boolean = true,
     initialSelectedIndex: Int = 0,
@@ -271,7 +269,7 @@ public fun EditableListComboBox(
         popupContent = {
             PopupContent(
                 items = items,
-                key = key,
+                key = { itemIndex, _ -> itemIndex },
                 previewSelectedItemIndex = previewSelectedIndex,
                 listState = listState,
                 popupMaxHeight = popupMaxHeight,
