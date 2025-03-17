@@ -18,11 +18,17 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalLayoutDirection
 import org.jetbrains.jewel.foundation.GenerateDataFunctions
 import org.jetbrains.jewel.foundation.modifier.onHover
@@ -53,14 +59,39 @@ import org.jetbrains.jewel.ui.component.styling.TabStyle
 @Composable
 public fun TabStrip(tabs: List<TabData>, style: TabStyle, modifier: Modifier = Modifier, enabled: Boolean = true) {
     var tabStripState: TabStripState by remember { mutableStateOf(TabStripState.of(enabled = true)) }
+    var selectedIndex by remember { mutableStateOf(tabs.indexOfFirst { it.selected }) }
 
     remember(enabled) { tabStripState = tabStripState.copy(enabled) }
 
     val scrollState = rememberScrollState()
     Box(
-        modifier.focusable(true, remember { MutableInteractionSource() }).onHover {
-            tabStripState = tabStripState.copy(hovered = it)
-        }
+        modifier
+            .focusable(true, remember { MutableInteractionSource() })
+            .onHover { tabStripState = tabStripState.copy(hovered = it) }
+            .onPreviewKeyEvent { event ->
+                if (!enabled) return@onPreviewKeyEvent false
+                if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+
+                when (event.key) {
+                    Key.DirectionLeft -> {
+                        if (selectedIndex > 0) {
+                            tabs[selectedIndex - 1].onClick()
+                            true
+                        } else {
+                            false
+                        }
+                    }
+                    Key.DirectionRight -> {
+                        if (selectedIndex < tabs.size - 1) {
+                            tabs[selectedIndex + 1].onClick()
+                            true
+                        } else {
+                            false
+                        }
+                    }
+                    else -> false
+                }
+            }
     ) {
         Row(
             modifier =
@@ -78,7 +109,11 @@ public fun TabStrip(tabs: List<TabData>, style: TabStyle, modifier: Modifier = M
                     )
                     .selectableGroup()
         ) {
-            tabs.forEach { TabImpl(isActive = tabStripState.isActive, tabData = it) }
+            tabs.forEachIndexed { index, tab ->
+                TabImpl(isActive = tabStripState.isActive, tabData = tab, tabIndex = index, totalTabs = tabs.size)
+
+                LaunchedEffect(tabs) { selectedIndex = tabs.indexOfFirst { it.selected } }
+            }
         }
 
         AnimatedVisibility(
