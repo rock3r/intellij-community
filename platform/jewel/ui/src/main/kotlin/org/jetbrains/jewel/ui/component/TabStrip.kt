@@ -73,9 +73,14 @@ public fun TabStrip(tabs: List<TabData>, style: TabStyle, modifier: Modifier = M
                 if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
 
                 when (event.key) {
+                    Key.Enter -> {
+                        tabs[selectedIndex].onClick()
+                        true
+                    }
                     Key.DirectionLeft -> {
                         if (selectedIndex > 0) {
-                            tabs[selectedIndex - 1].onClick()
+                            selectedIndex--
+                            tabs[selectedIndex].onClick()
                             true
                         } else {
                             false
@@ -83,7 +88,8 @@ public fun TabStrip(tabs: List<TabData>, style: TabStyle, modifier: Modifier = M
                     }
                     Key.DirectionRight -> {
                         if (selectedIndex < tabs.size - 1) {
-                            tabs[selectedIndex + 1].onClick()
+                            selectedIndex++
+                            tabs[selectedIndex].onClick()
                             true
                         } else {
                             false
