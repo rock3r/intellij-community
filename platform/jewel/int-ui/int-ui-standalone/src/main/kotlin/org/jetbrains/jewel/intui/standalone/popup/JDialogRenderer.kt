@@ -29,16 +29,16 @@ import androidx.compose.ui.layout.Measurable
 import androidx.compose.ui.layout.MeasurePolicy
 import androidx.compose.ui.layout.MeasureResult
 import androidx.compose.ui.layout.MeasureScope
-import androidx.compose.ui.layout.boundsInRoot
-import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.layout.onPlaced
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.semantics.popup
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.IntSize
-import androidx.compose.ui.unit.roundToIntRect
+import androidx.compose.ui.unit.round
 import androidx.compose.ui.unit.toSize
 import androidx.compose.ui.util.fastForEach
 import androidx.compose.ui.util.fastMap
@@ -54,7 +54,6 @@ import java.awt.Component
 import java.awt.Container
 import java.awt.Dimension
 import java.awt.FocusTraversalPolicy
-import java.awt.Point
 import java.awt.Rectangle
 import java.awt.Toolkit
 import java.awt.Window
@@ -166,7 +165,6 @@ private fun JPopupImpl(
     blendingEnabled: Boolean,
     content: @Composable () -> Unit,
 ) {
-    val popupDensity = LocalDensity.current
     val component = LocalComponent.current
 
     val currentContent by rememberUpdatedState(content)
@@ -184,10 +182,12 @@ private fun JPopupImpl(
     Layout(
         content = {},
         modifier =
-            Modifier.onGloballyPositioned { childCoordinates ->
+            Modifier.onPlaced { childCoordinates ->
                 if (component.isShowing) {
                     childCoordinates.parentCoordinates?.let {
-                        parentBoundsInRoot = it.boundsInRoot().roundToIntRect().fromRelativeToScreen(component)
+                        val position = it.positionInWindow().round()
+                        val size = it.size
+                        parentBoundsInRoot = IntRect(position, size).fromRelativeToScreen(component)
                     }
                 }
             },
@@ -249,10 +249,11 @@ private fun JPopupImpl(
                                 }
 
                                 if (cornerSize != ZeroCornerSize) {
+                                    val density = Density(component.density())
                                     JBR.getRoundedCornersManager()
                                         .setRoundedCorners(
                                             dialog,
-                                            cornerSize.toPx(size.toSize(), popupDensity) / dialog.density(),
+                                            cornerSize.toPx(size.toSize(), density) / dialog.density(),
                                         )
                                 }
                             }
@@ -270,9 +271,10 @@ private fun JPopupImpl(
 
     val rectValue = popupRectangle
     LaunchedEffect(rectValue) {
-        val rectangle = rectValue?.withDensity(popupDensity.density) ?: return@LaunchedEffect
-        dialog.size = rectangle.size
-        dialog.location = rectangle.location.fromCurrentScreenToGlobal(window)
+        val rectangle = rectValue ?: return@LaunchedEffect
+        val density = component.density()
+        dialog.size = rectangle.size.withDensity(density)
+        dialog.location = rectangle.location.fromCurrentScreenToGlobal(component)
     }
 
     DisposableEffect(composePanel) {
@@ -401,16 +403,11 @@ private fun IntSize.Companion.screenSize(window: Component): IntSize {
 }
 
 /**
- * Updates the rectangle values to be relative to the current density. Needs to use floor() conversion here to avoid
- * rounding up pixel sizes that cause a visual glitch
+ * Converts a dimension from Compose pixels to AWT pixels by dividing by the given density. Uses [floor] to avoid
+ * rounding up pixel sizes that cause a visual glitch.
  */
-private fun Rectangle.withDensity(density: Float): Rectangle =
-    Rectangle(
-        floor(x / density).toInt(),
-        floor(y / density).toInt(),
-        floor(width / density).toInt(),
-        floor(height / density).toInt(),
-    )
+private fun Dimension.withDensity(density: Float): Dimension =
+    Dimension(floor(width / density).toInt(), floor(height / density).toInt())
 
 /**
  * When inheriting from another context, we need to ensure that values already provided in the current context are not
@@ -420,64 +417,6 @@ private fun Rectangle.withDensity(density: Float): Rectangle =
 private fun ProvideValuesFromOtherContext(context: CompositionLocalContext, content: @Composable () -> Unit) {
     val existingContext = currentCompositionLocalContext
     CompositionLocalProvider(context) { CompositionLocalProvider(existingContext, content) }
-}
-
-/** Returns the screen density of the component's current monitor. */
-private fun Component.density(): Float =
-    graphicsConfiguration.device.defaultConfiguration.defaultTransform.scaleX.toFloat()
-
-/**
- * As mentioned in the `locationOnDisplay` function, getting a component location can return negative values. But for
- * the popup position calculation, we need to convert the point to the relative position in the component's current
- * monitor.
- *
- * This function converts the point relative to the component's current monitor screen coordinates.
- *
- * @return An `IntRect` representing the rectangle in the component's current monitor screen coordinates to be used in
- *   the `popupPositionProvider.calculatePosition` call.
- */
-private fun IntRect.fromRelativeToScreen(window: Component): IntRect {
-    val density = window.density()
-    val ownerLocation = window.locationOnDisplay()
-
-    return IntRect(
-        left = (ownerLocation.x * density).fastRoundToInt() + left,
-        top = (ownerLocation.y * density).fastRoundToInt() + top,
-        right = (ownerLocation.x * density).fastRoundToInt() + right,
-        bottom = (ownerLocation.y * density).fastRoundToInt() + bottom,
-    )
-}
-
-/**
- * Calculates a window's location relative to the top-left corner of the screen it is currently on. This is useful in
- * multi-monitor setups where getting the location can return negative values for screens positioned to the left of or
- * above the primary display.
- *
- * @return A Point object containing the x and y coordinates relative to the component's current monitor.
- */
-private fun Component.locationOnDisplay(): Point {
-    val globalLocation = locationOnScreen
-    val gc = graphicsConfiguration
-    val screenBounds = gc.bounds
-
-    val relativeX = globalLocation.x - screenBounds.x
-    val relativeY = globalLocation.y - screenBounds.y
-
-    return Point(relativeX, relativeY)
-}
-
-/**
- * Same as `fromRelativeToScreen`, but performs the inverse operation. Converts the point relative to the component's
- * current monitor screen coordinates to the global screen coordinates.
- *
- * @return A `Point` representing the point in the component's current monitor screen coordinates, to be used in the
- *   JDialog position update.
- */
-private fun Point.fromCurrentScreenToGlobal(window: Window): Point {
-    val ownerLocation = window.locationOnDisplay()
-    val point = Point(x - ownerLocation.x, y - ownerLocation.y)
-    SwingUtilities.convertPointToScreen(point, window)
-    return point
 }
 
 private fun KeyEvent.isDismissRequest() = type == KeyEventType.KeyDown && key == Key.Escape

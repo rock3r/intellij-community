@@ -12,6 +12,7 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.window.application
 import org.jetbrains.compose.resources.ExperimentalResourceApi
 import org.jetbrains.compose.resources.decodeToSvgPainter
+import org.jetbrains.jewel.foundation.JewelFlags
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.foundation.util.JewelLogger
 import org.jetbrains.jewel.intui.markdown.standalone.ProvideMarkdownStyling
@@ -34,6 +35,9 @@ import org.jetbrains.jewel.window.styling.TitleBarStyle
 
 @ExperimentalLayoutApi
 public fun main() {
+    JewelFlags.useCustomPopupRenderer = true
+    System.setProperty("compose.interop.blending", "true")
+
     JewelLogger.getInstance("StandaloneSample").info("Starting Jewel Standalone sample")
     val icon = svgResource("icons/jewel-logo.svg")
 
