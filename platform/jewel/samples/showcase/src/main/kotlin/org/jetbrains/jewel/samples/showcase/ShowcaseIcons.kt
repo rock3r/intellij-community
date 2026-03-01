@@ -37,6 +37,7 @@ public object ShowcaseIcons {
         public val textField: PathIconKey = PathIconKey("icons/components/textField.svg", ShowcaseIcons::class.java)
         public val toolbar: PathIconKey = PathIconKey("icons/components/toolbar.svg", ShowcaseIcons::class.java)
         public val tooltip: PathIconKey = PathIconKey("icons/components/tooltip.svg", ShowcaseIcons::class.java)
+        public val table: PathIconKey = PathIconKey("icons/components/borders.svg", ShowcaseIcons::class.java)
         public val tree: PathIconKey = PathIconKey("icons/components/tree.svg", ShowcaseIcons::class.java)
         public val typography: PathIconKey = PathIconKey("icons/components/typography.svg", ShowcaseIcons::class.java)
     }

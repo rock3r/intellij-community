@@ -24,6 +24,7 @@ import org.jetbrains.jewel.samples.showcase.components.Scrollbars
 import org.jetbrains.jewel.samples.showcase.components.SegmentedControls
 import org.jetbrains.jewel.samples.showcase.components.Sliders
 import org.jetbrains.jewel.samples.showcase.components.SplitLayouts
+import org.jetbrains.jewel.samples.showcase.components.Tables
 import org.jetbrains.jewel.samples.showcase.components.Tabs
 import org.jetbrains.jewel.samples.showcase.components.TextAreas
 import org.jetbrains.jewel.samples.showcase.components.TextFields
@@ -98,6 +99,7 @@ public class ComponentsViewModel(
                     )
                 },
             ),
+            ViewInfo(title = "Tables", iconKey = ShowcaseIcons.Components.table, content = { Tables() }),
             ViewInfo(title = "Banners", iconKey = ShowcaseIcons.Components.banners, content = { Banners() }),
             ViewInfo(
                 title = "Typography",

@@ -20,9 +20,21 @@ import kotlin.math.max
 import org.jetbrains.jewel.foundation.modifier.thenIf
 
 /**
- * A simple table that sizes columns to take as much room as they need. If the horizontal space available is less than
- * what the cells would take, all columns are sized proportionally to their intrinsic width so that they still can fit
- * the available width.
+ * A simple table that fills the available horizontal space and sizes each column proportionally to its intrinsic
+ * content width. All columns are guaranteed to be at least [minColumnWidth] wide.
+ *
+ * When the total max-content width is less than the available width, the extra space is distributed among columns
+ * proportionally to their max-content widths. This ensures columns with more content receive a fair share of the extra
+ * space, while [minColumnWidth] prevents any column from collapsing to zero — similar to how web browsers render tables
+ * by default.
+ *
+ * When the total max-content width exceeds the available width, each column is first given its min-content width (the
+ * minimum width needed to avoid clipping, clamped to [minColumnWidth]). If the sum of min-content widths fits in the
+ * available space, the remaining space is distributed proportionally to each column's extra capacity (max-content minus
+ * min-content). If even the min-content widths don't fit, all columns are scaled down proportionally as a last resort.
+ *
+ * When the available width is unbounded (e.g. inside a scrolling container), the table takes only as much horizontal
+ * space as its columns require (their clamped max-content widths plus borders).
  *
  * Cells **must** only contain one top-level component. If you need your cells to contain more than one, wrap your cell
  * content in a [`Box`][Box], [`Column`][androidx.compose.foundation.layout.Column],
@@ -38,6 +50,9 @@ import org.jetbrains.jewel.foundation.modifier.thenIf
  *   which case, the [cellBorderWidth] acts as a padding.
  * @param modifier Modifier to apply to the table.
  * @param cellBorderWidth The width of the table's borders.
+ * @param minColumnWidth The minimum width each column must have, regardless of its content. Defaults to zero, meaning
+ *   empty columns may collapse. Set this to a positive value to ensure all columns are always visible even when their
+ *   content is empty or very narrow.
  * @param rows The rows that make up the table. Each row is a list of composables, one per row cell.
  */
 @Suppress("KDocUnresolvedReference", "ComposableParamOrder")
@@ -48,6 +63,7 @@ public fun BasicTableLayout(
     cellBorderColor: Color,
     modifier: Modifier = Modifier,
     cellBorderWidth: Dp = 1.dp,
+    minColumnWidth: Dp = 0.dp,
     rows: List<List<@Composable () -> Unit>>,
 ) {
     var rowHeights by remember { mutableStateOf(emptyList<Int>()) }
@@ -65,7 +81,11 @@ public fun BasicTableLayout(
                 "Found ${measurables.size} cells, but expected ${rowCount * columnCount}."
             }
 
-            val intrinsicColumnWidths = IntArray(columnCount)
+            // Measure both max-content and min-content widths per column.
+            // max-content = natural width when unconstrained (full content, no wrapping).
+            // min-content = minimum width without clipping (widest single word for text).
+            val maxContentWidths = IntArray(columnCount)
+            val minContentWidths = IntArray(columnCount)
             val measurablesByRow = measurables.chunked(columnCount)
             for ((rowIndex, rowCells) in rows.withIndex()) {
                 require(rowCells.size == columnCount) {
@@ -73,48 +93,135 @@ public fun BasicTableLayout(
                 }
 
                 for ((columnIndex, _) in rowCells.withIndex()) {
-                    // Measure each cell individually
                     val measurable = measurablesByRow[rowIndex][columnIndex]
-
-                    // Store the intrinsic width for each column, assuming we have infinite
-                    // vertical space available to display each cell (which we do)
-                    val intrinsicCellWidth = measurable.maxIntrinsicWidth(height = Int.MAX_VALUE)
-                    intrinsicColumnWidths[columnIndex] =
-                        max(intrinsicColumnWidths[columnIndex].or(0), intrinsicCellWidth)
+                    maxContentWidths[columnIndex] =
+                        max(maxContentWidths[columnIndex], measurable.maxIntrinsicWidth(height = Int.MAX_VALUE))
+                    minContentWidths[columnIndex] =
+                        max(minContentWidths[columnIndex], measurable.minIntrinsicWidth(height = Int.MAX_VALUE))
                 }
+            }
+
+            // Apply the minimum column width floor to both sets of widths.
+            val minColumnWidthPx = minColumnWidth.roundToPx()
+            for (i in 0 until columnCount) {
+                maxContentWidths[i] = max(maxContentWidths[i], minColumnWidthPx)
+                minContentWidths[i] = max(minContentWidths[i], minColumnWidthPx)
             }
 
             // The available width we can assign to cells is equal to the max width from the
-            // incoming
-            // constraints, minus the vertical borders applied between columns and to the sides of
-            // the
-            // table
+            // incoming constraints, minus the vertical borders applied between columns and to
+            // the sides of the table
             val cellBorderWidthPx = cellBorderWidth.roundToPx()
             val totalHorizontalBordersWidth = cellBorderWidthPx * (columnCount + 1)
-            val minTableIntrinsicWidth = intrinsicColumnWidths.sum() + totalHorizontalBordersWidth
+            val totalMaxContentWidth = maxContentWidths.sum()
+            val maxContentTableWidth = totalMaxContentWidth + totalHorizontalBordersWidth
             val availableWidth = incomingConstraints.maxWidth
 
-            // We want to size the columns as a ratio of their intrinsic size to the available width
-            // if there is not enough room to show them all, or as their intrinsic width if they all
-            // fit
-            var tableWidth = 0
+            // finalWidths holds the actual column widths we'll use for layout.
+            val finalWidths = maxContentWidths.copyOf()
 
-            if (minTableIntrinsicWidth <= availableWidth) {
-                // We have enough room for all columns, use intrinsic column sizes
-                tableWidth = minTableIntrinsicWidth
-            } else {
-                // We can't fit all columns in the available width; set their size proportionally
-                // to the intrinsic width, so they all fit within the available horizontal space
-                val scaleRatio = availableWidth.toFloat() / minTableIntrinsicWidth
-                for (i in 0 until columnCount) {
-                    // By truncating the decimal side, we may end up a few pixels short than the
-                    // available width, but at least we're never exceeding it.
-                    intrinsicColumnWidths[i] = (intrinsicColumnWidths[i] * scaleRatio).toInt()
-                    tableWidth += intrinsicColumnWidths[i]
+            val tableWidth: Int
+
+            when {
+                availableWidth == Constraints.Infinity -> {
+                    // Unbounded container: use max-content column sizes as-is
+                    tableWidth = maxContentTableWidth
                 }
-                tableWidth += totalHorizontalBordersWidth
+                maxContentTableWidth <= availableWidth -> {
+                    // We have more room than needed: expand columns to fill the available width.
+                    // Extra space is distributed proportionally to each column's max-content width,
+                    // so content-heavy columns receive a fair share while narrow columns are not
+                    // starved entirely.
+                    val extraWidth = availableWidth - maxContentTableWidth
+                    if (extraWidth > 0 && columnCount > 0) {
+                        if (totalMaxContentWidth > 0) {
+                            // Proportional distribution: column gets extra * (itsWidth / total)
+                            var distributed = 0
+                            for (i in 0 until columnCount - 1) {
+                                val extra = (extraWidth.toLong() * finalWidths[i] / totalMaxContentWidth).toInt()
+                                finalWidths[i] += extra
+                                distributed += extra
+                            }
+                            // Give any remaining pixels due to integer rounding to the last column
+                            finalWidths[columnCount - 1] += extraWidth - distributed
+                        } else {
+                            // All columns are empty; distribute the extra space equally
+                            val extraPerColumn = extraWidth / columnCount
+                            val remainder = extraWidth % columnCount
+                            for (i in 0 until columnCount) {
+                                finalWidths[i] += extraPerColumn
+                            }
+                            finalWidths[columnCount - 1] += remainder
+                        }
+                    }
+                    tableWidth = availableWidth
+                }
+                else -> {
+                    // Max-content widths don't fit. Use min-content widths as floors (CSS table
+                    // auto-layout: each column is guaranteed at least its widest unbreakable unit).
+                    val totalMinContentWidth = minContentWidths.sum()
+                    val minFitWidth = totalMinContentWidth + totalHorizontalBordersWidth
+
+                    if (minFitWidth <= availableWidth) {
+                        // All min-content floors fit: start with floors, then distribute the
+                        // remaining surplus proportionally to each column's capacity
+                        // (max-content minus its floor), so wider columns get more of the bonus.
+                        val surplus = availableWidth - minFitWidth
+                        val capacities =
+                            IntArray(columnCount) { i -> max(0, maxContentWidths[i] - minContentWidths[i]) }
+                        val totalCapacity = capacities.sum()
+
+                        for (i in 0 until columnCount) {
+                            finalWidths[i] = minContentWidths[i]
+                        }
+
+                        if (surplus > 0) {
+                            if (totalCapacity > 0) {
+                                var distributed = 0
+                                for (i in 0 until columnCount - 1) {
+                                    val extra = (surplus.toLong() * capacities[i] / totalCapacity).toInt()
+                                    finalWidths[i] += extra
+                                    distributed += extra
+                                }
+                                finalWidths[columnCount - 1] += surplus - distributed
+                            } else {
+                                // All columns have max == min; distribute surplus equally
+                                val extraPerColumn = surplus / columnCount
+                                val remainder = surplus % columnCount
+                                for (i in 0 until columnCount) {
+                                    finalWidths[i] += extraPerColumn
+                                }
+                                finalWidths[columnCount - 1] += remainder
+                            }
+                        }
+                        tableWidth = availableWidth
+                    } else {
+                        // Even min-content widths don't fit; scale them down proportionally.
+                        // This is a last resort — some content will inevitably be clipped or wrap.
+                        // Distribute exactly (availableWidth - borders) pixels across columns
+                        // so the table never exceeds the available width.
+                        val targetColumnSum = max(0, availableWidth - totalHorizontalBordersWidth)
+                        if (totalMinContentWidth > 0) {
+                            val scaleRatio = targetColumnSum.toFloat() / totalMinContentWidth
+                            var scaledTotal = 0
+                            for (i in 0 until columnCount - 1) {
+                                finalWidths[i] = (minContentWidths[i] * scaleRatio).toInt()
+                                scaledTotal += finalWidths[i]
+                            }
+                            // Give any remaining pixels due to integer truncation to the last column
+                            finalWidths[columnCount - 1] = max(0, targetColumnSum - scaledTotal)
+                        } else {
+                            // All min-content widths are zero; distribute equally
+                            val perColumn = targetColumnSum / columnCount
+                            val remainder = targetColumnSum % columnCount
+                            for (i in 0 until columnCount) finalWidths[i] = perColumn
+                            finalWidths[columnCount - 1] += remainder
+                        }
+                        tableWidth = availableWidth
+                    }
+                }
             }
-            columnWidths = intrinsicColumnWidths.toList()
+            columnWidths = finalWidths.toList()
 
             // The height of each row is the maximum intrinsic height of their cells, calculated
             // from the (possibly scaled) intrinsic column widths we just computed
