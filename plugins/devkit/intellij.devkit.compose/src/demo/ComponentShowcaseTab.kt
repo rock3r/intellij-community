@@ -46,6 +46,7 @@ import com.intellij.ui.JBColor
 import com.intellij.util.ui.JBUI
 import kotlinx.coroutines.delay
 import org.jetbrains.icons.Icon
+import org.jetbrains.icons.swing.toNewIcon
 import org.jetbrains.jewel.bridge.toComposeColor
 import org.jetbrains.jewel.foundation.LocalComponent
 import org.jetbrains.jewel.foundation.actionSystem.provideData
@@ -474,16 +475,16 @@ private fun IconsShowcase() {
     )
 
     Box {
-      Icon(AllIcons.General.OpenDisk as Icon, "Build Load Changes")
+      Icon(AllIcons.General.OpenDisk.toNewIcon(), "Build Load Changes")
     }
 
     Box {
-      Icon(deferedIcon as Icon, "Deferred Icon Sample")
+      Icon(deferredIcon.toNewIcon(), "Deferred Icon Sample")
     }
   }
 }
 
-private val deferedIcon = IconDeferrer.getInstance().deferAsync(
+private val deferredIcon = IconDeferrer.getInstance().deferAsync(
   AllIcons.General.Print,
   "KABOOM-DEF_ICON_TST"
 ) {
@@ -547,22 +548,22 @@ private fun MarkdownExample(project: Project) {
     ProvideMarkdownStyling(project) {
       Markdown(
         """
-                |Hi! This is an example of **Markdown** rendering. We support the [CommonMark specs](https://commonmark.org/)
-                |out of the box, but `you` can also have _extensions_.
-                |
-                |For example:
-                | * Images
-                | * Tables
-                | * And more — I am running out of random things to say 😆
-                |    * But I'm not!
-                |       * Have fun indenting your lists as your heart pleases!
-                |
-                |```kotlin
-                |fun hello() = "World"
-                |```
-                |
-                |    Indented code here!
-                """
+        |Hi! This is an example of **Markdown** rendering. We support the [CommonMark specs](https://commonmark.org/)
+        |out of the box, but `you` can also have _extensions_.
+        |
+        |For example:
+        | * Images
+        | * Tables
+        | * And more — I am running out of random things to say 😆
+        |    * But I'm not!
+        |       * Have fun indenting your lists as your heart pleases!
+        |
+        |```kotlin
+        |fun hello() = "World"
+        |```
+        |
+        |    Indented code here!
+        """
           .trimMargin(),
         Modifier.fillMaxWidth()
           .background(JBUI.CurrentTheme.Banner.INFO_BACKGROUND.toComposeColor(), RoundedCornerShape(8.dp))
