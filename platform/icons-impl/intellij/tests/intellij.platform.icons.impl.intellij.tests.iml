@@ -14,7 +14,7 @@
           </stringArguments>
           <arrayArguments>
             <arrayArg name="pluginClasspaths">
-              <args>$USER_HOME$/Library/Caches/JetBrains/IntelliJIdea2025.3/kotlin-dist-for-ide/2.3.20-RC2/lib/kotlinx-serialization-compiler-plugin.jar</args>
+              <args>$KOTLIN_BUNDLED$/lib/kotlinx-serialization-compiler-plugin.jar</args>
             </arrayArg>
             <arrayArg name="pluginOptions" />
           </arrayArguments>
