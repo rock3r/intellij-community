@@ -2,19 +2,22 @@ package com.intellij.devkit.compose.demo
 
 import com.intellij.devkit.compose.DevkitComposeBundle
 import com.intellij.devkit.compose.demo.releasessample.ReleasesSampleCompose
+import com.intellij.openapi.components.service
 import com.intellij.openapi.project.DumbAware
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.NlsContexts.TabTitle
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ToolWindowFactory
 import org.jetbrains.jewel.bridge.addComposeTab
+import org.jetbrains.jewel.bridge.code.highlighting.CodeHighlighterFactory
 import javax.swing.JComponent
 
 internal class JewelDemoToolWindowFactory : ToolWindowFactory, DumbAware {
   override fun createToolWindowContent(project: Project, toolWindow: ToolWindow) {
-    // Enable custom popup rendering to use JBPopup instead of the default Compose implementation
-
     toolWindow.addComposeTab(DevkitComposeBundle.message("jewel.tw.tab.title.components")) { ComponentShowcaseTab(project) }
+
+    val codeHighlighter = project.service<CodeHighlighterFactory>().createHighlighter()
+    toolWindow.addComposeTab(DevkitComposeBundle.message("jewel.tw.tab.title.Icons")) { IconApiPlaygroundTab(codeHighlighter) }
 
     toolWindow.addComposeTab(DevkitComposeBundle.message("jewel.tw.tab.title.markdown")) { MarkdownShowcaseTab(project) }
 
