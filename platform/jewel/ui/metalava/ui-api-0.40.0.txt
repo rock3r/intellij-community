@@ -188,6 +188,19 @@ package org.jetbrains.jewel.ui.component {
     method @androidx.compose.runtime.Composable public static void ActionButton(kotlin.jvm.functions.Function0<kotlin.Unit> onClick, kotlin.jvm.functions.Function0<kotlin.Unit> tooltip, optional androidx.compose.ui.Modifier modifier, optional boolean enabled, optional boolean focusable, optional org.jetbrains.jewel.ui.component.styling.IconButtonStyle style, optional androidx.compose.foundation.layout.PaddingValues contentPadding, optional org.jetbrains.jewel.ui.component.styling.TooltipStyle tooltipStyle, optional androidx.compose.foundation.TooltipPlacement tooltipPlacement, optional androidx.compose.foundation.interaction.MutableInteractionSource interactionSource, kotlin.jvm.functions.Function0<kotlin.Unit> content);
   }
 
+  public final class ActionComponentsKt {
+    method @SuppressCompatibility @androidx.compose.runtime.Composable @org.jetbrains.annotations.ApiStatus.Experimental @org.jetbrains.jewel.foundation.ExperimentalJewelApi public static void ActionButton(org.jetbrains.jewel.foundation.shortcut.JewelAction action, optional androidx.compose.ui.Modifier modifier, optional boolean respectVisibility);
+    method @SuppressCompatibility @androidx.compose.runtime.Composable @org.jetbrains.annotations.ApiStatus.Experimental @org.jetbrains.jewel.foundation.ExperimentalJewelApi public static void ActionToolbar(org.jetbrains.jewel.foundation.shortcut.JewelActionGroup group, optional androidx.compose.ui.Modifier modifier, optional org.jetbrains.jewel.foundation.shortcut.ActionContext context);
+    method @SuppressCompatibility @androidx.compose.runtime.Composable @org.jetbrains.annotations.ApiStatus.Experimental @org.jetbrains.jewel.foundation.ExperimentalJewelApi public static void ToggleActionButton(org.jetbrains.jewel.foundation.shortcut.JewelAction action, optional androidx.compose.ui.Modifier modifier, optional boolean respectVisibility);
+    method @SuppressCompatibility @org.jetbrains.annotations.ApiStatus.Experimental @org.jetbrains.jewel.foundation.ExperimentalJewelApi public static org.jetbrains.jewel.ui.icon.IconKey? iconKeyOrNull(org.jetbrains.jewel.foundation.shortcut.ActionPresentation);
+  }
+
+  public final class ActionMenuComponentsKt {
+    method @SuppressCompatibility @androidx.compose.runtime.Composable @org.jetbrains.annotations.ApiStatus.Experimental @org.jetbrains.jewel.foundation.ExperimentalJewelApi public static void ActionMenu(org.jetbrains.jewel.foundation.shortcut.JewelActionGroup group, kotlin.jvm.functions.Function0<kotlin.Unit> onDismissRequest, optional androidx.compose.ui.Modifier modifier, optional org.jetbrains.jewel.foundation.shortcut.ActionContext context, optional androidx.compose.ui.Alignment.Horizontal horizontalAlignment, optional boolean keepPopupsForToggles);
+    method @SuppressCompatibility @androidx.compose.runtime.Composable @org.jetbrains.annotations.ApiStatus.Experimental @org.jetbrains.jewel.foundation.ExperimentalJewelApi public static void ActionMenuButton(org.jetbrains.jewel.foundation.shortcut.JewelActionGroup group, optional androidx.compose.ui.Modifier modifier, optional org.jetbrains.jewel.foundation.shortcut.ActionContext context, optional boolean keepPopupsForToggles);
+    method @SuppressCompatibility @androidx.compose.runtime.Composable @org.jetbrains.annotations.ApiStatus.Experimental @org.jetbrains.jewel.foundation.ExperimentalJewelApi public static void SplitActionButton(org.jetbrains.jewel.foundation.shortcut.JewelAction primary, org.jetbrains.jewel.foundation.shortcut.JewelActionGroup menuGroup, optional androidx.compose.ui.Modifier modifier, optional org.jetbrains.jewel.foundation.shortcut.ActionContext context, optional boolean keepPopupsForToggles);
+  }
+
   @Deprecated public enum AutoHideBehavior {
     enum_constant @Deprecated public static final org.jetbrains.jewel.ui.component.AutoHideBehavior Long;
     enum_constant @Deprecated public static final org.jetbrains.jewel.ui.component.AutoHideBehavior Never;
@@ -512,6 +525,10 @@ package org.jetbrains.jewel.ui.component {
     method public long of(optional boolean enabled, optional boolean focused, optional boolean pressed, optional boolean hovered, optional boolean active);
   }
 
+  public final class KeymapSettingsPanelKt {
+    method @SuppressCompatibility @androidx.compose.runtime.Composable @org.jetbrains.annotations.ApiStatus.Experimental @org.jetbrains.jewel.foundation.ExperimentalJewelApi public static void KeymapSettingsPanel(org.jetbrains.jewel.foundation.shortcut.MutableJewelKeymap keymap, org.jetbrains.jewel.foundation.shortcut.JewelActionRegistry registry, optional androidx.compose.ui.Modifier modifier);
+  }
+
   public final class LazyTreeKt {
     method @SuppressCompatibility @androidx.compose.runtime.Composable @org.jetbrains.annotations.ApiStatus.Experimental @org.jetbrains.jewel.foundation.ExperimentalJewelApi public static <T> void LazyTree(org.jetbrains.jewel.foundation.lazy.tree.Tree<T> tree, optional androidx.compose.ui.Modifier modifier, optional kotlin.jvm.functions.Function1<? super org.jetbrains.jewel.foundation.lazy.tree.Tree.Element<T>,kotlin.Unit> onElementClick, optional org.jetbrains.jewel.foundation.lazy.tree.TreeState treeState, optional kotlin.jvm.functions.Function1<? super org.jetbrains.jewel.foundation.lazy.tree.Tree.Element<T>,kotlin.Unit> onElementDoubleClick, optional kotlin.jvm.functions.Function1<? super java.util.List<? extends org.jetbrains.jewel.foundation.lazy.tree.Tree.Element<T>>,kotlin.Unit> onSelectionChange, optional org.jetbrains.jewel.foundation.lazy.tree.KeyActions keyActions, optional org.jetbrains.jewel.ui.component.styling.LazyTreeStyle style, optional androidx.compose.foundation.interaction.MutableInteractionSource interactionSource, kotlin.jvm.functions.Function2<? super org.jetbrains.jewel.foundation.lazy.SelectableLazyItemScope,? super org.jetbrains.jewel.foundation.lazy.tree.Tree.Element<T>,kotlin.Unit> nodeContent);
     method @Deprecated @SuppressCompatibility @androidx.compose.runtime.Composable @org.jetbrains.annotations.ApiStatus.Experimental @org.jetbrains.jewel.foundation.ExperimentalJewelApi public static <T> void LazyTree(org.jetbrains.jewel.foundation.lazy.tree.Tree<T> tree, optional androidx.compose.ui.Modifier modifier, optional kotlin.jvm.functions.Function1<? super org.jetbrains.jewel.foundation.lazy.tree.Tree.Element<T>,kotlin.Unit> onElementClick, optional org.jetbrains.jewel.foundation.lazy.tree.TreeState treeState, optional kotlin.jvm.functions.Function1<? super org.jetbrains.jewel.foundation.lazy.tree.Tree.Element<T>,kotlin.Unit> onElementDoubleClick, optional kotlin.jvm.functions.Function1<? super java.util.List<? extends org.jetbrains.jewel.foundation.lazy.tree.Tree.Element<T>>,kotlin.Unit> onSelectionChange, optional org.jetbrains.jewel.foundation.lazy.tree.KeyActions keyActions, optional org.jetbrains.jewel.ui.component.styling.LazyTreeStyle style, kotlin.jvm.functions.Function2<? super org.jetbrains.jewel.foundation.lazy.SelectableLazyItemScope,? super org.jetbrains.jewel.foundation.lazy.tree.Tree.Element<T>,kotlin.Unit> nodeContent);
@@ -584,6 +601,12 @@ package org.jetbrains.jewel.ui.component {
     property public static androidx.compose.runtime.ProvidableCompositionLocal<org.jetbrains.jewel.ui.component.MenuController> LocalMenuController;
   }
 
+  @SuppressCompatibility @org.jetbrains.annotations.ApiStatus.Experimental @org.jetbrains.jewel.foundation.ExperimentalJewelApi public enum MenuItemAccessibilityRole {
+    enum_constant public static final org.jetbrains.jewel.ui.component.MenuItemAccessibilityRole Checkbox;
+    enum_constant public static final org.jetbrains.jewel.ui.component.MenuItemAccessibilityRole Item;
+    enum_constant public static final org.jetbrains.jewel.ui.component.MenuItemAccessibilityRole RadioButton;
+  }
+
   @Deprecated @androidx.compose.runtime.Immutable @kotlin.jvm.JvmInline public final value class MenuItemState implements org.jetbrains.jewel.foundation.state.FocusableComponentState org.jetbrains.jewel.foundation.state.SelectableComponentState {
     ctor @KotlinOnly @Deprecated public MenuItemState(kotlin.ULong state);
     method @Deprecated public long copy(optional boolean selected, optional boolean enabled, optional boolean focused, optional boolean hovered, optional boolean pressed, optional boolean active);
@@ -630,6 +653,7 @@ package org.jetbrains.jewel.ui.component {
   }
 
   public interface MenuScope {
+    method @SuppressCompatibility @org.jetbrains.annotations.ApiStatus.Experimental @org.jetbrains.jewel.foundation.ExperimentalJewelApi public default void actionItem(boolean selected, optional org.jetbrains.jewel.ui.component.MenuItemAccessibilityRole role, optional org.jetbrains.jewel.ui.icon.IconKey? iconKey, optional java.util.Set<java.lang.String>? keybinding, optional boolean keepMenuOpenOnClick, kotlin.jvm.functions.Function0<kotlin.Unit> onClick, optional boolean enabled, kotlin.jvm.functions.Function0<kotlin.Unit> content);
     method public void passiveItem(kotlin.jvm.functions.Function0<kotlin.Unit> content);
     method public void selectableItem(boolean selected, optional org.jetbrains.jewel.ui.icon.IconKey? iconKey, optional java.util.Set<java.lang.String>? keybinding, kotlin.jvm.functions.Function0<kotlin.Unit> onClick, optional boolean enabled, kotlin.jvm.functions.Function0<kotlin.Unit> content);
     method public void selectableItemWithActionType(boolean selected, optional org.jetbrains.jewel.ui.icon.IconKey? iconKey, optional org.jetbrains.jewel.ui.component.ContextMenuItemOptionAction? actionType, kotlin.jvm.functions.Function0<kotlin.Unit> onClick, optional boolean enabled, kotlin.jvm.functions.Function0<kotlin.Unit> content);

@@ -13,8 +13,7 @@ internal class ActionModelTest {
 
     private val ctrlA = JewelKeyStroke(Key.A, ctrl = true)
 
-    private val keymap =
-        InMemoryJewelKeymap("test").apply { bind(actionId, JewelKeySequence(ctrlA)) }
+    private val keymap = InMemoryJewelKeymap("test").apply { bind(actionId, JewelKeySequence(ctrlA)) }
 
     @Test
     fun `OnceUntilRelease suppresses repeats until key-up, RepeatWhileHeld does not`() {
@@ -83,10 +82,9 @@ internal class ActionModelTest {
     @Test
     fun `scheduler publishes only on change and drops entries when demand is released`() {
         var enabled = false
-        val scheduler =
-            ActionPresentationScheduler { id ->
-                ActionPresentation(text = id.value, enabled = enabled, resolution = ActionResolution.Resolved)
-            }
+        val scheduler = ActionPresentationScheduler { id ->
+            ActionPresentation(text = id.value, enabled = enabled, resolution = ActionResolution.Resolved)
+        }
 
         val flow = scheduler.acquire(actionId)
         val first = flow.value
@@ -105,10 +103,7 @@ internal class ActionModelTest {
     fun `presentation override merges over template with Set-null clearing nullable fields`() {
         val base = ActionPresentation(text = "T", description = "d", resolution = ActionResolution.Resolved)
         val merged =
-            ActionPresentationOverride(
-                    text = PresentationValue.Set("X"),
-                    description = PresentationValue.Set(null),
-                )
+            ActionPresentationOverride(text = PresentationValue.Set("X"), description = PresentationValue.Set(null))
                 .mergeOver(base)
         assertEquals("X", merged.text)
         assertNull(merged.description)

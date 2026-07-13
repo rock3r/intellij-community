@@ -1,7 +1,6 @@
 // Copyright 2000-2026 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.
 package org.jetbrains.jewel.foundation.shortcut
 
-import androidx.compose.ui.input.key.Key
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -9,8 +8,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Pins the PRD failure/lifecycle/race table rows at the presentation layer, plus the per-binding
- * presentation override merge and the stale-execution guard.
+ * Pins the PRD failure/lifecycle/race table rows at the presentation layer, plus the per-binding presentation override
+ * merge and the stale-execution guard.
  */
 internal class PresentationContractTest {
     private val actionId = JewelActionId("test.presentation.action")
@@ -73,8 +72,7 @@ internal class PresentationContractTest {
         assertEquals(MenuDismissPolicy.KeepAlways, merged.menuDismissPolicy)
         assertEquals("T", merged.text)
 
-        val cleared =
-            ActionPresentationOverride(menuDismissPolicy = PresentationValue.Set(null)).mergeOver(merged)
+        val cleared = ActionPresentationOverride(menuDismissPolicy = PresentationValue.Set(null)).mergeOver(merged)
         assertNull(cleared.menuDismissPolicy)
         assertTrue("non-Set fields inherit", cleared.selected)
     }

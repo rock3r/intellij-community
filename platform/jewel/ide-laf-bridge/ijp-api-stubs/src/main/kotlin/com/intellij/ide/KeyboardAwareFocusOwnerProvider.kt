@@ -7,13 +7,12 @@ import java.awt.event.KeyEvent
 /**
  * Compile-only stub of the platform interface introduced with IJPL-212347.
  *
- * The bridge sources reference the real interface, which the released IntelliJ Platform artifacts this
- * Gradle build compiles against do not contain yet. This stub is on the compile classpath only — it is
- * never packaged into any Jewel artifact, and at runtime the platform's own class is the one loaded.
+ * The bridge sources reference the real interface, which the released IntelliJ Platform artifacts this Gradle build
+ * compiles against do not contain yet. This stub is on the compile classpath only — it is never packaged into any Jewel
+ * artifact, and at runtime the platform's own class is the one loaded.
  *
- * Delete this directory (and its wiring in `ide-laf-bridge/build.gradle.kts`) as soon as
- * `libs.versions.toml`'s `idea` version points at a build that ships
- * `com.intellij.ide.KeyboardAwareFocusOwnerProvider`.
+ * Delete this directory (and its wiring in `ide-laf-bridge/build.gradle.kts`) as soon as `libs.versions.toml`'s `idea`
+ * version points at a build that ships `com.intellij.ide.KeyboardAwareFocusOwnerProvider`.
  */
 public interface KeyboardAwareFocusOwnerProvider {
     public fun skipKeyEventDispatcher(focusOwner: Component, event: KeyEvent): Boolean

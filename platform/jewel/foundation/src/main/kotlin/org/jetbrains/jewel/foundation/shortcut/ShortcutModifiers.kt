@@ -13,12 +13,12 @@ import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import org.jetbrains.jewel.foundation.InternalJewelApi
 
 /**
- * Binds a previously registered action ID to this UI node. The binding participates in dispatch only while
- * this node's subtree has focus; the nearest focused enabled binding for an action wins, disabled bindings
- * fall through outward, and `blocksOuterBindings = true` stops that fall-through.
+ * Binds a previously registered action ID to this UI node. The binding participates in dispatch only while this node's
+ * subtree has focus; the nearest focused enabled binding for an action wins, disabled bindings fall through outward,
+ * and `blocksOuterBindings = true` stops that fall-through.
  *
- * Like `Modifier.provideData`, the node observes focus of nodes attached AFTER it in the modifier chain
- * (and of descendants), so it must come before `focusable()` in the chain.
+ * Like `Modifier.provideData`, the node observes focus of nodes attached AFTER it in the modifier chain (and of
+ * descendants), so it must come before `focusable()` in the chain.
  */
 @ApiStatus.Experimental
 @ExperimentalJewelApi
@@ -33,9 +33,9 @@ public fun Modifier.shortcut(
     this then ShortcutBindingElement(action, enabled, blocksOuterBindings, repeatPolicy, presentation, onInvoke)
 
 /**
- * Claims a one-stroke physical shortcut before host keymap lookup while this node's subtree has focus. The
- * deliberate, review-visible escape hatch for editor-like components; in the IJPL bridge it also makes the
- * host skip `IdeKeyEventDispatcher` for the claimed stroke.
+ * Claims a one-stroke physical shortcut before host keymap lookup while this node's subtree has focus. The deliberate,
+ * review-visible escape hatch for editor-like components; in the IJPL bridge it also makes the host skip
+ * `IdeKeyEventDispatcher` for the claimed stroke.
  */
 @ApiStatus.Experimental
 @ExperimentalJewelApi
@@ -48,8 +48,8 @@ public fun Modifier.claimShortcut(
 ): Modifier = this then ShortcutClaimElement(sequence, enabled, blocksOuterClaims, repeatPolicy, onInvoke)
 
 /**
- * Low-level single-event ownership for focused input that is not a shortcut sequence. A matching enabled
- * claim owns and consumes the event; it never falls through to the host keymap.
+ * Low-level single-event ownership for focused input that is not a shortcut sequence. A matching enabled claim owns and
+ * consumes the event; it never falls through to the host keymap.
  */
 @ApiStatus.Experimental
 @ExperimentalJewelApi

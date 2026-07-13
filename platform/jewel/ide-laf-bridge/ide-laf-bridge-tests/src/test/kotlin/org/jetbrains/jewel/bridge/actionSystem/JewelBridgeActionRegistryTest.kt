@@ -16,9 +16,9 @@ import org.junit.Assert.assertThrows
 import org.junit.Test
 
 /**
- * Pins the attach-or-register lifecycle of [JewelBridgeActionRegistry] against a mocked [ActionManager]:
- * declared (plugin.xml) IDs are attached to and never unregistered; unowned IDs get a runtime action whose
- * lifetime is the reference-counted registration handle; foreign owners are rejected with the mapping hint.
+ * Pins the attach-or-register lifecycle of [JewelBridgeActionRegistry] against a mocked [ActionManager]: declared
+ * (plugin.xml) IDs are attached to and never unregistered; unowned IDs get a runtime action whose lifetime is the
+ * reference-counted registration handle; foreign owners are rejected with the mapping hint.
  */
 internal class JewelBridgeActionRegistryTest {
     private val actionId = JewelActionId("test.jewel.bridge.action")
@@ -42,8 +42,7 @@ internal class JewelBridgeActionRegistryTest {
 
     @Test
     fun `unowned ID registers a runtime action and the last close unregisters it`() {
-        val actionManager =
-            mockk<ActionManager>(relaxed = true) { every { getAction(actionId.value) } returns null }
+        val actionManager = mockk<ActionManager>(relaxed = true) { every { getAction(actionId.value) } returns null }
         val registry = JewelBridgeActionRegistry(actionManager)
 
         val first = registry.register(definition)
@@ -62,8 +61,7 @@ internal class JewelBridgeActionRegistryTest {
 
     @Test
     fun `runtime registration always uses the non dumb-aware base class`() {
-        val actionManager =
-            mockk<ActionManager>(relaxed = true) { every { getAction(actionId.value) } returns null }
+        val actionManager = mockk<ActionManager>(relaxed = true) { every { getAction(actionId.value) } returns null }
         val registered = mutableListOf<AnAction>()
         every { actionManager.registerAction(actionId.value, capture(registered)) } returns Unit
 
@@ -73,8 +71,7 @@ internal class JewelBridgeActionRegistryTest {
 
     @Test
     fun `differing definition for a registered ID fails`() {
-        val actionManager =
-            mockk<ActionManager>(relaxed = true) { every { getAction(actionId.value) } returns null }
+        val actionManager = mockk<ActionManager>(relaxed = true) { every { getAction(actionId.value) } returns null }
         val registry = JewelBridgeActionRegistry(actionManager)
         registry.register(definition)
 
@@ -86,13 +83,10 @@ internal class JewelBridgeActionRegistryTest {
     @Test
     fun `an ID owned by a non-Jewel action is rejected towards explicit mappings`() {
         val actionManager =
-            mockk<ActionManager>(relaxed = true) {
-                every { getAction(actionId.value) } returns mockk<AnAction>()
-            }
+            mockk<ActionManager>(relaxed = true) { every { getAction(actionId.value) } returns mockk<AnAction>() }
         val registry = JewelBridgeActionRegistry(actionManager)
 
-        val failure =
-            assertThrows(IllegalStateException::class.java) { registry.register(definition) }
+        val failure = assertThrows(IllegalStateException::class.java) { registry.register(definition) }
         assertNotNull(failure.message)
         assert(failure.message!!.contains("JewelActionMappings"))
     }

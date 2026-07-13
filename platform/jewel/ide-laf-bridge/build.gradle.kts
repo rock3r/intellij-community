@@ -59,6 +59,11 @@ fun ModuleDependency.excludeCoroutines() {
 sourceSets {
     test { kotlin { srcDirs("ide-laf-bridge-tests/src/test/kotlin") } }
 
+    // The platform-fixture integration tests under src/test/kotlin boot a real test application, which
+    // needs the in-monorepo platform; they run via Bazel (ideLafBridge-tests_test). The standalone build
+    // compiles them against the SDK but must not execute them.
+    tasks.test { exclude("**/JewelBridgeActionIntegrationTest*") }
+
     // Compile-only stubs for platform API introduced with IJPL-212347 but not yet present in the
     // released IJP artifacts this build resolves. Never packaged; the platform's own classes win at
     // runtime. Delete together with ijp-api-stubs/ once libs.versions.toml's `idea` version ships

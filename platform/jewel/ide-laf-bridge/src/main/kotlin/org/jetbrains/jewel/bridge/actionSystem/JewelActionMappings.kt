@@ -18,13 +18,13 @@ import org.jetbrains.jewel.foundation.shortcut.JewelActionId
 import org.jetbrains.jewel.foundation.shortcut.JewelActions
 
 /**
- * Explicit routing of Jewel action IDs onto existing platform actions (the `MappedIdeAction` route).
- * A mapped action keeps its native `AnAction` class, `update()`, presentation, and `DataContext`
- * semantics — the mapping only tells the bridge invoker which platform action to execute. Mapped actions
- * never emit Jewel lifecycle events; observe them through ordinary IJPL facilities.
+ * Explicit routing of Jewel action IDs onto existing platform actions (the `MappedIdeAction` route). A mapped action
+ * keeps its native `AnAction` class, `update()`, presentation, and `DataContext` semantics — the mapping only tells the
+ * bridge invoker which platform action to execute. Mapped actions never emit Jewel lifecycle events; observe them
+ * through ordinary IJPL facilities.
  *
- * Applications may override a default mapping before any invocation; [map] validates that the target
- * platform action exists.
+ * Applications may override a default mapping before any invocation; [map] validates that the target platform action
+ * exists.
  */
 @ApiStatus.Experimental
 @ExperimentalJewelApi
@@ -41,13 +41,13 @@ public object JewelActionMappings {
     public fun ideActionIdFor(jewelActionId: JewelActionId): String? = mappings[jewelActionId]
 
     /**
-     * Bridge defaults for the standard edit actions. Idempotent and non-clobbering: an explicit [map]
-     * override for a standard action survives any number of install calls, so hosts may install eagerly
-     * (`ShortcutHostBridge` does, on every panel) and applications may override at any point before that.
+     * Bridge defaults for the standard edit actions. Idempotent and non-clobbering: an explicit [map] override for a
+     * standard action survives any number of install calls, so hosts may install eagerly (`ShortcutHostBridge` does, on
+     * every panel) and applications may override at any point before that.
      *
-     * Unlike [map], targets are not validated eagerly: the standard IDE action IDs are
-     * platform-guaranteed, and this may run before the [ActionManager] service would be warm — a missing
-     * target still surfaces at invocation time as an `Unregistered` rejection.
+     * Unlike [map], targets are not validated eagerly: the standard IDE action IDs are platform-guaranteed, and this
+     * may run before the [ActionManager] service would be warm — a missing target still surfaces at invocation time as
+     * an `Unregistered` rejection.
      */
     public fun installStandardMappings() {
         mappings.putIfAbsent(JewelActions.Copy.id, IdeActions.ACTION_COPY)
@@ -64,9 +64,9 @@ public object JewelActionMappings {
 
 /**
  * Bridge-side [ActionInvoker]: routes a mapped ID to its platform action, otherwise to the bridge-owned
- * [JewelActionBridgeAction], always via `ActionManager.tryToExecute` with the Jewel host as the context
- * component — listeners, transactions, and dumb-mode handling stay on the platform path. Submission
- * reports dispatch acceptance, not completion.
+ * [JewelActionBridgeAction], always via `ActionManager.tryToExecute` with the Jewel host as the context component —
+ * listeners, transactions, and dumb-mode handling stay on the platform path. Submission reports dispatch acceptance,
+ * not completion.
  */
 @ApiStatus.Experimental
 @ExperimentalJewelApi

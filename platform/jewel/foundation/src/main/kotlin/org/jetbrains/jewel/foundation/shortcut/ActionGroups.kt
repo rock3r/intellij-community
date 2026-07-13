@@ -10,9 +10,7 @@ import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 public value class JewelActionGroupId(public val value: String)
 
 /** Typed key into the focused-host [ActionContext] consumed during group expansion. */
-@ApiStatus.Experimental
-@ExperimentalJewelApi
-public interface ActionContextKey<T>
+@ApiStatus.Experimental @ExperimentalJewelApi public interface ActionContextKey<T>
 
 /** Focused-host context a group expands against; stable for the duration of one expansion. */
 @ApiStatus.Experimental
@@ -35,15 +33,11 @@ public interface ActionContext {
 /** Static descriptor metadata in this slice; context-dependent group presentation is deferred. */
 @ApiStatus.Experimental
 @ExperimentalJewelApi
-public data class ActionGroupPresentation(
-    val text: String,
-    val visible: Boolean = true,
-    val popup: Boolean = false,
-)
+public data class ActionGroupPresentation(val text: String, val visible: Boolean = true, val popup: Boolean = false)
 
 /**
- * A dynamic content provider for menus and toolbars. Deliberately separate from shortcut dispatch: only
- * leaf actions have keymap bindings and focused handlers; a group is never an invokable leaf.
+ * A dynamic content provider for menus and toolbars. Deliberately separate from shortcut dispatch: only leaf actions
+ * have keymap bindings and focused handlers; a group is never an invokable leaf.
  */
 @ApiStatus.Experimental
 @ExperimentalJewelApi
@@ -64,10 +58,8 @@ public enum class ActionPlacement {
 @ApiStatus.Experimental
 @ExperimentalJewelApi
 public sealed interface JewelMenuEntry {
-    public data class Action(
-        val action: JewelAction,
-        val placement: ActionPlacement = ActionPlacement.Primary,
-    ) : JewelMenuEntry
+    public data class Action(val action: JewelAction, val placement: ActionPlacement = ActionPlacement.Primary) :
+        JewelMenuEntry
 
     public data class Group(val group: JewelActionGroup) : JewelMenuEntry
 

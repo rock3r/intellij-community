@@ -9,9 +9,8 @@ import org.jetbrains.annotations.ApiStatus
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 
 /**
- * A named keyboard scheme: effective bindings are this scheme's own bindings applied over its [parent]'s,
- * with explicit hide markers able to remove inherited bindings (the standalone analogue of IJPL keymap
- * inheritance).
+ * A named keyboard scheme: effective bindings are this scheme's own bindings applied over its [parent]'s, with explicit
+ * hide markers able to remove inherited bindings (the standalone analogue of IJPL keymap inheritance).
  */
 @ApiStatus.Experimental
 @ExperimentalJewelApi
@@ -83,8 +82,7 @@ public class InMemoryJewelKeymap(override val name: String, override val parent:
     override fun actionIdsForPrefix(first: JewelKeyStroke): List<JewelActionId> =
         actionIds().filter { id -> shortcutsFor(id).any { it.second != null && it.first == first } }
 
-    @Synchronized
-    override fun actionIds(): Set<JewelActionId> = (parent?.actionIds().orEmpty()) + own.keys
+    @Synchronized override fun actionIds(): Set<JewelActionId> = (parent?.actionIds().orEmpty()) + own.keys
 
     @Synchronized
     override fun bind(action: JewelActionId, sequence: JewelKeySequence) {
@@ -149,9 +147,9 @@ public interface JewelKeymapManager {
 @ExperimentalJewelApi
 public class DefaultJewelKeymapManager(initial: JewelKeymap) : JewelKeymapManager {
     private val _keymaps = MutableStateFlow(listOf(initial))
-    private val _active = MutableStateFlow(initial)
+    private val _activeKeymap = MutableStateFlow(initial)
 
-    override val activeKeymap: StateFlow<JewelKeymap> = _active.asStateFlow()
+    override val activeKeymap: StateFlow<JewelKeymap> = _activeKeymap.asStateFlow()
     override val keymaps: StateFlow<List<JewelKeymap>> = _keymaps.asStateFlow()
 
     override fun addKeymap(keymap: JewelKeymap) {
@@ -159,13 +157,13 @@ public class DefaultJewelKeymapManager(initial: JewelKeymap) : JewelKeymapManage
     }
 
     override fun removeKeymap(name: String) {
-        require(_active.value.name != name) { "Cannot remove the active keymap '$name'" }
+        require(_activeKeymap.value.name != name) { "Cannot remove the active keymap '$name'" }
         _keymaps.update { current -> current.filterNot { it.name == name } }
     }
 
     override fun setActiveKeymap(name: String) {
         val keymap = _keymaps.value.firstOrNull { it.name == name }
         requireNotNull(keymap) { "Unknown keymap '$name'" }
-        _active.value = keymap
+        _activeKeymap.value = keymap
     }
 }

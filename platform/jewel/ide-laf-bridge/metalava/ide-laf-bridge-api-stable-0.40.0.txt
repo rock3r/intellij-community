@@ -112,6 +112,14 @@ package org.jetbrains.jewel.bridge {
 
 }
 
+package org.jetbrains.jewel.bridge.actionSystem {
+
+  public final class JewelActionBridgeActionKt {
+    method public static com.intellij.openapi.actionSystem.DataKey<org.jetbrains.jewel.foundation.shortcut.JewelShortcutHostState> getJEWEL_SHORTCUT_HOST_STATE();
+  }
+
+}
+
 package org.jetbrains.jewel.bridge.code.highlighting {
 
   @com.intellij.openapi.components.Service(com.intellij.openapi.components.Service.Level.PROJECT) public final class CodeHighlighterFactory {

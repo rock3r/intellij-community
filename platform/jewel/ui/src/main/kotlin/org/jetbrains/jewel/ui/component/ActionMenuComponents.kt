@@ -27,16 +27,16 @@ import org.jetbrains.jewel.foundation.shortcut.MenuDismissPolicy
 import org.jetbrains.jewel.foundation.shortcut.collectPresentationAsState
 
 /**
- * A popup menu hosting a [JewelActionGroup]: leaf actions render as menu items with their sampled
- * presentation (toggles as checkable items with checkbox accessibility semantics), separators as menu
- * separators, and popup subgroups as submenus. Item activation routes through the host invoker.
+ * A popup menu hosting a [JewelActionGroup]: leaf actions render as menu items with their sampled presentation (toggles
+ * as checkable items with checkbox accessibility semantics), separators as menu separators, and popup subgroups as
+ * submenus. Item activation routes through the host invoker.
  *
- * The popup threads the shortcut host's key handler into its scene layer, so keyboard dispatch — and the
- * menu's own item shortcuts, absorbed into the host as a menu scope — keeps working while the menu is
- * open; popup layers never inherit window key hooks on their own.
+ * The popup threads the shortcut host's key handler into its scene layer, so keyboard dispatch — and the menu's own
+ * item shortcuts, absorbed into the host as a menu scope — keeps working while the menu is open; popup layers never
+ * inherit window key hooks on their own.
  *
- * Whether performing an item dismisses the menu follows the item presentation's [MenuDismissPolicy]
- * (defaulting per action kind: commands dismiss, toggles honor [keepPopupsForToggles]).
+ * Whether performing an item dismisses the menu follows the item presentation's [MenuDismissPolicy] (defaulting per
+ * action kind: commands dismiss, toggles honor [keepPopupsForToggles]).
  */
 @ApiStatus.Experimental
 @ExperimentalJewelApi
@@ -70,25 +70,20 @@ private fun collectLeafPresentations(
     host: JewelShortcutHostState,
     entries: List<JewelMenuEntry>,
 ): Map<JewelActionId, ActionPresentation> {
+    val leafActions = remember(entries) { flattenLeafActions(entries) }
     val result = mutableMapOf<JewelActionId, ActionPresentation>()
-    CollectLeafPresentationsInto(result, host, entries)
+    for (action in leafActions) {
+        val presentation by action.collectPresentationAsState(host.presentations)
+        result[action.id] = presentation
+    }
     return result
 }
 
-@Composable
-private fun CollectLeafPresentationsInto(
-    sink: MutableMap<JewelActionId, ActionPresentation>,
-    host: JewelShortcutHostState,
-    entries: List<JewelMenuEntry>,
-) {
+private fun flattenLeafActions(entries: List<JewelMenuEntry>): List<JewelAction> = buildList {
     for (entry in entries) {
         when (entry) {
-            is JewelMenuEntry.Action -> {
-                val presentation by entry.action.collectPresentationAsState(host.presentations)
-                sink[entry.action.id] = presentation
-            }
-            is JewelMenuEntry.Group ->
-                CollectLeafPresentationsInto(sink, host, entry.group.children(ActionContext.Empty))
+            is JewelMenuEntry.Action -> add(entry.action)
+            is JewelMenuEntry.Group -> addAll(flattenLeafActions(entry.group.children(ActionContext.Empty)))
             is JewelMenuEntry.Separator -> Unit
         }
     }
@@ -165,9 +160,8 @@ private fun keepsMenuOpen(
 }
 
 /**
- * A button that opens an [ActionMenu] for [group]. The anchor renders the group's presentation text with
- * a disclosure chevron; the menu inherits the shortcut host threading and dismiss policies of
- * [ActionMenu].
+ * A button that opens an [ActionMenu] for [group]. The anchor renders the group's presentation text with a disclosure
+ * chevron; the menu inherits the shortcut host threading and dismiss policies of [ActionMenu].
  */
 @ApiStatus.Experimental
 @ExperimentalJewelApi
@@ -193,8 +187,8 @@ public fun ActionMenuButton(
 }
 
 /**
- * A split button: the primary segment invokes [primary] through the host (an [ActionButton]), and the
- * chevron segment opens an [ActionMenu] for [menuGroup].
+ * A split button: the primary segment invokes [primary] through the host (an [ActionButton]), and the chevron segment
+ * opens an [ActionMenu] for [menuGroup].
  */
 @ApiStatus.Experimental
 @ExperimentalJewelApi

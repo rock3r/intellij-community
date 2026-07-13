@@ -10,6 +10,7 @@ import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 public enum class ShortcutRepeatPolicy {
     /** Invoke on the initial key-down and every delivered auto-repeat key-down. */
     RepeatWhileHeld,
+
     /** Invoke once, then suppress delivered repeats until the key-up of the same stroke. */
     OnceUntilRelease,
 }
@@ -72,13 +73,13 @@ public sealed interface DispatchDecision {
  * Additional contract points pinned by tests:
  * - modifier-only key-downs never participate in matching (callers pass strokes via
  *   [JewelKeyStroke.fromKeyDownOrNull]);
- * - any consumed key-down arms suppression of the trailing KEY_TYPED event, so claimed printable keys do
- *   not leak characters into focused text fields;
- * - the nearest (innermost) focused enabled binding wins; disabled bindings fall through outward unless an
- *   evaluated entry sets `blocksOuterBindings`.
+ * - any consumed key-down arms suppression of the trailing KEY_TYPED event, so claimed printable keys do not leak
+ *   characters into focused text fields;
+ * - the nearest (innermost) focused enabled binding wins; disabled bindings fall through outward unless an evaluated
+ *   entry sets `blocksOuterBindings`.
  *
- * The engine is deliberately free of Compose and AWT types so it can be unit-tested directly and reused by
- * both the standalone window resolver and the IJPL bridge veto.
+ * The engine is deliberately free of Compose and AWT types so it can be unit-tested directly and reused by both the
+ * standalone window resolver and the IJPL bridge veto.
  */
 @ApiStatus.Experimental
 @ExperimentalJewelApi
@@ -105,8 +106,8 @@ public class ShortcutDispatchEngine(
     }
 
     /**
-     * Arms one-shot suppression of the trailing KEY_TYPED for a key-down a caller consumed outside the
-     * engine (menu-scope shortcuts); equivalent to what any engine-consumed key-down does itself.
+     * Arms one-shot suppression of the trailing KEY_TYPED for a key-down a caller consumed outside the engine
+     * (menu-scope shortcuts); equivalent to what any engine-consumed key-down does itself.
      */
     public fun armTypedSuppression() {
         suppressNextTyped = true
@@ -128,8 +129,8 @@ public class ShortcutDispatchEngine(
     }
 
     /**
-     * Call for every key-down. [stroke] must be null for modifier-only key-downs, which never match and
-     * never cancel a pending chord.
+     * Call for every key-down. [stroke] must be null for modifier-only key-downs, which never match and never cancel a
+     * pending chord.
      */
     public fun onKeyDown(stroke: JewelKeyStroke?): DispatchDecision {
         if (stroke == null) return DispatchDecision.Pass
@@ -143,7 +144,11 @@ public class ShortcutDispatchEngine(
             pendingFirstStroke = null
             if (claim.repeatPolicy == ShortcutRepeatPolicy.OnceUntilRelease) {
                 if (repeatLatchedStroke == stroke) {
-                    return DispatchDecision.Consumed(null, claim.sequence, DispatchDecision.Consumed.Route.RepeatSuppressed)
+                    return DispatchDecision.Consumed(
+                        null,
+                        claim.sequence,
+                        DispatchDecision.Consumed.Route.RepeatSuppressed,
+                    )
                 }
                 repeatLatchedStroke = stroke
             }
@@ -160,8 +165,7 @@ public class ShortcutDispatchEngine(
             pendingFirstStroke = null
             suppressNextTyped = true
             val sequence = JewelKeySequence(first, stroke)
-            val actionId =
-                keymap().actionIdsFor(sequence).firstOrNull { id -> resolveBinding(id) != null }
+            val actionId = keymap().actionIdsFor(sequence).firstOrNull { id -> resolveBinding(id) != null }
             if (actionId != null) {
                 resolveBinding(actionId)?.onInvoke?.invoke()
                 return DispatchDecision.Consumed(actionId, sequence, DispatchDecision.Consumed.Route.Keymap)
@@ -171,8 +175,7 @@ public class ShortcutDispatchEngine(
 
         // 3) Exact one-stroke command wins over a chord sharing the first stroke.
         val exactSequence = JewelKeySequence(stroke)
-        val exactActionId =
-            keymap().actionIdsFor(exactSequence).firstOrNull { id -> resolveBinding(id) != null }
+        val exactActionId = keymap().actionIdsFor(exactSequence).firstOrNull { id -> resolveBinding(id) != null }
         if (exactActionId != null) {
             val binding = resolveBinding(exactActionId)
             suppressNextTyped = true

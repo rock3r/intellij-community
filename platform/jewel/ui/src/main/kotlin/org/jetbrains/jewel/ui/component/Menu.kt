@@ -25,7 +25,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.rememberScrollbarAdapter
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.toggleable
-import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
@@ -61,15 +60,16 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalInputModeManager
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
 import org.jetbrains.annotations.ApiStatus
+import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import org.jetbrains.jewel.foundation.GenerateDataFunctions
 import org.jetbrains.jewel.foundation.InternalJewelApi
-import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import org.jetbrains.jewel.foundation.modifier.onHover
 import org.jetbrains.jewel.foundation.modifier.thenIf
 import org.jetbrains.jewel.foundation.shortcut.LocalJewelShortcutHost
@@ -567,15 +567,16 @@ public interface MenuScope {
     /**
      * Adds a menu item with explicit accessibility semantics and dismiss behavior, for action-bound menus.
      *
-     * [role] chooses the semantics exposed to accessibility services: [MenuItemAccessibilityRole.Checkbox]
-     * for toggle actions and [MenuItemAccessibilityRole.RadioButton] for radio groups; plain items keep
-     * default menu-item semantics. With [keepMenuOpenOnClick] the click does not dismiss the menu — the
-     * consumer-side realization of a keep-popup-on-perform policy.
+     * [role] chooses the semantics exposed to accessibility services: [MenuItemAccessibilityRole.Checkbox] for toggle
+     * actions and [MenuItemAccessibilityRole.RadioButton] for radio groups; plain items keep default menu-item
+     * semantics. With [keepMenuOpenOnClick] the click does not dismiss the menu — the consumer-side realization of a
+     * keep-popup-on-perform policy.
      *
-     * The default implementation ignores [role] and [keepMenuOpenOnClick] and delegates to
-     * [selectableItem], so external [MenuScope] implementations keep compiling; Jewel's own menus honor
-     * both.
+     * The default implementation ignores [role] and [keepMenuOpenOnClick] and delegates to [selectableItem], so
+     * external [MenuScope] implementations keep compiling; Jewel's own menus honor both.
      */
+    @ApiStatus.Experimental
+    @ExperimentalJewelApi
     public fun actionItem(
         selected: Boolean,
         role: MenuItemAccessibilityRole = MenuItemAccessibilityRole.Item,

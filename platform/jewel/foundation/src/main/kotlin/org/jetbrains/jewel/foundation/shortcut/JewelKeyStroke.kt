@@ -12,8 +12,7 @@ import org.jetbrains.annotations.ApiStatus
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 
 /**
- * A host-neutral keyboard stroke based on Compose [Key] and modifier flags — deliberately not
- * `javax.swing.KeyStroke`.
+ * A host-neutral keyboard stroke based on Compose [Key] and modifier flags — deliberately not `javax.swing.KeyStroke`.
  */
 @ApiStatus.Experimental
 @ExperimentalJewelApi
@@ -55,9 +54,8 @@ public data class JewelKeyStroke(
         /**
          * The stroke represented by a key-down event, or null for modifier-only key-downs.
          *
-         * Modifier-only key-downs must never participate in stroke matching: the Ctrl arriving ahead of a
-         * chord's second stroke would otherwise register as a nonmatching second stroke and cancel the
-         * pending chord.
+         * Modifier-only key-downs must never participate in stroke matching: the Ctrl arriving ahead of a chord's
+         * second stroke would otherwise register as a nonmatching second stroke and cancel the pending chord.
          */
         public fun fromKeyDownOrNull(event: KeyEvent): JewelKeyStroke? {
             if (event.key in modifierKeys) return null

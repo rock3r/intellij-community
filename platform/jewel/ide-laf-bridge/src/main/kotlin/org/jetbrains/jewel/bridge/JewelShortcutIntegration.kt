@@ -11,6 +11,7 @@ import com.intellij.openapi.actionSystem.TimerListener
 import com.intellij.openapi.application.ModalityState
 import java.awt.KeyEventDispatcher
 import java.awt.KeyboardFocusManager
+import java.awt.event.KeyEvent as AwtKeyEvent
 import javax.swing.SwingUtilities
 import org.jetbrains.jewel.bridge.actionSystem.JewelActionMappings
 import org.jetbrains.jewel.bridge.actionSystem.JewelBridgeActionInvoker
@@ -18,24 +19,23 @@ import org.jetbrains.jewel.foundation.shortcut.InMemoryJewelKeymap
 import org.jetbrains.jewel.foundation.shortcut.JewelShortcutHostState
 import org.jetbrains.jewel.foundation.shortcut.ProvideJewelShortcutHost
 import org.jetbrains.jewel.foundation.shortcut.toComposeKeyEvent
-import java.awt.event.KeyEvent as AwtKeyEvent
 
 /**
  * Wires the Jewel shortcut claim lane into a bridge-hosted Compose panel.
  *
  * Two cooperating halves, matching the PRD's bridge contract:
  * - **Veto**: [JewelComposePanelWrapper] implements `KeyboardAwareFocusOwnerProvider`; when a focused
- *   `Modifier.claimShortcut`/`claimKeyEvent` node owns a key-down, `IdeKeyEventDispatcher` skips IDE keymap
- *   processing. The wrapper — not the focus owner — answers, because the actual AWT focus owner inside a
- *   `ComposePanel` is an internal skiko component the embedder cannot control.
- * - **Delivery**: a [KeyEventDispatcher] scoped to this wrapper's focused descendants consumes the claimed
- *   key-down, invokes the claim handler, and swallows the trailing KEY_TYPED so claimed printable keys do
- *   not leak characters into focused text fields. It runs at the KeyboardFocusManager stage — after the IDE
- *   keymap has already declined the event via the veto — so no Compose Multiplatform hook is required.
+ *   `Modifier.claimShortcut`/`claimKeyEvent` node owns a key-down, `IdeKeyEventDispatcher` skips IDE keymap processing.
+ *   The wrapper — not the focus owner — answers, because the actual AWT focus owner inside a `ComposePanel` is an
+ *   internal skiko component the embedder cannot control.
+ * - **Delivery**: a [KeyEventDispatcher] scoped to this wrapper's focused descendants consumes the claimed key-down,
+ *   invokes the claim handler, and swallows the trailing KEY_TYPED so claimed printable keys do not leak characters
+ *   into focused text fields. It runs at the KeyboardFocusManager stage — after the IDE keymap has already declined the
+ *   event via the veto — so no Compose Multiplatform hook is required.
  *
- * Commands (`Modifier.shortcut`) are intentionally NOT dispatched here: in the IJPL host they remain
- * platform actions resolved through the IDE keymap (the bridge action registry is a follow-up slice), so
- * the bridge host state uses an empty Jewel keymap.
+ * Commands (`Modifier.shortcut`) are intentionally NOT dispatched here: in the IJPL host they remain platform actions
+ * resolved through the IDE keymap (the bridge action registry is a follow-up slice), so the bridge host state uses an
+ * empty Jewel keymap.
  */
 @Composable
 internal fun ShortcutHostBridge(wrapper: JewelComposePanelWrapper, content: @Composable () -> Unit) {

@@ -24,26 +24,24 @@ import org.jetbrains.jewel.foundation.shortcut.JewelShortcutHostState
 import org.jetbrains.jewel.foundation.shortcut.MenuDismissPolicy
 
 /**
- * The generic bridge action for Jewel commands, intended for normal plugin.xml `<action>` registration
- * (its IJPL action ID must equal the corresponding [JewelActionId] value) or runtime registration through
- * `JewelBridgeActionRegistry`.
+ * The generic bridge action for Jewel commands, intended for normal plugin.xml `<action>` registration (its IJPL action
+ * ID must equal the corresponding [JewelActionId] value) or runtime registration through `JewelBridgeActionRegistry`.
  *
  * It holds no Compose state: `update()` and `actionPerformed()` obtain the action's own registered ID from
- * [ActionManager], locate the focused Jewel host from the event's context component, and resolve the
- * nearest focused enabled `Modifier.shortcut` binding at that moment. Declarative and runtime actions are
- * therefore identical from the keymap's perspective, and a stale binding can never execute: perform always
- * re-resolves.
+ * [ActionManager], locate the focused Jewel host from the event's context component, and resolve the nearest focused
+ * enabled `Modifier.shortcut` binding at that moment. Declarative and runtime actions are therefore identical from the
+ * keymap's perspective, and a stale binding can never execute: perform always re-resolves.
  *
- * Runs on BGT: resolution only reads the host's immutable focused-binding snapshot; no Swing hierarchy is
- * touched beyond walking the context component's ancestors.
+ * Runs on BGT: resolution only reads the host's immutable focused-binding snapshot; no Swing hierarchy is touched
+ * beyond walking the context component's ancestors.
  *
- * Enabled in modal contexts by design: Jewel content hosted inside modal dialogs participates in shortcut
- * dispatch like any other surface, and execution is already gated on a focused enabled binding, so the
- * modal flag adds no reachability an unfocused surface would not have.
+ * Enabled in modal contexts by design: Jewel content hosted inside modal dialogs participates in shortcut dispatch like
+ * any other surface, and execution is already gated on a focused enabled binding, so the modal flag adds no
+ * reachability an unfocused surface would not have.
  *
- * The class is deliberately not [DumbAware]: a Jewel binding's handler is arbitrary application code.
- * Declare [DumbAwareJewelActionBridgeAction] in plugin.xml for actions whose every focused handler is safe
- * during indexing; runtime registrations through `JewelBridgeActionRegistry` always use this class.
+ * The class is deliberately not [DumbAware]: a Jewel binding's handler is arbitrary application code. Declare
+ * [DumbAwareJewelActionBridgeAction] in plugin.xml for actions whose every focused handler is safe during indexing;
+ * runtime registrations through `JewelBridgeActionRegistry` always use this class.
  */
 @ApiStatus.Experimental
 @ExperimentalJewelApi
@@ -108,7 +106,9 @@ public open class JewelActionBridgeAction : AnAction() {
     private fun jewelHostStateFor(event: AnActionEvent): JewelShortcutHostState? {
         // The wrapper sinks its host into the data context (JewelComposePanelWrapper.uiDataSnapshot),
         // so the normal path reads the snapshotted value — safe on BGT with no Swing hierarchy access.
-        event.getData(JEWEL_SHORTCUT_HOST_STATE)?.let { return it }
+        event.getData(JEWEL_SHORTCUT_HOST_STATE)?.let {
+            return it
+        }
         // Fallback for contexts built without the wrapper's snapshot (e.g. a bare component context).
         val component = event.getData(PlatformDataKeys.CONTEXT_COMPONENT) ?: return null
         return findJewelShortcutHost(component)
@@ -121,14 +121,12 @@ public open class JewelActionBridgeAction : AnAction() {
  */
 @ApiStatus.Internal
 @InternalJewelApi
-public val JEWEL_SHORTCUT_HOST_STATE: DataKey<JewelShortcutHostState> =
-    DataKey.create("JewelShortcutHostState")
+public val JEWEL_SHORTCUT_HOST_STATE: DataKey<JewelShortcutHostState> = DataKey.create("JewelShortcutHostState")
 
 /**
- * The [DumbAware] declaration variant of [JewelActionBridgeAction], for plugin.xml `<action>` entries
- * whose focused handlers are all safe to run during indexing. Runtime registrations never use this class:
- * the registry cannot know what a future focused handler will do, so it always registers the
- * non-dumb-aware base class.
+ * The [DumbAware] declaration variant of [JewelActionBridgeAction], for plugin.xml `<action>` entries whose focused
+ * handlers are all safe to run during indexing. Runtime registrations never use this class: the registry cannot know
+ * what a future focused handler will do, so it always registers the non-dumb-aware base class.
  */
 @ApiStatus.Experimental
 @ExperimentalJewelApi

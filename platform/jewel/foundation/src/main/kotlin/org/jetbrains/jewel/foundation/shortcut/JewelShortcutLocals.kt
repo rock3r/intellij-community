@@ -9,17 +9,16 @@ import org.jetbrains.annotations.ApiStatus
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 
 /**
- * The shortcut host for the current Compose surface. Provided by the surface owner (theme/bridge
- * integration); action-bound components read presentations and invoke through it without ever seeing
- * host-specific types. Null when no shortcut host is installed — components render disabled.
+ * The shortcut host for the current Compose surface. Provided by the surface owner (theme/bridge integration);
+ * action-bound components read presentations and invoke through it without ever seeing host-specific types. Null when
+ * no shortcut host is installed — components render disabled.
  */
 @ApiStatus.Experimental
 @ExperimentalJewelApi
 @Suppress("CompositionLocalAllowlist")
-public val LocalJewelShortcutHost: ProvidableCompositionLocal<JewelShortcutHostState?> =
-    staticCompositionLocalOf {
-        null
-    }
+public val LocalJewelShortcutHost: ProvidableCompositionLocal<JewelShortcutHostState?> = staticCompositionLocalOf {
+    null
+}
 
 /** Installs [state] as the surface's shortcut host and its resolver root around [content]. */
 @ApiStatus.Experimental

@@ -18,9 +18,9 @@ public sealed interface ActionTrigger {
 }
 
 /**
- * One completed Jewel-owned invocation. "Executed" has one narrow meaning: a resolved Jewel handler
- * returned normally. It is not a business-operation completion signal. Actions mapped to existing IJPL
- * actions never emit here — observe those through ordinary platform facilities.
+ * One completed Jewel-owned invocation. "Executed" has one narrow meaning: a resolved Jewel handler returned normally.
+ * It is not a business-operation completion signal. Actions mapped to existing IJPL actions never emit here — observe
+ * those through ordinary platform facilities.
  */
 @ApiStatus.Experimental
 @ExperimentalJewelApi
@@ -68,14 +68,11 @@ public sealed interface ActionDispatchResult {
 }
 
 /**
- * Requests normal host action execution. In standalone this resolves the focused Jewel binding; the IJPL
- * bridge routes through `ActionManager.tryToExecute` so platform update/enablement stays authoritative.
+ * Requests normal host action execution. In standalone this resolves the focused Jewel binding; the IJPL bridge routes
+ * through `ActionManager.tryToExecute` so platform update/enablement stays authoritative.
  */
 @ApiStatus.Experimental
 @ExperimentalJewelApi
 public interface ActionInvoker {
-    public fun invoke(
-        action: JewelAction,
-        trigger: ActionTrigger = ActionTrigger.Programmatic,
-    ): ActionDispatchResult
+    public fun invoke(action: JewelAction, trigger: ActionTrigger = ActionTrigger.Programmatic): ActionDispatchResult
 }

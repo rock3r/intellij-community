@@ -7,10 +7,7 @@ import org.jetbrains.annotations.ApiStatus
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 
 /** Stable identifier for a Jewel action; use reverse-DNS names for application commands. */
-@ApiStatus.Experimental
-@ExperimentalJewelApi
-@JvmInline
-public value class JewelActionId(public val value: String)
+@ApiStatus.Experimental @ExperimentalJewelApi @JvmInline public value class JewelActionId(public val value: String)
 
 @ApiStatus.Experimental
 @ExperimentalJewelApi
@@ -46,11 +43,11 @@ public interface ActionRegistration : AutoCloseable {
 }
 
 /**
- * Registry of action definitions for one host. In standalone it is the application action catalog; the IJPL
- * bridge attaches definitions to matching declared bridge actions or registers runtime ones.
+ * Registry of action definitions for one host. In standalone it is the application action catalog; the IJPL bridge
+ * attaches definitions to matching declared bridge actions or registers runtime ones.
  *
- * Identical duplicate registrations are reference-counted; a differing descriptor for an already-registered
- * ID fails with [IllegalStateException].
+ * Identical duplicate registrations are reference-counted; a differing descriptor for an already-registered ID fails
+ * with [IllegalStateException].
  */
 @ApiStatus.Experimental
 @ExperimentalJewelApi

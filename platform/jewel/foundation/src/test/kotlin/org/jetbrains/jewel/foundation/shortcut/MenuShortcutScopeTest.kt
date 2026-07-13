@@ -4,20 +4,20 @@ package org.jetbrains.jewel.foundation.shortcut
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.nativeKeyCode
 import java.awt.event.InputEvent
+import java.awt.event.KeyEvent as AwtKeyEvent
 import javax.swing.JPanel
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import java.awt.event.KeyEvent as AwtKeyEvent
 
 /**
- * Pins the menu-scope absorption contract: while a menu scope is open its strokes resolve ahead of
- * ordinary dispatch on the same host (one dispatcher, no racing), the innermost scope wins, matched
- * strokes are consumed, and closing restores ordinary dispatch untouched.
+ * Pins the menu-scope absorption contract: while a menu scope is open its strokes resolve ahead of ordinary dispatch on
+ * the same host (one dispatcher, no racing), the innermost scope wins, matched strokes are consumed, and closing
+ * restores ordinary dispatch untouched.
  *
- * The host has no composed root here, so ordinary dispatch never resolves anything — which is exactly
- * the point: only the menu scopes can consume.
+ * The host has no composed root here, so ordinary dispatch never resolves anything — which is exactly the point: only
+ * the menu scopes can consume.
  */
 internal class MenuShortcutScopeTest {
     private val keymap = InMemoryJewelKeymap("test")

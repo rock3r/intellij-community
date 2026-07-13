@@ -15,9 +15,8 @@ import org.junit.Rule
 import org.junit.Test
 
 /**
- * The root data provider must sink all three semantic edit providers, so the platform `$Copy`, `$Cut`,
- * and `$Paste` actions enable and perform against focused Compose semantics without any Jewel-specific
- * action registration.
+ * The root data provider must sink all three semantic edit providers, so the platform `$Copy`, `$Cut`, and `$Paste`
+ * actions enable and perform against focused Compose semantics without any Jewel-specific action registration.
  */
 internal class EditProvidersSinkTest {
     @JvmField @Rule internal val rule: ComposeContentTestRule = createComposeRule()

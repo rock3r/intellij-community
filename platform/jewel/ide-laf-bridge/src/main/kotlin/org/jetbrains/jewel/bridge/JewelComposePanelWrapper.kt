@@ -221,20 +221,21 @@ public class JewelComposePanelWrapper(private val focusOnClickInside: Boolean) :
     internal var targetProvider: UiDataProvider? = null
 
     /**
-     * Evaluates whether a focused Jewel claim owns a key event, set by the shortcut integration during
-     * content composition. The actual AWT focus owner inside a [ComposePanel] is an internal skiko
-     * component that cannot implement [com.intellij.ide.KeyboardAwareFocusOwner], so the platform consults
-     * this wrapper — an ancestor of that focus owner — instead. Must be fast: called on the EDT for every
-     * key event while a descendant is focused.
+     * Evaluates whether a focused Jewel claim owns a key event, set by the shortcut integration during content
+     * composition. The actual AWT focus owner inside a [ComposePanel] is an internal skiko component that cannot
+     * implement [com.intellij.ide.KeyboardAwareFocusOwner], so the platform consults this wrapper — an ancestor of that
+     * focus owner — instead. Must be fast: called on the EDT for every key event while a descendant is focused.
      */
     @Volatile internal var shortcutClaimEvaluator: ((KeyEvent) -> Boolean)? = null
 
     /** The shortcut host wired by [org.jetbrains.jewel.bridge.ShortcutHostBridge]; used by bridge actions. */
-    @Volatile public var shortcutHostState: org.jetbrains.jewel.foundation.shortcut.JewelShortcutHostState? = null
+    @Volatile
+    public var shortcutHostState: org.jetbrains.jewel.foundation.shortcut.JewelShortcutHostState? = null
         internal set
 
     override fun skipKeyEventDispatcher(focusOwner: Component, event: KeyEvent): Boolean =
         shortcutClaimEvaluator?.invoke(event) == true
+
     private val listener = AWTEventListener { event ->
         if (event !is MouseEvent || event.button == MouseEvent.NOBUTTON) return@AWTEventListener
         if (!composePanel.isFocusOwner && event.component.parent == composePanel) {

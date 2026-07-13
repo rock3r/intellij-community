@@ -14,11 +14,11 @@ import com.intellij.ide.impl.HeadlessDataManager
 import com.intellij.openapi.actionSystem.ActionManager
 import com.intellij.openapi.actionSystem.KeyboardShortcut
 import com.intellij.openapi.actionSystem.PlatformCoreDataKeys
-import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.keymap.Keymap
 import com.intellij.openapi.keymap.ex.KeymapManagerEx
 import com.intellij.openapi.keymap.impl.IdeKeyEventDispatcher
 import com.intellij.openapi.keymap.impl.KeymapImpl
+import com.intellij.openapi.util.Disposer
 import com.intellij.testFramework.ApplicationRule
 import com.intellij.testFramework.runInEdtAndWait
 import com.intellij.util.ui.UIUtil
@@ -54,14 +54,14 @@ import org.junit.Rule
 import org.junit.Test
 
 /**
- * End-to-end bridge action dispatch against the real platform action system: a real [ActionManager], a
- * real [KeymapImpl] driving a real [IdeKeyEventDispatcher], and a real Compose composition providing the
- * focused `Modifier.shortcut` bindings — only rendering and AWT focus are stubbed (the Compose surface is
- * headless; a stub [KeyboardFocusManager] plays the role of the skiko focus owner inside the wrapper).
+ * End-to-end bridge action dispatch against the real platform action system: a real [ActionManager], a real
+ * [KeymapImpl] driving a real [IdeKeyEventDispatcher], and a real Compose composition providing the focused
+ * `Modifier.shortcut` bindings — only rendering and AWT focus are stubbed (the Compose surface is headless; a stub
+ * [KeyboardFocusManager] plays the role of the skiko focus owner inside the wrapper).
  *
- * Covers the PRD proof-matrix rows for slice 2: registration parity (declared vs runtime), custom-keymap
- * rebinding without recomposition, manual invocation parity, and focused-subtree isolation across two
- * panels — plus the event contract (exactly one Jewel event per bridge-owned invocation).
+ * Covers the PRD proof-matrix rows for slice 2: registration parity (declared vs runtime), custom-keymap rebinding
+ * without recomposition, manual invocation parity, and focused-subtree isolation across two panels — plus the event
+ * contract (exactly one Jewel event per bridge-owned invocation).
  */
 internal class JewelBridgeActionIntegrationTest {
     private companion object {

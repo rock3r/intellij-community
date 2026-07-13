@@ -8,11 +8,10 @@ import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 /**
  * Standard edit actions shared by both hosts.
  *
- * Common code binds these IDs with [androidx.compose.ui.Modifier.shortcut] and never names a host-specific
- * action ID. The IJPL bridge maps them to the corresponding platform actions
- * (`JewelActionMappings.installStandardMappings`), so the IDE keymap, enablement, and invocation remain
- * authoritative there; the standalone host registers [defaultDefinitions] in its action catalog and resolves
- * them through the Jewel keymap.
+ * Common code binds these IDs with [androidx.compose.ui.Modifier.shortcut] and never names a host-specific action ID.
+ * The IJPL bridge maps them to the corresponding platform actions (`JewelActionMappings.installStandardMappings`), so
+ * the IDE keymap, enablement, and invocation remain authoritative there; the standalone host registers
+ * [defaultDefinitions] in its action catalog and resolves them through the Jewel keymap.
  */
 @ApiStatus.Experimental
 @ExperimentalJewelApi
@@ -20,8 +19,7 @@ public object JewelActions {
     public val Copy: JewelAction = JewelAction(JewelActionId("org.jetbrains.jewel.action.copy"), "Copy")
     public val Cut: JewelAction = JewelAction(JewelActionId("org.jetbrains.jewel.action.cut"), "Cut")
     public val Paste: JewelAction = JewelAction(JewelActionId("org.jetbrains.jewel.action.paste"), "Paste")
-    public val SelectAll: JewelAction =
-        JewelAction(JewelActionId("org.jetbrains.jewel.action.selectAll"), "Select All")
+    public val SelectAll: JewelAction = JewelAction(JewelActionId("org.jetbrains.jewel.action.selectAll"), "Select All")
 
     public fun all(): List<JewelAction> = listOf(Copy, Cut, Paste, SelectAll)
 

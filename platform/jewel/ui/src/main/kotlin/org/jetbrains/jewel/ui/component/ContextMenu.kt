@@ -100,8 +100,7 @@ internal fun ContextMenu(
                 } else {
                     null
                 }
-            menuLocal
-                ?: handlePopupMenuOnKeyEvent(it, currentFocusManager, currentInputModeManager, menuController)
+            menuLocal ?: handlePopupMenuOnKeyEvent(it, currentFocusManager, currentInputModeManager, menuController)
         },
         cornerSize = style.metrics.cornerSize,
     ) {
@@ -202,8 +201,8 @@ public sealed class ContextMenuItemOptionAction {
 }
 
 /**
- * The [JewelKeyStroke] for a menu-item shortcut [keyStroke], or null for strokes Jewel dispatch cannot
- * represent. The inverse of [composeKeyEventToSwingKeyStroke] for registration purposes.
+ * The [JewelKeyStroke] for a menu-item shortcut [keyStroke], or null for strokes Jewel dispatch cannot represent. The
+ * inverse of [composeKeyEventToSwingKeyStroke] for registration purposes.
  */
 internal fun swingKeyStrokeToJewelKeyStroke(keyStroke: KeyStroke): JewelKeyStroke? {
     if (keyStroke.keyCode == java.awt.event.KeyEvent.VK_UNDEFINED) return null

@@ -3,17 +3,17 @@ package org.jetbrains.jewel.foundation.shortcut
 
 import androidx.compose.ui.InternalComposeUiApi
 import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEvent as ComposeKeyEvent
 import androidx.compose.ui.input.key.KeyEventType
 import java.awt.event.KeyEvent
 import org.jetbrains.annotations.ApiStatus
 import org.jetbrains.jewel.foundation.InternalJewelApi
-import androidx.compose.ui.input.key.KeyEvent as ComposeKeyEvent
 
 /**
- * The Compose representation of an AWT key event, for host integrations that sit at AWT dispatch stages
- * (the IJPL bridge's claim delivery, tests). Mirrors Compose Desktop's own internal conversion: the
- * `KeyEvent(nativeKeyEvent)` constructor must NOT be called with a raw AWT event — the desktop accessors
- * require the internal representation and throw on anything else.
+ * The Compose representation of an AWT key event, for host integrations that sit at AWT dispatch stages (the IJPL
+ * bridge's claim delivery, tests). Mirrors Compose Desktop's own internal conversion: the `KeyEvent(nativeKeyEvent)`
+ * constructor must NOT be called with a raw AWT event — the desktop accessors require the internal representation and
+ * throw on anything else.
  */
 @ApiStatus.Internal
 @InternalJewelApi
@@ -24,8 +24,7 @@ public fun KeyEvent.toComposeKeyEvent(): ComposeKeyEvent =
             Key(
                 nativeKeyCode = keyCode,
                 nativeKeyLocation =
-                    if (keyLocation == KeyEvent.KEY_LOCATION_UNKNOWN) KeyEvent.KEY_LOCATION_STANDARD
-                    else keyLocation,
+                    if (keyLocation == KeyEvent.KEY_LOCATION_UNKNOWN) KeyEvent.KEY_LOCATION_STANDARD else keyLocation,
             ),
         type =
             when (id) {

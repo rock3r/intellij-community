@@ -16,10 +16,9 @@ import org.jetbrains.jewel.bridge.ComposeSemanticsTreeUtils.findFocusedComponent
 import org.jetbrains.jewel.foundation.InternalJewelApi
 
 /**
- * Copy/Cut counterparts of [ComposePasteProvider], completing the platform edit-action bridge: the
- * existing IDE actions remain the integration point and enable/perform against the focused Compose
- * node's semantics, so `$Copy`/`$Cut` in menus and keymaps work inside Jewel content without any
- * Jewel-specific action registration.
+ * Copy/Cut counterparts of [ComposePasteProvider], completing the platform edit-action bridge: the existing IDE actions
+ * remain the integration point and enable/perform against the focused Compose node's semantics, so `$Copy`/`$Cut` in
+ * menus and keymaps work inside Jewel content without any Jewel-specific action registration.
  */
 private fun <T : Function<Boolean>> resolveSemanticsAction(
     dataContext: DataContext,

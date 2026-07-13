@@ -21,14 +21,13 @@ import org.jetbrains.jewel.foundation.util.myLogger
  * One shortcut-dispatch host per Compose surface (a standalone window, or a bridge panel).
  *
  * Install [resolverRootModifier] at the surface's content root, then:
- * - standalone: pass [onPreviewKeyEvent] to the `Window(onPreviewKeyEvent = …)` parameter. That hook runs
- *   before scene dispatch and sees KEY_TYPED events, which is required for typed suppression — a root
- *   `Modifier.onPreviewKeyEvent` sees no typed events and cannot prevent a claimed printable key from
- *   inserting its character.
+ * - standalone: pass [onPreviewKeyEvent] to the `Window(onPreviewKeyEvent = …)` parameter. That hook runs before scene
+ *   dispatch and sees KEY_TYPED events, which is required for typed suppression — a root `Modifier.onPreviewKeyEvent`
+ *   sees no typed events and cannot prevent a claimed printable key from inserting its character.
  * - IJPL bridge: the panel wrapper consults [claimsKeyDown] from `KeyboardAwareFocusOwnerProvider` to skip
- *   `IdeKeyEventDispatcher` for claimed strokes; commands stay with the IJPL keymap. Compose popups/dialogs
- *   run in their own scene layers with separate key handling: Jewel-owned popups must thread
- *   [onPreviewKeyEvent] into their `Popup(onPreviewKeyEvent = …)` for dispatch to work while they are open.
+ *   `IdeKeyEventDispatcher` for claimed strokes; commands stay with the IJPL keymap. Compose popups/dialogs run in
+ *   their own scene layers with separate key handling: Jewel-owned popups must thread [onPreviewKeyEvent] into their
+ *   `Popup(onPreviewKeyEvent = …)` for dispatch to work while they are open.
  */
 @ApiStatus.Experimental
 @ExperimentalJewelApi
@@ -66,9 +65,9 @@ public class JewelShortcutHostState(
     public val presentations: ActionPresentationScheduler = ActionPresentationScheduler(::samplePresentation)
 
     /**
-     * Normal host action execution. The standalone default resolves the nearest focused enabled Jewel
-     * binding and emits through [events]; the IJPL bridge substitutes a platform-routing invoker so
-     * `ActionManager` update, enablement, and listeners stay authoritative there.
+     * Normal host action execution. The standalone default resolves the nearest focused enabled Jewel binding and emits
+     * through [events]; the IJPL bridge substitutes a platform-routing invoker so `ActionManager` update, enablement,
+     * and listeners stay authoritative there.
      */
     public var invoker: ActionInvoker =
         object : ActionInvoker {
@@ -82,10 +81,10 @@ public class JewelShortcutHostState(
         }
 
     /**
-     * Runs [handler] as one completed Jewel-owned invocation of [actionId]: exactly one [events] emission,
-     * then a presentation re-sample. This is the emission point for host integrations that resolve focused
-     * handlers themselves (the IJPL bridge action); keyboard dispatch through [onPreviewKeyEvent] emits on
-     * its own and must not be routed through here too.
+     * Runs [handler] as one completed Jewel-owned invocation of [actionId]: exactly one [events] emission, then a
+     * presentation re-sample. This is the emission point for host integrations that resolve focused handlers themselves
+     * (the IJPL bridge action); keyboard dispatch through [onPreviewKeyEvent] emits on its own and must not be routed
+     * through here too.
      */
     public fun runResolvedInvocation(actionId: JewelActionId, trigger: ActionTrigger, handler: () -> Unit) {
         handler()
@@ -101,13 +100,12 @@ public class JewelShortcutHostState(
         engine.resolveFocusedBinding(actionId)?.onInvoke
 
     /** The active keymap's shortcuts for [actionId]; empty in hosts whose keymap lives elsewhere (bridge). */
-    public fun shortcutsFor(actionId: JewelActionId): List<JewelKeySequence> =
-        keymapProvider().shortcutsFor(actionId)
+    public fun shortcutsFor(actionId: JewelActionId): List<JewelKeySequence> = keymapProvider().shortcutsFor(actionId)
 
     /**
-     * The action's current presentation for this host: the failure rows of the PRD table (Unregistered
-     * when a [registry] is installed and does not know the ID; NoFocusedBinding otherwise) or the nearest
-     * focused enabled binding's [ActionPresentationOverride] merged over the action's template.
+     * The action's current presentation for this host: the failure rows of the PRD table (Unregistered when a
+     * [registry] is installed and does not know the ID; NoFocusedBinding otherwise) or the nearest focused enabled
+     * binding's [ActionPresentationOverride] merged over the action's template.
      */
     public fun presentationFor(actionId: JewelActionId): ActionPresentation = samplePresentation(actionId)
 
@@ -145,11 +143,11 @@ public class JewelShortcutHostState(
     private val menuScopes = ArrayDeque<MenuShortcutScope>()
 
     /**
-     * Opens a menu-local shortcut scope for a menu that just became visible. While at least one scope is
-     * open, the innermost (most recently opened) scope's strokes resolve *before* ordinary dispatch, and
-     * matched strokes are consumed with typed suppression — the single dispatcher for open menus, absorbing
-     * what menu-local key handling used to do so the two can never race. Close the scope when the menu
-     * closes; scopes must be closed in reverse opening order (innermost first).
+     * Opens a menu-local shortcut scope for a menu that just became visible. While at least one scope is open, the
+     * innermost (most recently opened) scope's strokes resolve *before* ordinary dispatch, and matched strokes are
+     * consumed with typed suppression — the single dispatcher for open menus, absorbing what menu-local key handling
+     * used to do so the two can never race. Close the scope when the menu closes; scopes must be closed in reverse
+     * opening order (innermost first).
      */
     public fun openMenuShortcutScope(): MenuShortcutScope {
         val scope = MenuShortcutScope(this)
@@ -179,8 +177,9 @@ public class JewelShortcutHostState(
                 val decision = engine.onKeyDown(JewelKeyStroke.fromKeyDownOrNull(event))
                 if (decision is DispatchDecision.Consumed) {
                     onDispatch?.invoke(decision)
-                    if (decision.route == DispatchDecision.Consumed.Route.Claim ||
-                        decision.route == DispatchDecision.Consumed.Route.Keymap
+                    if (
+                        decision.route == DispatchDecision.Consumed.Route.Claim ||
+                            decision.route == DispatchDecision.Consumed.Route.Keymap
                     ) {
                         eventSource.emit(
                             ActionInvocation(
@@ -210,8 +209,8 @@ public class JewelShortcutHostState(
     }
 
     /**
-     * The IJPL bridge veto: true when a focused claim owns this key-down. Only claims veto the IDE keymap;
-     * commands remain IJPL actions resolved through the platform keymap.
+     * The IJPL bridge veto: true when a focused claim owns this key-down. Only claims veto the IDE keymap; commands
+     * remain IJPL actions resolved through the platform keymap.
      */
     public fun claimsKeyDown(event: KeyEvent): Boolean {
         val stroke = JewelKeyStroke.fromKeyDownOrNull(event) ?: return false
@@ -279,7 +278,7 @@ public class JewelShortcutHostState(
     private fun resolveRawClaim(event: KeyEvent): RawKeyClaimNode? {
         var match: RawKeyClaimNode? = null
         rootNode?.traverseDescendants(RawKeyClaimNode.TraverseKey) { node ->
-            if (node is RawKeyClaimNode && node.hasFocus && node.enabled && node.matcher(event)) {
+            if (node is RawKeyClaimNode && node.claims(event)) {
                 // Keep overwriting: the innermost focused match is visited last in pre-order.
                 match = node
             }
@@ -287,12 +286,14 @@ public class JewelShortcutHostState(
         }
         return match
     }
+
+    private fun RawKeyClaimNode.claims(event: KeyEvent): Boolean = hasFocus && enabled && matcher(event)
 }
 
 /**
- * Menu-local shortcuts for one open menu, resolved by the owning [JewelShortcutHostState] ahead of
- * ordinary dispatch while this is the innermost open scope. Registrations are replaced wholesale on menu
- * content changes ([replaceAll]); [close] must be called when the menu closes.
+ * Menu-local shortcuts for one open menu, resolved by the owning [JewelShortcutHostState] ahead of ordinary dispatch
+ * while this is the innermost open scope. Registrations are replaced wholesale on menu content changes ([replaceAll]);
+ * [close] must be called when the menu closes.
  */
 @ApiStatus.Experimental
 @ExperimentalJewelApi
@@ -327,8 +328,7 @@ public fun rememberJewelShortcutHostState(
 
 @InternalJewelApi
 @ApiStatus.Internal
-public class ShortcutResolverRootNode(public var state: JewelShortcutHostState) :
-    Modifier.Node(), TraversableNode {
+public class ShortcutResolverRootNode(public var state: JewelShortcutHostState) : Modifier.Node(), TraversableNode {
     override val traverseKey: TraverseKey = TraverseKey
 
     override fun onAttach() {

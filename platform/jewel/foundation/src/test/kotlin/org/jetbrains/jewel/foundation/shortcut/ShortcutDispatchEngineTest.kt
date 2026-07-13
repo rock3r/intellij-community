@@ -8,10 +8,10 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Pins the PRD dispatch contract, including the corner cases originally proven live with real OS input
- * (see the shortcuts validation harnesses): claim precedence, nearest-enabled-binding with fallthrough,
- * chord complete/cancel-consume/recover, exact-single-stroke-beats-chord-prefix, modifier-only filtering,
- * typed-event suppression, and never swallowing unbound input.
+ * Pins the PRD dispatch contract, including the corner cases originally proven live with real OS input (see the
+ * shortcuts validation harnesses): claim precedence, nearest-enabled-binding with fallthrough, chord
+ * complete/cancel-consume/recover, exact-single-stroke-beats-chord-prefix, modifier-only filtering, typed-event
+ * suppression, and never swallowing unbound input.
  */
 internal class ShortcutDispatchEngineTest {
     private val selectAll = JewelActionId("test.selectAll")
@@ -63,8 +63,7 @@ internal class ShortcutDispatchEngineTest {
     fun `innermost focused binding wins over outer binding for the same action`() {
         val recorder = Recorder()
         // Innermost bindings come last, matching pre-order traversal of the focused path.
-        val engine =
-            engine({ listOf(recorder.binding(selectAll, "table"), recorder.binding(selectAll, "editor")) })
+        val engine = engine({ listOf(recorder.binding(selectAll, "table"), recorder.binding(selectAll, "editor")) })
 
         engine.onKeyDown(ctrlA)
 
@@ -76,10 +75,7 @@ internal class ShortcutDispatchEngineTest {
         val recorder = Recorder()
         val engine =
             engine({
-                listOf(
-                    recorder.binding(selectAll, "table"),
-                    recorder.binding(selectAll, "editor", enabled = false),
-                )
+                listOf(recorder.binding(selectAll, "table"), recorder.binding(selectAll, "editor", enabled = false))
             })
 
         engine.onKeyDown(ctrlA)

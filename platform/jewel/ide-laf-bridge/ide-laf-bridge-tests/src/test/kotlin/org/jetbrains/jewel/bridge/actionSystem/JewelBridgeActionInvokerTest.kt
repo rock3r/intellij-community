@@ -22,8 +22,8 @@ import org.junit.Before
 import org.junit.Test
 
 /**
- * Pins [JewelActionMappings]' explicit `MappedIdeAction` routing and [JewelBridgeActionInvoker]'s
- * dispatch-acceptance contract against a mocked [ActionManager].
+ * Pins [JewelActionMappings]' explicit `MappedIdeAction` routing and [JewelBridgeActionInvoker]'s dispatch-acceptance
+ * contract against a mocked [ActionManager].
  */
 internal class JewelBridgeActionInvokerTest {
     private val hostComponent = JPanel()
@@ -41,8 +41,7 @@ internal class JewelBridgeActionInvokerTest {
     @Test
     fun `standard mappings install idempotently and never clobber an explicit override`() {
         val customTarget = "MyCustomCopy"
-        val actionManager =
-            mockk<ActionManager> { every { getAction(customTarget) } returns mockk<AnAction>() }
+        val actionManager = mockk<ActionManager> { every { getAction(customTarget) } returns mockk<AnAction>() }
         mockkStatic(ActionManager::class)
         try {
             every { ActionManager.getInstance() } returns actionManager
@@ -69,9 +68,7 @@ internal class JewelBridgeActionInvokerTest {
         JewelActionMappings.installStandardMappings()
         val copyAction = mockk<AnAction>()
         val actionManager =
-            mockk<ActionManager>(relaxed = true) {
-                every { getAction(IdeActions.ACTION_COPY) } returns copyAction
-            }
+            mockk<ActionManager>(relaxed = true) { every { getAction(IdeActions.ACTION_COPY) } returns copyAction }
 
         val result = JewelBridgeActionInvoker(hostComponent, actionManager).invoke(JewelActions.Copy)
 
@@ -84,9 +81,7 @@ internal class JewelBridgeActionInvokerTest {
         val jewelAction = JewelAction(JewelActionId("test.jewel.owned"), "Owned")
         val bridgeAction = JewelActionBridgeAction()
         val actionManager =
-            mockk<ActionManager>(relaxed = true) {
-                every { getAction(jewelAction.id.value) } returns bridgeAction
-            }
+            mockk<ActionManager>(relaxed = true) { every { getAction(jewelAction.id.value) } returns bridgeAction }
 
         val result = JewelBridgeActionInvoker(hostComponent, actionManager).invoke(jewelAction)
 
@@ -98,16 +93,11 @@ internal class JewelBridgeActionInvokerTest {
     fun `unknown target rejects as Unregistered without touching execution`() {
         val jewelAction = JewelAction(JewelActionId("test.jewel.unknown"), "Unknown")
         val actionManager =
-            mockk<ActionManager>(relaxed = true) {
-                every { getAction(jewelAction.id.value) } returns null
-            }
+            mockk<ActionManager>(relaxed = true) { every { getAction(jewelAction.id.value) } returns null }
 
         val result = JewelBridgeActionInvoker(hostComponent, actionManager).invoke(jewelAction)
 
-        assertEquals(
-            ActionDispatchResult.Rejected(ActionDispatchRejection.Unregistered),
-            result,
-        )
+        assertEquals(ActionDispatchResult.Rejected(ActionDispatchRejection.Unregistered), result)
         verify(exactly = 0) { actionManager.tryToExecute(any(), any(), any(), any(), any()) }
     }
 }

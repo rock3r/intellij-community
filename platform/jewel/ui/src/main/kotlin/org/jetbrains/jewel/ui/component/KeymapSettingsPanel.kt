@@ -1,6 +1,7 @@
 // Copyright 2000-2026 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.
 package org.jetbrains.jewel.ui.component
 
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -17,7 +18,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.foundation.focusable
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -33,10 +33,10 @@ import org.jetbrains.jewel.foundation.shortcut.JewelKeyStroke
 import org.jetbrains.jewel.foundation.shortcut.MutableJewelKeymap
 
 /**
- * A minimal standalone keymap settings surface: lists every registered action with its effective
- * bindings in [keymap], lets the user record a replacement one-stroke binding per action, and surfaces
- * conflicts (other actions bound to the same sequence). Reacts to external keymap edits through the
- * keymap's modification count; persistence remains application policy, as for the keymap itself.
+ * A minimal standalone keymap settings surface: lists every registered action with its effective bindings in [keymap],
+ * lets the user record a replacement one-stroke binding per action, and surfaces conflicts (other actions bound to the
+ * same sequence). Reacts to external keymap edits through the keymap's modification count; persistence remains
+ * application policy, as for the keymap itself.
  */
 @ApiStatus.Experimental
 @ExperimentalJewelApi
@@ -64,7 +64,7 @@ public fun KeymapSettingsPanel(
                 Text(shortcuts.joinToString { it.displayText() }.ifEmpty { "None" })
                 if (recordingFor == action.id) {
                     RecordShortcutField(
-                        onRecorded = { stroke ->
+                        onRecord = { stroke ->
                             keymap.replaceBindings(action.id, listOf(JewelKeySequence(stroke)))
                             recordingFor = null
                         },
@@ -92,7 +92,7 @@ public fun KeymapSettingsPanel(
 
 /** Captures the next non-modifier key-down as the new binding; Escape cancels the recording. */
 @Composable
-private fun RecordShortcutField(onRecorded: (JewelKeyStroke) -> Unit, onCancel: () -> Unit) {
+private fun RecordShortcutField(onRecord: (JewelKeyStroke) -> Unit, onCancel: () -> Unit) {
     val focusRequester = remember { FocusRequester() }
     OutlinedButton(
         onClick = onCancel,
@@ -104,7 +104,7 @@ private fun RecordShortcutField(onRecorded: (JewelKeyStroke) -> Unit, onCancel: 
                         onCancel()
                         return@onPreviewKeyEvent true
                     }
-                    JewelKeyStroke.fromKeyDownOrNull(event)?.let(onRecorded)
+                    JewelKeyStroke.fromKeyDownOrNull(event)?.let(onRecord)
                     // Modifier-only key-downs stay swallowed while waiting for the full stroke.
                     true
                 }

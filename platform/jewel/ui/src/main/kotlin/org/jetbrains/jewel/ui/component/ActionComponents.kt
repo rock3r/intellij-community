@@ -7,13 +7,14 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.semantics.toggleableState
+import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.unit.dp
 import org.jetbrains.annotations.ApiStatus
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
@@ -30,22 +31,19 @@ import org.jetbrains.jewel.ui.Orientation
 import org.jetbrains.jewel.ui.icon.IconKey
 
 /**
- * The presentation's icon as a Jewel [IconKey], or null when the host put a representation this UI does
- * not render (the slot is host-interpreted; see [ActionPresentation.icon]).
+ * The presentation's icon as a Jewel [IconKey], or null when the host put a representation this UI does not render (the
+ * slot is host-interpreted; see [ActionPresentation.icon]).
  */
-@ApiStatus.Experimental
-@ExperimentalJewelApi
-public fun ActionPresentation.iconKeyOrNull(): IconKey? = icon as? IconKey
+@ApiStatus.Experimental @ExperimentalJewelApi public fun ActionPresentation.iconKeyOrNull(): IconKey? = icon as? IconKey
 
 /**
- * A button bound to a host-registered [JewelAction]: it renders the action's sampled presentation
- * (text, icon, enabled, visibility) and invokes through the host, so it always agrees with the same
- * action's keyboard shortcut about enablement and behavior.
+ * A button bound to a host-registered [JewelAction]: it renders the action's sampled presentation (text, icon, enabled,
+ * visibility) and invokes through the host, so it always agrees with the same action's keyboard shortcut about
+ * enablement and behavior.
  *
- * Requires a [LocalJewelShortcutHost]; without one the button renders disabled with the action title
- * (the HostUnavailable presentation). With [respectVisibility] (the default) a hidden action emits
- * nothing; a hidden-but-enabled action remains keymap-invocable regardless, matching IJPL visibility
- * semantics.
+ * Requires a [LocalJewelShortcutHost]; without one the button renders disabled with the action title (the
+ * HostUnavailable presentation). With [respectVisibility] (the default) a hidden action emits nothing; a
+ * hidden-but-enabled action remains keymap-invocable regardless, matching IJPL visibility semantics.
  */
 @ApiStatus.Experimental
 @ExperimentalJewelApi
@@ -54,9 +52,7 @@ public fun ActionButton(action: JewelAction, modifier: Modifier = Modifier, resp
     val host = LocalJewelShortcutHost.current
     if (host == null) {
         val presentation = ActionPresentation.hostUnavailable(action)
-        DefaultButton(onClick = {}, modifier = modifier, enabled = false) {
-            ActionButtonContent(presentation)
-        }
+        DefaultButton(onClick = {}, modifier = modifier, enabled = false) { ActionButtonContent(presentation) }
         return
     }
     val presentation by action.collectPresentationAsState(host.presentations)
@@ -79,14 +75,13 @@ private fun ActionButtonContent(presentation: ActionPresentation) {
 }
 
 /**
- * A toggle control bound to a [JewelActionKind.Toggle] action. The checked state is the sampled
- * presentation's `selected` value — the single source of truth a binding provides through its
- * `ActionPresentationOverride` — and activation always routes through the host invoker, so pointer,
- * keyboard, and programmatic toggling stay in agreement.
+ * A toggle control bound to a [JewelActionKind.Toggle] action. The checked state is the sampled presentation's
+ * `selected` value — the single source of truth a binding provides through its `ActionPresentationOverride` — and
+ * activation always routes through the host invoker, so pointer, keyboard, and programmatic toggling stay in agreement.
  *
- * Renders as a selectable icon button when the presentation carries a Jewel icon, and as a labeled
- * checkbox row otherwise; both expose toggle semantics to accessibility (the icon variant declares
- * [Role.Checkbox] and its [ToggleableState] explicitly).
+ * Renders as a selectable icon button when the presentation carries a Jewel icon, and as a labeled checkbox row
+ * otherwise; both expose toggle semantics to accessibility (the icon variant declares [Role.Checkbox] and its
+ * [ToggleableState] explicitly).
  */
 @ApiStatus.Experimental
 @ExperimentalJewelApi
@@ -130,9 +125,9 @@ public fun ToggleActionButton(action: JewelAction, modifier: Modifier = Modifier
 }
 
 /**
- * A toolbar over a [JewelActionGroup]: leaf actions render as [ActionButton]s (or [ToggleActionButton]s
- * for toggle actions), separators as vertical [Divider]s, and non-popup subgroups expand inline
- * recursively. Popup subgroups render as an [ActionMenuButton] hosting the group's menu.
+ * A toolbar over a [JewelActionGroup]: leaf actions render as [ActionButton]s (or [ToggleActionButton]s for toggle
+ * actions), separators as vertical [Divider]s, and non-popup subgroups expand inline recursively. Popup subgroups
+ * render as an [ActionMenuButton] hosting the group's menu.
  */
 @ApiStatus.Experimental
 @ExperimentalJewelApi
@@ -142,31 +137,37 @@ public fun ActionToolbar(
     modifier: Modifier = Modifier,
     context: ActionContext = ActionContext.Empty,
 ) {
-    Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-        ActionToolbarEntries(group, context)
+    val items = remember(group, context) { flattenToolbarEntries(group, context) }
+    Row(
+        modifier = modifier,
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        for (item in items) item()
     }
 }
 
-@Composable
-private fun ActionToolbarEntries(group: JewelActionGroup, context: ActionContext) {
-    for (entry in group.children(context)) {
-        when (entry) {
-            is JewelMenuEntry.Action ->
-                if (entry.action.kind == JewelActionKind.Toggle) {
-                    ToggleActionButton(entry.action)
-                } else {
-                    ActionButton(entry.action)
-                }
-            is JewelMenuEntry.Separator ->
-                Divider(orientation = Orientation.Vertical, modifier = Modifier.height(20.dp))
-            is JewelMenuEntry.Group ->
-                if (entry.group.presentation.visible) {
-                    if (entry.group.presentation.popup) {
-                        ActionMenuButton(entry.group, context = context)
+/** Pre-expands inline subgroups into a flat list of item composables the toolbar row emits in order. */
+private fun flattenToolbarEntries(group: JewelActionGroup, context: ActionContext): List<@Composable () -> Unit> =
+    buildList {
+        for (entry in group.children(context)) {
+            when (entry) {
+                is JewelMenuEntry.Action ->
+                    if (entry.action.kind == JewelActionKind.Toggle) {
+                        add { ToggleActionButton(entry.action) }
                     } else {
-                        ActionToolbarEntries(entry.group, context)
+                        add { ActionButton(entry.action) }
                     }
-                }
+                is JewelMenuEntry.Separator ->
+                    add { Divider(orientation = Orientation.Vertical, modifier = Modifier.height(20.dp)) }
+                is JewelMenuEntry.Group ->
+                    if (entry.group.presentation.visible) {
+                        if (entry.group.presentation.popup) {
+                            add { ActionMenuButton(entry.group, context = context) }
+                        } else {
+                            addAll(flattenToolbarEntries(entry.group, context))
+                        }
+                    }
+            }
         }
     }
-}

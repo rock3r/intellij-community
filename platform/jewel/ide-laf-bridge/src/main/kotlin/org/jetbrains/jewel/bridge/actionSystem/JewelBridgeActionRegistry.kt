@@ -15,23 +15,21 @@ import org.jetbrains.jewel.foundation.shortcut.JewelActionRegistry
 
 /**
  * The IJPL implementation of [JewelActionRegistry], realizing the attach-or-register lifecycle:
- *
- * - **Startup/declarative**: plugin.xml declares a [JewelActionBridgeAction] under the Jewel action ID;
- *   [register] then *attaches* the definition to that existing action — it never calls
- *   `ActionManager.registerAction` for a declared ID, and closing the registration never unregisters it.
+ * - **Startup/declarative**: plugin.xml declares a [JewelActionBridgeAction] under the Jewel action ID; [register] then
+ *   *attaches* the definition to that existing action — it never calls `ActionManager.registerAction` for a declared
+ *   ID, and closing the registration never unregisters it.
  * - **Runtime/programmatic**: when no action owns the ID, [register] creates and registers a runtime
- *   [JewelActionBridgeAction]; the returned handle unregisters it when the last reference closes. Scope a
- *   handle to a platform lifetime with [closeWith].
+ *   [JewelActionBridgeAction]; the returned handle unregisters it when the last reference closes. Scope a handle to a
+ *   platform lifetime with [closeWith].
  *
- * Identical duplicate definitions are reference-counted; a differing definition for a registered ID fails.
- * An ID owned by a non-Jewel action fails registration — map to existing platform actions explicitly via
- * [JewelActionMappings] instead.
+ * Identical duplicate definitions are reference-counted; a differing definition for a registered ID fails. An ID owned
+ * by a non-Jewel action fails registration — map to existing platform actions explicitly via [JewelActionMappings]
+ * instead.
  */
 @ApiStatus.Experimental
 @ExperimentalJewelApi
-public class JewelBridgeActionRegistry(
-    private val actionManager: ActionManager = ActionManager.getInstance()
-) : JewelActionRegistry {
+public class JewelBridgeActionRegistry(private val actionManager: ActionManager = ActionManager.getInstance()) :
+    JewelActionRegistry {
     private class Entry(val definition: JewelActionDefinition, val runtimeAction: JewelActionBridgeAction?) {
         var refCount: Int = 0
     }
@@ -94,9 +92,9 @@ public class JewelBridgeActionRegistry(
 }
 
 /**
- * Scopes any [AutoCloseable] — typically an [ActionRegistration] — to a platform [Disposable] lifetime
- * without adding IJPL types to the common registry API. Manual `close()` remains safe: closing is
- * idempotent, so parent disposal merely performs a harmless second close.
+ * Scopes any [AutoCloseable] — typically an [ActionRegistration] — to a platform [Disposable] lifetime without adding
+ * IJPL types to the common registry API. Manual `close()` remains safe: closing is idempotent, so parent disposal
+ * merely performs a harmless second close.
  */
 @ApiStatus.Experimental
 @ExperimentalJewelApi
