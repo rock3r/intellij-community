@@ -11,9 +11,11 @@ import androidx.compose.ui.node.ModifierNodeElement
 import androidx.compose.ui.node.TraversableNode
 import androidx.compose.ui.node.traverseDescendants
 import androidx.compose.ui.platform.InspectorInfo
+import java.util.concurrent.ConcurrentHashMap
 import org.jetbrains.annotations.ApiStatus
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import org.jetbrains.jewel.foundation.InternalJewelApi
+import org.jetbrains.jewel.foundation.util.myLogger
 
 /**
  * One shortcut-dispatch host per Compose surface (a standalone window, or a bridge panel).
@@ -30,8 +32,16 @@ import org.jetbrains.jewel.foundation.InternalJewelApi
  */
 @ApiStatus.Experimental
 @ExperimentalJewelApi
-public class JewelShortcutHostState(private val keymapProvider: () -> JewelKeymap) {
+public class JewelShortcutHostState(
+    private val registry: JewelActionRegistry? = null,
+    private val keymapProvider: () -> JewelKeymap,
+) {
     private var rootNode: ShortcutResolverRootNode? = null
+
+    private val logger = myLogger()
+
+    /** Action IDs already reported as unregistered; presentation polls must not spam the log. */
+    private val reportedUnregistered = ConcurrentHashMap.newKeySet<JewelActionId>()
 
     private val engine =
         ShortcutDispatchEngine(
@@ -90,22 +100,82 @@ public class JewelShortcutHostState(private val keymapProvider: () -> JewelKeyma
     public fun resolveFocusedHandler(actionId: JewelActionId): (() -> Unit)? =
         engine.resolveFocusedBinding(actionId)?.onInvoke
 
+    /** The active keymap's shortcuts for [actionId]; empty in hosts whose keymap lives elsewhere (bridge). */
+    public fun shortcutsFor(actionId: JewelActionId): List<JewelKeySequence> =
+        keymapProvider().shortcutsFor(actionId)
+
+    /**
+     * The action's current presentation for this host: the failure rows of the PRD table (Unregistered
+     * when a [registry] is installed and does not know the ID; NoFocusedBinding otherwise) or the nearest
+     * focused enabled binding's [ActionPresentationOverride] merged over the action's template.
+     */
+    public fun presentationFor(actionId: JewelActionId): ActionPresentation = samplePresentation(actionId)
+
     private fun samplePresentation(actionId: JewelActionId): ActionPresentation {
         val binding = engine.resolveFocusedBinding(actionId)
-        return if (binding != null) {
-            ActionPresentation(text = binding.origin, enabled = true, resolution = ActionResolution.Resolved)
-        } else {
-            ActionPresentation(text = actionId.value, enabled = false, resolution = ActionResolution.NoFocusedBinding)
+        if (binding != null) {
+            return binding.presentationOverride.mergeOver(
+                ActionPresentation(text = binding.origin, enabled = true, resolution = ActionResolution.Resolved)
+            )
         }
+        val definition = registry?.definition(actionId)
+        if (registry != null && definition == null) {
+            if (reportedUnregistered.add(actionId)) {
+                logger.warn(
+                    "Action '${actionId.value}' is not registered with this host's action registry; " +
+                        "controls bound to it render disabled. Further reports for it are suppressed."
+                )
+            }
+            return ActionPresentation(
+                text = actionId.value,
+                enabled = false,
+                resolution = ActionResolution.Unregistered,
+            )
+        }
+        return ActionPresentation(
+            text = definition?.action?.title ?: actionId.value,
+            enabled = false,
+            resolution = ActionResolution.NoFocusedBinding,
+        )
     }
 
     public val resolverRootModifier: Modifier
         get() = Modifier then ShortcutResolverRootElement(this)
 
+    private val menuScopes = ArrayDeque<MenuShortcutScope>()
+
+    /**
+     * Opens a menu-local shortcut scope for a menu that just became visible. While at least one scope is
+     * open, the innermost (most recently opened) scope's strokes resolve *before* ordinary dispatch, and
+     * matched strokes are consumed with typed suppression — the single dispatcher for open menus, absorbing
+     * what menu-local key handling used to do so the two can never race. Close the scope when the menu
+     * closes; scopes must be closed in reverse opening order (innermost first).
+     */
+    public fun openMenuShortcutScope(): MenuShortcutScope {
+        val scope = MenuShortcutScope(this)
+        menuScopes.addLast(scope)
+        return scope
+    }
+
+    internal fun closeMenuScope(scope: MenuShortcutScope) {
+        menuScopes.remove(scope)
+    }
+
+    private fun resolveMenuScopeAction(stroke: JewelKeyStroke?): (() -> Unit)? {
+        if (stroke == null) return null
+        return menuScopes.lastOrNull()?.actionFor(stroke)
+    }
+
     /** Window-level AWT pre-scene handler; consumes claimed/mapped strokes and suppressed typed events. */
     public fun onPreviewKeyEvent(event: KeyEvent): Boolean {
         when (event.type) {
             KeyEventType.KeyDown -> {
+                resolveMenuScopeAction(JewelKeyStroke.fromKeyDownOrNull(event))?.let { action ->
+                    engine.armTypedSuppression()
+                    action()
+                    presentations.invalidate()
+                    return true
+                }
                 val decision = engine.onKeyDown(JewelKeyStroke.fromKeyDownOrNull(event))
                 if (decision is DispatchDecision.Consumed) {
                     onDispatch?.invoke(decision)
@@ -177,6 +247,7 @@ public class JewelShortcutHostState(private val keymapProvider: () -> JewelKeyma
                         blocksOuterBindings = node.blocksOuterBindings,
                         origin = node.action.title,
                         repeatPolicy = node.repeatPolicy,
+                        presentationOverride = node.presentationOverride,
                         onInvoke = node.onInvoke,
                     )
                 )
@@ -218,12 +289,41 @@ public class JewelShortcutHostState(private val keymapProvider: () -> JewelKeyma
     }
 }
 
+/**
+ * Menu-local shortcuts for one open menu, resolved by the owning [JewelShortcutHostState] ahead of
+ * ordinary dispatch while this is the innermost open scope. Registrations are replaced wholesale on menu
+ * content changes ([replaceAll]); [close] must be called when the menu closes.
+ */
+@ApiStatus.Experimental
+@ExperimentalJewelApi
+public class MenuShortcutScope internal constructor(private val host: JewelShortcutHostState) : AutoCloseable {
+    private val entries = LinkedHashMap<JewelKeyStroke, () -> Unit>()
+
+    public fun register(stroke: JewelKeyStroke, onInvoke: () -> Unit) {
+        entries[stroke] = onInvoke
+    }
+
+    public fun replaceAll(newEntries: Map<JewelKeyStroke, () -> Unit>) {
+        entries.clear()
+        entries.putAll(newEntries)
+    }
+
+    internal fun actionFor(stroke: JewelKeyStroke): (() -> Unit)? = entries[stroke]
+
+    override fun close() {
+        entries.clear()
+        host.closeMenuScope(this)
+    }
+}
+
 /** Remembers a [JewelShortcutHostState] for [keymap]; the state survives keymap switches via the lambda. */
 @ApiStatus.Experimental
 @ExperimentalJewelApi
 @Composable
-public fun rememberJewelShortcutHostState(keymap: () -> JewelKeymap): JewelShortcutHostState =
-    remember { JewelShortcutHostState(keymap) }
+public fun rememberJewelShortcutHostState(
+    registry: JewelActionRegistry? = null,
+    keymap: () -> JewelKeymap,
+): JewelShortcutHostState = remember { JewelShortcutHostState(registry, keymap) }
 
 @InternalJewelApi
 @ApiStatus.Internal

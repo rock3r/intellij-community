@@ -5,6 +5,10 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
+import com.intellij.ide.ActivityTracker
+import com.intellij.openapi.actionSystem.ActionManager
+import com.intellij.openapi.actionSystem.TimerListener
+import com.intellij.openapi.application.ModalityState
 import java.awt.KeyEventDispatcher
 import java.awt.KeyboardFocusManager
 import javax.swing.SwingUtilities
@@ -13,7 +17,7 @@ import org.jetbrains.jewel.bridge.actionSystem.JewelBridgeActionInvoker
 import org.jetbrains.jewel.foundation.shortcut.InMemoryJewelKeymap
 import org.jetbrains.jewel.foundation.shortcut.JewelShortcutHostState
 import org.jetbrains.jewel.foundation.shortcut.ProvideJewelShortcutHost
-import androidx.compose.ui.input.key.KeyEvent as ComposeKeyEvent
+import org.jetbrains.jewel.foundation.shortcut.toComposeKeyEvent
 import java.awt.event.KeyEvent as AwtKeyEvent
 
 /**
@@ -48,8 +52,28 @@ internal fun ShortcutHostBridge(wrapper: JewelComposePanelWrapper, content: @Com
 
         wrapper.shortcutHostState = state
         wrapper.shortcutClaimEvaluator = { awtEvent ->
-            awtEvent.id == AwtKeyEvent.KEY_PRESSED && state.claimsKeyDown(ComposeKeyEvent(awtEvent))
+            awtEvent.id == AwtKeyEvent.KEY_PRESSED && state.claimsKeyDown(awtEvent.toComposeKeyEvent())
         }
+
+        // Presentation sampling rides the platform's action-update cadence: the same timer that refreshes
+        // toolbars re-samples Jewel presentations, but only when user activity actually advanced and only
+        // for actions some composed control is observing (the scheduler is demand-driven).
+        val actionManager = ActionManager.getInstance()
+        var lastActivityCount = -1
+        val presentationTimerListener =
+            object : TimerListener {
+                override fun getModalityState(): ModalityState = ModalityState.any()
+
+                override fun run() {
+                    if (state.presentations.activeDemandCount() == 0) return
+                    val count = ActivityTracker.getInstance().count
+                    if (count != lastActivityCount) {
+                        lastActivityCount = count
+                        state.presentations.invalidate()
+                    }
+                }
+            }
+        actionManager.addTimerListener(presentationTimerListener)
 
         val focusManager = KeyboardFocusManager.getCurrentKeyboardFocusManager()
         val claimDeliveryDispatcher = KeyEventDispatcher { event ->
@@ -60,7 +84,7 @@ internal fun ShortcutHostBridge(wrapper: JewelComposePanelWrapper, content: @Com
             val consumed =
                 when (event.id) {
                     AwtKeyEvent.KEY_PRESSED,
-                    AwtKeyEvent.KEY_TYPED -> state.onPreviewKeyEvent(ComposeKeyEvent(event))
+                    AwtKeyEvent.KEY_TYPED -> state.onPreviewKeyEvent(event.toComposeKeyEvent())
                     else -> false
                 }
             if (consumed) event.consume()
@@ -69,6 +93,7 @@ internal fun ShortcutHostBridge(wrapper: JewelComposePanelWrapper, content: @Com
         focusManager.addKeyEventDispatcher(claimDeliveryDispatcher)
 
         onDispose {
+            actionManager.removeTimerListener(presentationTimerListener)
             focusManager.removeKeyEventDispatcher(claimDeliveryDispatcher)
             wrapper.shortcutClaimEvaluator = null
             wrapper.shortcutHostState = null

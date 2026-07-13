@@ -51,10 +51,15 @@ Window(onPreviewKeyEvent = state::onPreviewKeyEvent, onCloseRequest = ...) {
 
 - `JewelKeymap` supports named schemes, parent inheritance with `hideInherited` markers, prefix queries
   for two-stroke sequences, conflicts, and runtime mutation (`modificationCount` drives menu hints).
-  Persistence is application policy.
+  Persistence is application policy. `KeymapSettingsPanel` is a minimal settings surface over a
+  `MutableJewelKeymap`: it lists effective bindings per registered action, records one-stroke rebinds,
+  and surfaces conflicts.
 - **Popups and dialogs run in their own Compose scene layers and do not inherit window key hooks.**
-  Thread `state::onPreviewKeyEvent` into `Popup(onPreviewKeyEvent = …)` for any popup that must keep
-  dispatch working while open. Jewel-owned popups will do this as the menu integration lands.
+  Jewel-owned menus (`PopupMenu`, context menus, `ActionMenu`) thread the shortcut host's
+  `onPreviewKeyEvent` into their popups automatically when a `LocalJewelShortcutHost` is present;
+  thread `state::onPreviewKeyEvent` into `Popup(onPreviewKeyEvent = …)` yourself for application
+  popups. While a menu is open, its item shortcuts are absorbed into the host as a *menu scope*
+  resolved ahead of ordinary dispatch, so menu-local and host dispatch can never race.
 
 ## IntelliJ bridge
 
@@ -67,8 +72,19 @@ Window(onPreviewKeyEvent = state::onPreviewKeyEvent, onCloseRequest = ...) {
   continues.
 - A `KeyEventDispatcher` scoped to the wrapper's focused descendants then delivers the claimed
   key-down to the claim handler and swallows the trailing KEY_TYPED.
-- **Commands stay IntelliJ actions** resolved through the IDE keymap; the bridge action registry
-  (`JewelActionBridgeAction`, standard edit-action mappings) is the next implementation slice.
+- **Commands stay IntelliJ actions** resolved through the IDE keymap. `JewelActionBridgeAction`
+  (declare it in plugin.xml under the Jewel action ID, or let `JewelBridgeActionRegistry` register it
+  at runtime) resolves the focused host from the data context — the wrapper snapshots its host state
+  under a dedicated `DataKey` — and re-resolves the nearest focused enabled binding at perform time.
+  It is enabled in modal contexts; `DumbAwareJewelActionBridgeAction` is the opt-in declaration
+  variant for indexing-safe handlers, and runtime registrations always stay non-dumb-aware.
+- The standard edit actions map onto `$Copy`/`$Cut`/`$Paste`/`$SelectAll`
+  (`JewelActionMappings.installStandardMappings()`, installed by the bridge on panel composition,
+  override-safe); `ComposeCopyProvider`/`ComposeCutProvider`/`ComposePasteProvider` complete the
+  semantic edit-action bridge from focused Compose semantics.
+- Programmatic invocations (`ActionButton` and friends) route through `JewelBridgeActionInvoker` and
+  `ActionManager.tryToExecute`, so platform update, enablement, and listeners stay authoritative;
+  presentation sampling rides the platform action-update cadence (a demand-gated `TimerListener`).
 
 ## Dispatch contract details
 
@@ -94,9 +110,20 @@ Provide the host to the composition (`ProvideJewelShortcutHost(state) { … }`; 
 automatically inside `JewelComposePanel`) and components stay in sync with keyboard dispatch:
 
 ```kotlin
-ActionButton(SelectAllRows)          // renders sampled presentation; invokes through the host
-ActionToolbar(mainToolbarGroup)      // leaf actions, separators, inline subgroups
+ActionButton(SelectAllRows)          // renders sampled presentation (icon, text); invokes through the host
+ToggleActionButton(WordWrap)         // Toggle actions; checked state = presentation.selected
+ActionToolbar(mainToolbarGroup)      // leaf actions, separators, inline subgroups, popup subgroups
+ActionMenuButton(viewOptionsGroup)   // opens an ActionMenu; submenus, toggle items, dismiss policies
+SplitActionButton(Run, runConfigsGroup)
 ```
+
+A binding contributes dynamic presentation through `Modifier.shortcut(action, presentation = …)`
+(`ActionPresentationOverride`: text, description, visibility, `selected` for toggles, a
+host-interpreted icon slot, and `MenuDismissPolicy` — the four-state mirror of IJPL's
+`KeepPopupOnPerform`, carried as presentation state). `collectPresentationAsState(selector)` observes
+one projection gated by that projection's own equality. Failure rows are explicit
+(`ActionResolution.Unregistered` — coalesced diagnostics — `NoFocusedBinding`, `HostUnavailable`), and
+execution always re-resolves, so a stale presentation can never invoke a gone binding.
 
 Presentation sampling is demand-driven and equality-gated (`ActionPresentationScheduler`): controls
 register demand while composed, polls re-sample only on host signals (dispatches, `invalidate()`),
@@ -107,9 +134,10 @@ delivered auto-repeats until key-up).
 
 ## Status
 
-Implemented and unit-tested: dispatch core (incl. repeat policies), standalone resolver, keymap
-model, presentation scheduler + `ActionButton`/`ActionToolbar`, action events, group model, and the
-bridge claim lane. Authored pending an in-monorepo compile: the bridge action registry
-(`JewelActionBridgeAction`, attach-or-register, `JewelActionMappings`, copy/cut semantic providers).
-Planned next: menu hosting for popup groups (threading the host key handler into popups), toggle
-components, keymap settings surfaces, and the multi-OS conflict suite.
+Implemented and tested: dispatch core (incl. repeat policies and menu scopes), standalone resolver,
+keymap model + settings surface, presentation model (overrides, icons, failure rows, selector
+projections) + scheduler, action events, group model, `ActionButton`/`ToggleActionButton`/
+`ActionToolbar`/`ActionMenu`/`ActionMenuButton`/`SplitActionButton`, the bridge claim lane, and the
+bridge action registry (attach-or-register, standard edit mappings, platform-routed invoker,
+platform-cadence presentation updates) with platform-level integration tests. Remaining: the
+multi-OS conflict/IME proof-matrix rows, which need live per-OS validation.

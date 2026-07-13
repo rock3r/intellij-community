@@ -5,11 +5,15 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import org.jetbrains.annotations.ApiStatus
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 
@@ -74,4 +78,24 @@ public fun JewelAction.collectPresentationAsState(
     val flow = remember(scheduler, id) { scheduler.acquire(id) }
     DisposableEffect(scheduler, id) { onDispose { scheduler.release(id) } }
     return flow.collectAsState()
+}
+
+/**
+ * Collects one projection of this action's presentation, gated by the projection's own equality: a
+ * control observing only `enabled` does not recompose when the text changes. The [selector] must be
+ * pure; the latest lambda is used without restarting collection when the composable recomposes with a
+ * new instance.
+ */
+@ApiStatus.Experimental
+@ExperimentalJewelApi
+@Composable
+public fun <T> JewelAction.collectPresentationAsState(
+    scheduler: ActionPresentationScheduler,
+    selector: (ActionPresentation) -> T,
+): State<T> {
+    val flow = remember(scheduler, id) { scheduler.acquire(id) }
+    DisposableEffect(scheduler, id) { onDispose { scheduler.release(id) } }
+    val currentSelector by rememberUpdatedState(selector)
+    val projected = remember(flow) { flow.map { currentSelector(it) }.distinctUntilChanged() }
+    return projected.collectAsState(initial = currentSelector(flow.value))
 }

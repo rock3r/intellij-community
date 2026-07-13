@@ -23,6 +23,7 @@ public class EngineBinding(
     public val blocksOuterBindings: Boolean,
     public val origin: String,
     public val repeatPolicy: ShortcutRepeatPolicy = ShortcutRepeatPolicy.RepeatWhileHeld,
+    public val presentationOverride: ActionPresentationOverride = ActionPresentationOverride.Empty,
     public val onInvoke: () -> Unit,
 )
 
@@ -101,6 +102,14 @@ public class ShortcutDispatchEngine(
     /** Call for every key-up so OnceUntilRelease latches clear. */
     public fun onKeyUp(stroke: JewelKeyStroke?) {
         if (stroke != null && repeatLatchedStroke == stroke) repeatLatchedStroke = null
+    }
+
+    /**
+     * Arms one-shot suppression of the trailing KEY_TYPED for a key-down a caller consumed outside the
+     * engine (menu-scope shortcuts); equivalent to what any engine-consumed key-down does itself.
+     */
+    public fun armTypedSuppression() {
+        suppressNextTyped = true
     }
 
     /** Call for KEY_TYPED-equivalent events; returns true when the event must be consumed. */

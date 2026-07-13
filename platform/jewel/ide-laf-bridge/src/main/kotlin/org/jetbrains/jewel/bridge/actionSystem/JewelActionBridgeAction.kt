@@ -6,7 +6,9 @@ import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.DataKey
+import com.intellij.openapi.actionSystem.KeepPopupOnPerform
 import com.intellij.openapi.actionSystem.PlatformDataKeys
+import com.intellij.openapi.actionSystem.Toggleable
 import com.intellij.openapi.project.DumbAware
 import java.awt.Component
 import java.awt.event.KeyEvent
@@ -15,9 +17,11 @@ import org.jetbrains.annotations.ApiStatus
 import org.jetbrains.jewel.bridge.JewelComposePanelWrapper
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import org.jetbrains.jewel.foundation.InternalJewelApi
+import org.jetbrains.jewel.foundation.shortcut.ActionResolution
 import org.jetbrains.jewel.foundation.shortcut.ActionTrigger
 import org.jetbrains.jewel.foundation.shortcut.JewelActionId
 import org.jetbrains.jewel.foundation.shortcut.JewelShortcutHostState
+import org.jetbrains.jewel.foundation.shortcut.MenuDismissPolicy
 
 /**
  * The generic bridge action for Jewel commands, intended for normal plugin.xml `<action>` registration
@@ -51,10 +55,21 @@ public open class JewelActionBridgeAction : AnAction() {
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.BGT
 
     override fun update(event: AnActionEvent) {
-        val handler = resolveFocusedHandler(event)
-        event.presentation.isEnabled = handler != null
-        // Template visibility is preserved: a declared action stays discoverable in menus while
-        // correctly refusing execution without a focused binding.
+        val id = ActionManager.getInstance().getId(this)
+        val host = if (id != null) jewelHostStateFor(event) else null
+        val presentation = if (id != null && host != null) host.presentationFor(JewelActionId(id)) else null
+        if (presentation == null || presentation.resolution != ActionResolution.Resolved) {
+            // Template visibility and text are preserved: a declared action stays discoverable in menus
+            // while correctly refusing execution without a focused binding (or without a Jewel host).
+            event.presentation.isEnabled = false
+            return
+        }
+        event.presentation.isEnabled = presentation.enabled
+        presentation.description?.let { event.presentation.description = it }
+        // The focused binding's override rides the platform presentation where IJPL has an equivalent:
+        // toggle state for checkable menu items, and popup retention (the 4-state KeepPopupOnPerform).
+        Toggleable.setSelected(event.presentation, presentation.selected)
+        presentation.menuDismissPolicy?.let { event.presentation.keepPopupOnPerform = it.toPlatform() }
     }
 
     override fun actionPerformed(event: AnActionEvent) {
@@ -80,6 +95,14 @@ public open class JewelActionBridgeAction : AnAction() {
             is KeyEvent -> ActionTrigger.Keyboard(null)
             is MouseEvent -> ActionTrigger.Pointer
             else -> ActionTrigger.Programmatic
+        }
+
+    private fun MenuDismissPolicy.toPlatform(): KeepPopupOnPerform =
+        when (this) {
+            MenuDismissPolicy.Dismiss -> KeepPopupOnPerform.Never
+            MenuDismissPolicy.KeepIfRequested -> KeepPopupOnPerform.IfRequested
+            MenuDismissPolicy.KeepIfPreferred -> KeepPopupOnPerform.IfPreferred
+            MenuDismissPolicy.KeepAlways -> KeepPopupOnPerform.Always
         }
 
     private fun jewelHostStateFor(event: AnActionEvent): JewelShortcutHostState? {

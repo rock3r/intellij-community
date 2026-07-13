@@ -27,8 +27,10 @@ public fun Modifier.shortcut(
     enabled: Boolean = true,
     blocksOuterBindings: Boolean = false,
     repeatPolicy: ShortcutRepeatPolicy = ShortcutRepeatPolicy.RepeatWhileHeld,
+    presentation: ActionPresentationOverride = ActionPresentationOverride.Empty,
     onInvoke: () -> Unit,
-): Modifier = this then ShortcutBindingElement(action, enabled, blocksOuterBindings, repeatPolicy, onInvoke)
+): Modifier =
+    this then ShortcutBindingElement(action, enabled, blocksOuterBindings, repeatPolicy, presentation, onInvoke)
 
 /**
  * Claims a one-stroke physical shortcut before host keymap lookup while this node's subtree has focus. The
@@ -64,6 +66,7 @@ public class ShortcutBindingNode(
     public var enabled: Boolean,
     public var blocksOuterBindings: Boolean,
     public var repeatPolicy: ShortcutRepeatPolicy,
+    public var presentationOverride: ActionPresentationOverride,
     public var onInvoke: () -> Unit,
 ) : Modifier.Node(), FocusEventModifierNode, TraversableNode {
     public var hasFocus: Boolean = false
@@ -83,15 +86,18 @@ private class ShortcutBindingElement(
     private val enabled: Boolean,
     private val blocksOuterBindings: Boolean,
     private val repeatPolicy: ShortcutRepeatPolicy,
+    private val presentationOverride: ActionPresentationOverride,
     private val onInvoke: () -> Unit,
 ) : ModifierNodeElement<ShortcutBindingNode>() {
-    override fun create() = ShortcutBindingNode(action, enabled, blocksOuterBindings, repeatPolicy, onInvoke)
+    override fun create() =
+        ShortcutBindingNode(action, enabled, blocksOuterBindings, repeatPolicy, presentationOverride, onInvoke)
 
     override fun update(node: ShortcutBindingNode) {
         node.action = action
         node.enabled = enabled
         node.blocksOuterBindings = blocksOuterBindings
         node.repeatPolicy = repeatPolicy
+        node.presentationOverride = presentationOverride
         node.onInvoke = onInvoke
     }
 
@@ -106,6 +112,7 @@ private class ShortcutBindingElement(
             other.action == action &&
             other.enabled == enabled &&
             other.blocksOuterBindings == blocksOuterBindings &&
+            other.presentationOverride == presentationOverride &&
             other.onInvoke === onInvoke
 
     override fun hashCode(): Int = 31 * action.hashCode() + enabled.hashCode()
