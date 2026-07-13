@@ -12,6 +12,7 @@ import com.intellij.ide.DataManager
 import com.intellij.ide.IdeBundle
 import com.intellij.ide.IdeEventQueue
 import com.intellij.ide.KeyboardAwareFocusOwner
+import com.intellij.ide.KeyboardAwareFocusOwnerProvider
 import com.intellij.openapi.MnemonicHelper
 import com.intellij.openapi.actionSystem.ActionManager
 import com.intellij.openapi.actionSystem.ActionPlaces
@@ -267,6 +268,9 @@ class IdeKeyEventDispatcher(private val queue: IdeEventQueue?) {
       LOG.debug { "Key event not processed because ${focusOwner} is in focus and implements ${KeyboardAwareFocusOwner::class.java}" }
       return false
     }
+    if (focusOwner != null && skipByFocusOwnerAncestor(focusOwner, e)) {
+      return false
+    }
 
     val id = e.id
     if (ignoreNextKeyTypedEvent) {
@@ -359,6 +363,27 @@ class IdeKeyEventDispatcher(private val queue: IdeEventQueue?) {
     finally {
       context.clear()
     }
+  }
+
+  /**
+   * Lets an ancestor of the focus owner skip IDE shortcut processing on behalf of a focused component it
+   * cannot control (for example, the internal canvas of an embedded renderer). Consulted only when the focus
+   * owner itself is not a [KeyboardAwareFocusOwner] that skips the event, so behavior is unchanged unless a
+   * [KeyboardAwareFocusOwnerProvider] is actually present in the focused hierarchy.
+   */
+  private fun skipByFocusOwnerAncestor(focusOwner: Component, e: KeyEvent): Boolean {
+    var component = focusOwner.parent
+    while (component != null) {
+      if (component is KeyboardAwareFocusOwnerProvider && component.skipKeyEventDispatcher(focusOwner, e)) {
+        LOG.debug {
+          "Key event not processed because ${component} is an ancestor of the focus owner ${focusOwner} " +
+          "and implements ${KeyboardAwareFocusOwnerProvider::class.java}"
+        }
+        return true
+      }
+      component = component.parent
+    }
+    return false
   }
 
   private fun inWaitForSecondStrokeState(): Boolean {

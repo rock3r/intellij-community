@@ -407,3 +407,12 @@ jps_test(
     runtime_deps = [":tests_test_lib"],
 )
 ### auto-generated section `test intellij.platform.tests` end
+
+# Convenience target for the KeyboardAwareFocusOwnerProvider prototype, see
+# platform/platform-impl/src/com/intellij/ide/keyboard-aware-focus-owner-provider.md.
+# Equivalent to: bazel test //platform/platform-tests:tests_test --test_filter=com.intellij.openapi.keymap.KeyboardAwareFocusOwnerProviderTest
+jps_test(
+    name = "keyboard_aware_focus_owner_provider_test",
+    env = {"TESTBRIDGE_TEST_ONLY": "com.intellij.openapi.keymap.KeyboardAwareFocusOwnerProviderTest"},
+    runtime_deps = [":tests_test_lib"],
+)
