@@ -4,6 +4,16 @@ package org.jetbrains.jewel.foundation.shortcut
 import org.jetbrains.annotations.ApiStatus
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 
+/** How keyboard auto-repeat key-downs are delivered to a completed one-stroke binding or claim. */
+@ApiStatus.Experimental
+@ExperimentalJewelApi
+public enum class ShortcutRepeatPolicy {
+    /** Invoke on the initial key-down and every delivered auto-repeat key-down. */
+    RepeatWhileHeld,
+    /** Invoke once, then suppress delivered repeats until the key-up of the same stroke. */
+    OnceUntilRelease,
+}
+
 /** A focused command binding as seen by the engine; innermost bindings come LAST in the list. */
 @ApiStatus.Experimental
 @ExperimentalJewelApi
@@ -12,6 +22,7 @@ public class EngineBinding(
     public val enabled: Boolean,
     public val blocksOuterBindings: Boolean,
     public val origin: String,
+    public val repeatPolicy: ShortcutRepeatPolicy = ShortcutRepeatPolicy.RepeatWhileHeld,
     public val onInvoke: () -> Unit,
 )
 
@@ -22,6 +33,7 @@ public class EngineClaim(
     public val sequence: JewelKeySequence,
     public val enabled: Boolean,
     public val blocksOuterClaims: Boolean,
+    public val repeatPolicy: ShortcutRepeatPolicy = ShortcutRepeatPolicy.RepeatWhileHeld,
     public val onInvoke: () -> Unit,
 )
 
@@ -40,6 +52,7 @@ public sealed interface DispatchDecision {
             ChordPrefix,
             ChordCancelled,
             TypedSuppressed,
+            RepeatSuppressed,
         }
     }
 
@@ -76,8 +89,19 @@ public class ShortcutDispatchEngine(
     private var pendingFirstStroke: JewelKeyStroke? = null
     private var suppressNextTyped = false
 
+    /** Stroke whose OnceUntilRelease invocation already fired; cleared by the matching key-up. */
+    private var repeatLatchedStroke: JewelKeyStroke? = null
+
     public val isAwaitingSecondStroke: Boolean
         get() = pendingFirstStroke != null
+
+    /** Innermost focused enabled binding for [actionId], or null. Used by hosts for presentation. */
+    public fun resolveFocusedBinding(actionId: JewelActionId): EngineBinding? = resolveBinding(actionId)
+
+    /** Call for every key-up so OnceUntilRelease latches clear. */
+    public fun onKeyUp(stroke: JewelKeyStroke?) {
+        if (stroke != null && repeatLatchedStroke == stroke) repeatLatchedStroke = null
+    }
 
     /** Call for KEY_TYPED-equivalent events; returns true when the event must be consumed. */
     public fun onTypedEvent(): Boolean {
@@ -106,9 +130,15 @@ public class ShortcutDispatchEngine(
 
         // 1) Focused claims, innermost first.
         resolveClaim(stroke)?.let { claim ->
-            claim.onInvoke()
             suppressNextTyped = true
             pendingFirstStroke = null
+            if (claim.repeatPolicy == ShortcutRepeatPolicy.OnceUntilRelease) {
+                if (repeatLatchedStroke == stroke) {
+                    return DispatchDecision.Consumed(null, claim.sequence, DispatchDecision.Consumed.Route.RepeatSuppressed)
+                }
+                repeatLatchedStroke = stroke
+            }
+            claim.onInvoke()
             return DispatchDecision.Consumed(
                 invokedActionId = null,
                 invokedSequence = claim.sequence,
@@ -135,8 +165,21 @@ public class ShortcutDispatchEngine(
         val exactActionId =
             keymap().actionIdsFor(exactSequence).firstOrNull { id -> resolveBinding(id) != null }
         if (exactActionId != null) {
-            resolveBinding(exactActionId)?.onInvoke?.invoke()
+            val binding = resolveBinding(exactActionId)
             suppressNextTyped = true
+            if (binding != null) {
+                if (binding.repeatPolicy == ShortcutRepeatPolicy.OnceUntilRelease) {
+                    if (repeatLatchedStroke == stroke) {
+                        return DispatchDecision.Consumed(
+                            exactActionId,
+                            exactSequence,
+                            DispatchDecision.Consumed.Route.RepeatSuppressed,
+                        )
+                    }
+                    repeatLatchedStroke = stroke
+                }
+                binding.onInvoke()
+            }
             return DispatchDecision.Consumed(exactActionId, exactSequence, DispatchDecision.Consumed.Route.Keymap)
         }
 

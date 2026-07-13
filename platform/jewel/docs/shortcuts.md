@@ -88,8 +88,28 @@ Window(onPreviewKeyEvent = state::onPreviewKeyEvent, onCloseRequest = ...) {
 The engine (`ShortcutDispatchEngine`) is free of Compose and AWT types; its unit tests in
 `foundation/src/test/.../shortcut/` pin every rule above.
 
+## Action-bound components
+
+Provide the host to the composition (`ProvideJewelShortcutHost(state) { … }`; the bridge does this
+automatically inside `JewelComposePanel`) and components stay in sync with keyboard dispatch:
+
+```kotlin
+ActionButton(SelectAllRows)          // renders sampled presentation; invokes through the host
+ActionToolbar(mainToolbarGroup)      // leaf actions, separators, inline subgroups
+```
+
+Presentation sampling is demand-driven and equality-gated (`ActionPresentationScheduler`): controls
+register demand while composed, polls re-sample only on host signals (dispatches, `invalidate()`),
+and unchanged samples cause no recomposition. `JewelShortcutHostState.events` emits exactly one
+`ActionInvocation` per completed Jewel-owned invocation — the Presentation Assistant/analytics hook.
+Repeat delivery is per binding/claim via `ShortcutRepeatPolicy` (`OnceUntilRelease` suppresses
+delivered auto-repeats until key-up).
+
 ## Status
 
-Implemented: the dispatch core, standalone resolver, keymap model, and the bridge claim lane.
-Planned next: the bridge action registry and standard edit actions; presentation
-collection/`ActionButton`; repeat policies; groups, menus, and toolbars; keymap settings surfaces.
+Implemented and unit-tested: dispatch core (incl. repeat policies), standalone resolver, keymap
+model, presentation scheduler + `ActionButton`/`ActionToolbar`, action events, group model, and the
+bridge claim lane. Authored pending an in-monorepo compile: the bridge action registry
+(`JewelActionBridgeAction`, attach-or-register, `JewelActionMappings`, copy/cut semantic providers).
+Planned next: menu hosting for popup groups (threading the host key handler into popups), toggle
+components, keymap settings surfaces, and the multi-OS conflict suite.

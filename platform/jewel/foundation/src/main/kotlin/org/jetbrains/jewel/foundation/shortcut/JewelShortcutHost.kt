@@ -43,8 +43,47 @@ public class JewelShortcutHostState(private val keymapProvider: () -> JewelKeyma
     /** Fired after every consumed dispatch; drives Presentation Assistant-style overlays and tests. */
     public var onDispatch: ((DispatchDecision.Consumed) -> Unit)? = null
 
+    private val eventSource = MutableActionEventSource()
+
+    /** One event per completed Jewel-owned invocation (keyboard and [invoker]). */
+    public val events: ActionEventSource
+        get() = eventSource
+
+    /**
+     * Demand-driven presentation sampling for this host. Poll on your own signals via
+     * [ActionPresentationScheduler.invalidate]; keyboard dispatches invalidate automatically.
+     */
+    public val presentations: ActionPresentationScheduler = ActionPresentationScheduler(::samplePresentation)
+
+    /** Standalone programmatic execution preserving enablement; emits through [events] on success. */
+    public val invoker: ActionInvoker =
+        object : ActionInvoker {
+            override fun invoke(action: JewelAction, trigger: ActionTrigger): ActionDispatchResult {
+                val binding =
+                    engine.resolveFocusedBinding(action.id)
+                        ?: return ActionDispatchResult.Rejected(ActionDispatchRejection.NoFocusedBinding)
+                binding.onInvoke()
+                eventSource.emit(ActionInvocation(action.id, null, trigger))
+                presentations.invalidate()
+                return ActionDispatchResult.Dispatched
+            }
+        }
+
     public val isAwaitingSecondStroke: Boolean
         get() = engine.isAwaitingSecondStroke
+
+    /** Innermost focused enabled handler for [actionId]; null when none (action disabled here). */
+    public fun resolveFocusedHandler(actionId: JewelActionId): (() -> Unit)? =
+        engine.resolveFocusedBinding(actionId)?.onInvoke
+
+    private fun samplePresentation(actionId: JewelActionId): ActionPresentation {
+        val binding = engine.resolveFocusedBinding(actionId)
+        return if (binding != null) {
+            ActionPresentation(text = binding.origin, enabled = true, resolution = ActionResolution.Resolved)
+        } else {
+            ActionPresentation(text = actionId.value, enabled = false, resolution = ActionResolution.NoFocusedBinding)
+        }
+    }
 
     public val resolverRootModifier: Modifier
         get() = Modifier then ShortcutResolverRootElement(this)
@@ -56,6 +95,18 @@ public class JewelShortcutHostState(private val keymapProvider: () -> JewelKeyma
                 val decision = engine.onKeyDown(JewelKeyStroke.fromKeyDownOrNull(event))
                 if (decision is DispatchDecision.Consumed) {
                     onDispatch?.invoke(decision)
+                    if (decision.route == DispatchDecision.Consumed.Route.Claim ||
+                        decision.route == DispatchDecision.Consumed.Route.Keymap
+                    ) {
+                        eventSource.emit(
+                            ActionInvocation(
+                                decision.invokedActionId,
+                                decision.invokedSequence,
+                                ActionTrigger.Keyboard(decision.invokedSequence),
+                            )
+                        )
+                        presentations.invalidate()
+                    }
                     return true
                 }
                 // Raw event claims: deliberately local, innermost enabled record wins.
@@ -65,7 +116,10 @@ public class JewelShortcutHostState(private val keymapProvider: () -> JewelKeyma
                 }
                 return false
             }
-            KeyEventType.KeyUp -> return false
+            KeyEventType.KeyUp -> {
+                engine.onKeyUp(JewelKeyStroke.fromKeyDownOrNull(event))
+                return false
+            }
             // KEY_TYPED and other unknown AWT events surface as Unknown at this hook.
             else -> return engine.onTypedEvent()
         }
@@ -108,6 +162,7 @@ public class JewelShortcutHostState(private val keymapProvider: () -> JewelKeyma
                         enabled = node.enabled,
                         blocksOuterBindings = node.blocksOuterBindings,
                         origin = node.action.title,
+                        repeatPolicy = node.repeatPolicy,
                         onInvoke = node.onInvoke,
                     )
                 )
@@ -126,6 +181,7 @@ public class JewelShortcutHostState(private val keymapProvider: () -> JewelKeyma
                         sequence = node.sequence,
                         enabled = node.enabled,
                         blocksOuterClaims = node.blocksOuterClaims,
+                        repeatPolicy = node.repeatPolicy,
                         onInvoke = node.onInvoke,
                     )
                 )

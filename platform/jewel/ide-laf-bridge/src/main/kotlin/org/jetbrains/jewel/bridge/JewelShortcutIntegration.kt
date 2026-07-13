@@ -10,6 +10,7 @@ import java.awt.KeyboardFocusManager
 import javax.swing.SwingUtilities
 import org.jetbrains.jewel.foundation.shortcut.InMemoryJewelKeymap
 import org.jetbrains.jewel.foundation.shortcut.JewelShortcutHostState
+import org.jetbrains.jewel.foundation.shortcut.ProvideJewelShortcutHost
 import androidx.compose.ui.input.key.KeyEvent as ComposeKeyEvent
 import java.awt.event.KeyEvent as AwtKeyEvent
 
@@ -36,6 +37,7 @@ internal fun ShortcutHostBridge(wrapper: JewelComposePanelWrapper, content: @Com
     val state = remember { JewelShortcutHostState(keymapProvider = { bridgeKeymap }) }
 
     DisposableEffect(wrapper, state) {
+        wrapper.shortcutHostState = state
         wrapper.shortcutClaimEvaluator = { awtEvent ->
             awtEvent.id == AwtKeyEvent.KEY_PRESSED && state.claimsKeyDown(ComposeKeyEvent(awtEvent))
         }
@@ -60,9 +62,10 @@ internal fun ShortcutHostBridge(wrapper: JewelComposePanelWrapper, content: @Com
         onDispose {
             focusManager.removeKeyEventDispatcher(claimDeliveryDispatcher)
             wrapper.shortcutClaimEvaluator = null
+            wrapper.shortcutHostState = null
             state.reset()
         }
     }
 
-    Box(state.resolverRootModifier) { content() }
+    ProvideJewelShortcutHost(state) { Box(state.resolverRootModifier) { content() } }
 }

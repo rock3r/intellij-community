@@ -26,8 +26,9 @@ public fun Modifier.shortcut(
     action: JewelAction,
     enabled: Boolean = true,
     blocksOuterBindings: Boolean = false,
+    repeatPolicy: ShortcutRepeatPolicy = ShortcutRepeatPolicy.RepeatWhileHeld,
     onInvoke: () -> Unit,
-): Modifier = this then ShortcutBindingElement(action, enabled, blocksOuterBindings, onInvoke)
+): Modifier = this then ShortcutBindingElement(action, enabled, blocksOuterBindings, repeatPolicy, onInvoke)
 
 /**
  * Claims a one-stroke physical shortcut before host keymap lookup while this node's subtree has focus. The
@@ -40,8 +41,9 @@ public fun Modifier.claimShortcut(
     sequence: JewelKeySequence,
     enabled: Boolean = true,
     blocksOuterClaims: Boolean = false,
+    repeatPolicy: ShortcutRepeatPolicy = ShortcutRepeatPolicy.RepeatWhileHeld,
     onInvoke: () -> Unit,
-): Modifier = this then ShortcutClaimElement(sequence, enabled, blocksOuterClaims, onInvoke)
+): Modifier = this then ShortcutClaimElement(sequence, enabled, blocksOuterClaims, repeatPolicy, onInvoke)
 
 /**
  * Low-level single-event ownership for focused input that is not a shortcut sequence. A matching enabled
@@ -61,6 +63,7 @@ public class ShortcutBindingNode(
     public var action: JewelAction,
     public var enabled: Boolean,
     public var blocksOuterBindings: Boolean,
+    public var repeatPolicy: ShortcutRepeatPolicy,
     public var onInvoke: () -> Unit,
 ) : Modifier.Node(), FocusEventModifierNode, TraversableNode {
     public var hasFocus: Boolean = false
@@ -79,14 +82,16 @@ private class ShortcutBindingElement(
     private val action: JewelAction,
     private val enabled: Boolean,
     private val blocksOuterBindings: Boolean,
+    private val repeatPolicy: ShortcutRepeatPolicy,
     private val onInvoke: () -> Unit,
 ) : ModifierNodeElement<ShortcutBindingNode>() {
-    override fun create() = ShortcutBindingNode(action, enabled, blocksOuterBindings, onInvoke)
+    override fun create() = ShortcutBindingNode(action, enabled, blocksOuterBindings, repeatPolicy, onInvoke)
 
     override fun update(node: ShortcutBindingNode) {
         node.action = action
         node.enabled = enabled
         node.blocksOuterBindings = blocksOuterBindings
+        node.repeatPolicy = repeatPolicy
         node.onInvoke = onInvoke
     }
 
@@ -112,6 +117,7 @@ public class ShortcutClaimNode(
     public var sequence: JewelKeySequence,
     public var enabled: Boolean,
     public var blocksOuterClaims: Boolean,
+    public var repeatPolicy: ShortcutRepeatPolicy,
     public var onInvoke: () -> Unit,
 ) : Modifier.Node(), FocusEventModifierNode, TraversableNode {
     public var hasFocus: Boolean = false
@@ -130,14 +136,16 @@ private class ShortcutClaimElement(
     private val sequence: JewelKeySequence,
     private val enabled: Boolean,
     private val blocksOuterClaims: Boolean,
+    private val repeatPolicy: ShortcutRepeatPolicy,
     private val onInvoke: () -> Unit,
 ) : ModifierNodeElement<ShortcutClaimNode>() {
-    override fun create() = ShortcutClaimNode(sequence, enabled, blocksOuterClaims, onInvoke)
+    override fun create() = ShortcutClaimNode(sequence, enabled, blocksOuterClaims, repeatPolicy, onInvoke)
 
     override fun update(node: ShortcutClaimNode) {
         node.sequence = sequence
         node.enabled = enabled
         node.blocksOuterClaims = blocksOuterClaims
+        node.repeatPolicy = repeatPolicy
         node.onInvoke = onInvoke
     }
 

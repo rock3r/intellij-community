@@ -228,6 +228,10 @@ public class JewelComposePanelWrapper(private val focusOnClickInside: Boolean) :
      */
     @Volatile internal var shortcutClaimEvaluator: ((KeyEvent) -> Boolean)? = null
 
+    /** The shortcut host wired by [org.jetbrains.jewel.bridge.ShortcutHostBridge]; used by bridge actions. */
+    @Volatile public var shortcutHostState: org.jetbrains.jewel.foundation.shortcut.JewelShortcutHostState? = null
+        internal set
+
     override fun skipKeyEventDispatcher(focusOwner: Component, event: KeyEvent): Boolean =
         shortcutClaimEvaluator?.invoke(event) == true
     private val listener = AWTEventListener { event ->
