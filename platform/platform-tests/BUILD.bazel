@@ -408,8 +408,9 @@ jps_test(
 )
 ### auto-generated section `test intellij.platform.tests` end
 
-# Convenience target for the KeyboardAwareFocusOwnerProvider prototype, see
-# platform/platform-impl/src/com/intellij/ide/keyboard-aware-focus-owner-provider.md.
+# Focused regression suite for the KeyboardAwareFocusOwnerProvider ancestor escape hatch
+# (see the KDoc on com.intellij.ide.KeyboardAwareFocusOwnerProvider and
+# platform/jewel/docs/shortcuts.md for the primary consumer).
 # Equivalent to: bazel test //platform/platform-tests:tests_test --test_filter=com.intellij.openapi.keymap.KeyboardAwareFocusOwnerProviderTest
 jps_test(
     name = "keyboard_aware_focus_owner_provider_test",

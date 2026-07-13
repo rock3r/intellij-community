@@ -19,6 +19,18 @@ import java.awt.event.KeyEvent
  * Implementations must be fast: this is consulted on the EDT for every key event while a descendant of the
  * implementing container is focused. Return `true` only for events the focused content explicitly claims;
  * returning `true` unconditionally disables all IDE shortcuts while the descendant is focused.
+ *
+ * Contract notes, pinned by `KeyboardAwareFocusOwnerProviderTest`:
+ * - Returning `true` only shields the event from the IDE keymap — it does not consume it. If the embedder
+ *   needs the event consumed or delivered specially, it must do so in its own input pipeline (for example,
+ *   via a [java.awt.KeyEventDispatcher] scoped to its focused descendants).
+ * - `KEY_TYPED` events that follow a skipped `KEY_PRESSED` are not swallowed by the dispatcher (unlike after
+ *   a performed action); an embedder claiming printable keys must suppress the typed character itself.
+ * - A claim that begins between the strokes of an in-flight keymap chord leaves the dispatcher's pending
+ *   second-stroke state behind until a key release or the `actionSystem.secondKeystrokeTimeout` timeout.
+ *   Claim sets should therefore be in place when focus enters the component, not toggled mid-chord.
+ *
+ * The primary consumer is Jewel's `JewelComposePanelWrapper`; see `platform/jewel/docs/shortcuts.md`.
  */
 @ApiStatus.Experimental
 interface KeyboardAwareFocusOwnerProvider {
