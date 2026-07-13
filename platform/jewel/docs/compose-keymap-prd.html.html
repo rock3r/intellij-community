@@ -1,0 +1,763 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Jewel Compose shortcuts and IntelliJ keymap — PRD</title>
+  <style>
+    :root { color-scheme: light dark; font-family: Inter, system-ui, sans-serif; line-height: 1.5; }
+    body { max-width: 1080px; margin: 0 auto; padding: 32px; color: CanvasText; background: Canvas; }
+    h1 { font-size: 2rem; margin-bottom: .2rem; } h2 { margin-top: 2.4rem; border-bottom: 1px solid color-mix(in srgb, CanvasText 18%, transparent); padding-bottom: .3rem; }
+    h3 { margin-top: 1.5rem; } .lede { font-size: 1.12rem; max-width: 80ch; }
+    .callout { border-left: 4px solid #4b8; padding: .7rem 1rem; background: color-mix(in srgb, CanvasText 5%, transparent); }
+    code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; } pre { overflow: auto; padding: 1rem; background: color-mix(in srgb, CanvasText 7%, transparent); }
+    .k { color: #b060d1; font-weight: 600; } .t { color: #1685b6; } .s { color: #b56a20; } .c { color: #75808a; font-style: italic; } .a { color: #b54c78; }
+    figure { margin: 1.5rem 0; padding: 1rem; border: 1px solid color-mix(in srgb, CanvasText 18%, transparent); background: color-mix(in srgb, CanvasText 3%, transparent); }
+    figure svg { display: block; width: 100%; height: auto; } figcaption { margin-top: .65rem; color: color-mix(in srgb, CanvasText 72%, transparent); font-size: .92rem; }
+    .diagram-node { fill: color-mix(in srgb, Canvas 92%, CanvasText); stroke: color-mix(in srgb, CanvasText 34%, transparent); stroke-width: 1.5; }
+    .diagram-claim { fill: color-mix(in srgb, #4b8 18%, Canvas); stroke: #278457; stroke-width: 1.5; }
+    .diagram-host { fill: color-mix(in srgb, #4d8fd5 15%, Canvas); stroke: #3677b9; stroke-width: 1.5; }
+    .diagram-common { fill: color-mix(in srgb, #a06bc5 14%, Canvas); stroke: #8b57ac; stroke-width: 1.5; }
+    .diagram-label { fill: CanvasText; font: 600 14px Inter, system-ui, sans-serif; text-anchor: middle; }
+    .diagram-detail { fill: color-mix(in srgb, CanvasText 78%, transparent); font: 12px Inter, system-ui, sans-serif; text-anchor: middle; }
+    .diagram-arrow { stroke: color-mix(in srgb, CanvasText 62%, transparent); stroke-width: 2; fill: none; marker-end: url(#arrow); }
+    table { border-collapse: collapse; width: 100%; margin: 1rem 0; } th, td { text-align: left; vertical-align: top; padding: .55rem; border: 1px solid color-mix(in srgb, CanvasText 18%, transparent); }
+    th { background: color-mix(in srgb, CanvasText 7%, transparent); } .ok { color: #16803c; font-weight: 600; } .no { color: #b33a3a; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <h1>Jewel Compose shortcuts and IntelliJ keymap</h1>
+  <p class="lede">Product requirements and API proposal for a single Jewel shortcut API that works in standalone desktop apps and as an IntelliJ Platform (IJPL) bridge, without changing Compose or the IJPL action/keymap subsystem.</p>
+  <p><strong>Status:</strong> proposed · <strong>Scope:</strong> <code>platform/jewel</code> and its IJPL bridge · <strong>Related:</strong> IJPL-212347</p>
+
+  <h2>Decision</h2>
+  <div class="callout">
+    <strong>Use a two-lane model.</strong> Explicit Jewel commands are resolved through the host keymap (IJPL keymap in the bridge; a standalone keymap in standalone apps). Raw Compose key handlers may selectively claim a keystroke before IJPL lookup. A command is therefore configurable and visible to the host; a raw key claim is deliberately local and authoritative.
+  </div>
+  <p>This is preferable to making all Compose input win (which breaks IDE shortcuts) or all IJPL actions win (the current bug). It also avoids duplicating or modifying <code>IdeKeyEventDispatcher</code>, <code>KeymapManager</code>, and Compose Desktop.</p>
+
+  <h2>Evidence and constraints</h2>
+  <ul>
+    <li>IJPL resolves local and active-keymap actions, evaluates <code>AnAction.update()</code>, and may consume the event before the AWT focus target receives useful input. See <code>platform/platform-impl/.../IdeKeyEventDispatcher.kt</code>.</li>
+    <li>The dispatcher already has an early, purpose-built escape hatch: a focused <code>KeyboardAwareFocusOwner</code> can return <code>true</code> from <code>skipKeyEventDispatcher(KeyEvent)</code>. This prevents IJPL action lookup while ordinary AWT dispatch continues.</li>
+    <li>Jewel already separates host-neutral UI/data contracts from IJPL-specific adapters and standalone defaults. It has <strong>no</strong> shortcut claim, focused-binding, or standalone keymap subsystem today; those are new work proposed here.</li>
+    <li>The current bridge contributes Compose data to IJPL through <code>UiDataProvider</code> and bridges paste semantics, but it does not participate in pre-keymap key ownership. Its menu shortcut provider is display-only.</li>
+  </ul>
+  <p><strong>Important qualification:</strong> the actual AWT focus owner is the nested <code>ComposePanel</code>, not <code>JewelComposePanelWrapper</code>. The bridge must use a focus-owner implementation or proxy that implements <code>KeyboardAwareFocusOwner</code>; merely adding that interface to the wrapper will not work.</p>
+
+  <h2>Goals and non-goals</h2>
+  <table>
+    <thead><tr><th>Goals</th><th>Non-goals</th></tr></thead>
+    <tbody>
+      <tr><td>Let focused Jewel UI receive a specifically claimed shortcut instead of an unrelated IJPL action.</td><td>Replace IJPL's action system or duplicate its keymap dispatcher.</td></tr>
+      <tr><td>Let Jewel commands use IJPL action IDs, current user keymaps, enablement, data context, and action invocation.</td><td>Make every <code>onPreviewKeyEvent</code> automatically override every IDE shortcut.</td></tr>
+      <tr><td>Provide the same source-level Jewel API in standalone applications.</td><td>Require IntelliJ classes in foundation or UI modules.</td></tr>
+      <tr><td>Keep established Compose component keyboard behavior working.</td><td>Introduce changes below IJPL or in Compose Desktop.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Conceptual model and precedence</h2>
+  <pre>AWT KeyEvent
+  │
+  ├─ focused Jewel host: does a focused UI subtree explicitly claim this raw key?
+  │    ├─ yes → skip IJPL keymap; deliver to Compose; run local handler
+  │    └─ no
+  │
+  ├─ host command resolver
+  │    ├─ IJPL: active Keymap → registered/standard AnAction → Compose-aware DataContext
+  │    └─ standalone: configured/default keymap → Jewel command handler
+  │
+  └─ ordinary Compose key delivery and component navigation</pre>
+  <figure>
+    <svg viewBox="0 0 980 230" role="img" aria-labelledby="dispatch-title dispatch-description">
+      <title id="dispatch-title">Shortcut dispatch precedence</title>
+      <desc id="dispatch-description">An incoming AWT key event first checks a focused Jewel raw-key claim. A claim bypasses the IntelliJ keymap and reaches Compose. Otherwise, the host command resolver handles a bound command, or normal Compose delivery continues.</desc>
+      <defs><marker id="arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="currentColor"/></marker></defs>
+      <rect class="diagram-node" x="20" y="86" width="145" height="58" rx="7"/><text class="diagram-label" x="92" y="110">AWT KeyEvent</text><text class="diagram-detail" x="92" y="129">focused Compose host</text>
+      <path class="diagram-arrow" d="M165 115 H220"/>
+      <rect class="diagram-claim" x="220" y="74" width="190" height="82" rx="7"/><text class="diagram-label" x="315" y="104">Focused raw claim?</text><text class="diagram-detail" x="315" y="126">only explicit claims</text><text class="diagram-detail" x="315" y="143">preempt IJPL</text>
+      <path class="diagram-arrow" d="M410 98 H470 V46 H535"/><text class="diagram-detail" x="464" y="66">yes</text>
+      <rect class="diagram-claim" x="535" y="18" width="200" height="58" rx="7"/><text class="diagram-label" x="635" y="42">Skip IJPL keymap</text><text class="diagram-detail" x="635" y="61">deliver local Compose input</text>
+      <path class="diagram-arrow" d="M410 132 H470 V184 H535"/><text class="diagram-detail" x="464" y="168">no</text>
+      <rect class="diagram-host" x="535" y="154" width="200" height="58" rx="7"/><text class="diagram-label" x="635" y="178">Host command resolver</text><text class="diagram-detail" x="635" y="197">IJPL keymap or standalone map</text>
+      <path class="diagram-arrow" d="M735 183 H790"/>
+      <rect class="diagram-node" x="790" y="154" width="170" height="58" rx="7"/><text class="diagram-label" x="875" y="178">Command or input</text><text class="diagram-detail" x="875" y="197">unclaimed input stays normal</text>
+    </svg>
+    <figcaption>Figure 1. Only a focused, explicit raw-key claim bypasses IJPL. All commands otherwise remain governed by the active host keymap.</figcaption>
+  </figure>
+  <ol>
+    <li><strong>Explicit raw claim wins.</strong> It is the escape hatch for a focused editor-like component, a modal Compose interaction, or an intentional conflict.</li>
+    <li><strong>Host command keymap wins next.</strong> This preserves user keymap customisation and familiar IJPL behaviour for commands such as Copy, Paste, Find, and tool-window actions.</li>
+    <li><strong>Unclaimed Compose input remains normal Compose input.</strong> An unbound key is never swallowed by the new API.</li>
+  </ol>
+
+  <h2>Public API proposal</h2>
+  <p>Place this API in a new host-neutral <code>org.jetbrains.jewel.foundation.shortcut</code> package (or a focused foundation submodule). It uses Compose key types only and has no <code>com.intellij.*</code> imports.</p>
+  <pre><span class="c">/** Stable identifier; use reverse-DNS names for application commands. */</span>
+<span class="a">@JvmInline</span>
+<span class="k">value class</span> <span class="t">JewelActionId</span>(<span class="k">val</span> value: <span class="t">String</span>)
+
+<span class="k">data class</span> <span class="t">JewelAction</span>(
+    <span class="k">val</span> id: <span class="t">JewelActionId</span>,
+    <span class="k">val</span> title: <span class="t">String</span>,
+    <span class="k">val</span> category: <span class="t">String</span>? = <span class="k">null</span>,
+    <span class="k">val</span> kind: <span class="t">JewelActionKind</span> = <span class="t">JewelActionKind</span>.<span class="t">Command</span>,
+    <span class="k">val</span> menuDismissPolicy: <span class="t">MenuDismissPolicy</span> = <span class="t">MenuDismissPolicy</span>.<span class="t">Default</span>,
+)
+
+<span class="k">data class</span> <span class="t">JewelActionDefinition</span>(
+    <span class="k">val</span> action: <span class="t">JewelAction</span>,
+    <span class="k">val</span> defaultShortcuts: <span class="t">List</span>&lt;<span class="t">KeySequence</span>&gt; = emptyList(),
+)
+
+<span class="k">enum class</span> <span class="t">ActionRoute</span> {
+    <span class="t">BridgeOwned</span>,
+    <span class="t">MappedIdeAction</span>,
+}
+
+<span class="k">interface</span> <span class="t">JewelActionRegistry</span> {
+    <span class="c">/** Declares in standalone; attaches to a matching bridge AnAction or registers one at runtime in IJPL. */</span>
+    <span class="k">fun</span> register(definition: <span class="t">JewelActionDefinition</span>): <span class="t">ActionRegistration</span>
+    <span class="k">fun</span> definition(id: <span class="t">JewelActionId</span>): <span class="t">JewelActionDefinition</span>?
+    <span class="k">fun</span> invalidate(id: <span class="t">JewelActionId</span>? = <span class="k">null</span>)
+}
+
+<span class="k">enum class</span> <span class="t">JewelActionKind</span> {
+    <span class="t">Command</span>,
+    <span class="t">Toggle</span>,
+}
+
+<span class="k">enum class</span> <span class="t">MenuDismissPolicy</span> {
+    <span class="t">Default</span>,
+    <span class="t">KeepOpen</span>,
+}
+
+<span class="k">enum class</span> <span class="t">ShortcutRepeatPolicy</span> {
+    <span class="c">/** Invoke on the initial key-down and every platform auto-repeat key-down. */</span>
+    <span class="t">RepeatWhileHeld</span>,
+    <span class="c">/** Invoke once, then suppress repeats until the final key-up. */</span>
+    <span class="t">OnceUntilRelease</span>,
+}
+
+<span class="k">sealed interface</span> <span class="t">PresentationValue</span>&lt;<span class="k">out</span> <span class="t">T</span>&gt; {
+    <span class="k">data object</span> <span class="t">Inherit</span> : <span class="t">PresentationValue</span>&lt;<span class="t">Nothing</span>&gt;
+    <span class="k">data class</span> <span class="t">Set</span>&lt;<span class="t">T</span>&gt;(<span class="k">val</span> value: <span class="t">T</span>) : <span class="t">PresentationValue</span>&lt;<span class="t">T</span>&gt;
+}
+
+<span class="k">data class</span> <span class="t">ActionPresentationOverride</span>(
+    <span class="k">val</span> text: <span class="t">PresentationValue</span>&lt;<span class="t">String</span>&gt; = <span class="t">Inherit</span>,
+    <span class="k">val</span> description: <span class="t">PresentationValue</span>&lt;<span class="t">String</span>?&gt; = <span class="t">Inherit</span>,
+    <span class="k">val</span> icon: <span class="t">PresentationValue</span>&lt;<span class="t">IconKey</span>?&gt; = <span class="t">Inherit</span>,
+    <span class="k">val</span> visible: <span class="t">PresentationValue</span>&lt;<span class="t">Boolean</span>&gt; = <span class="t">Inherit</span>,
+    <span class="k">val</span> selected: <span class="t">PresentationValue</span>&lt;<span class="t">Boolean</span>&gt; = <span class="t">Inherit</span>,
+)
+
+<span class="k">fun</span> <span class="t">Modifier</span>.shortcut(
+    action: <span class="t">JewelAction</span>,
+    enabled: <span class="t">Boolean</span> = <span class="k">true</span>,
+    presentation: <span class="t">ActionPresentationOverride</span> = <span class="t">ActionPresentationOverride</span>(),
+    blocksOuterBindings: <span class="t">Boolean</span> = <span class="k">false</span>,
+    repeatPolicy: <span class="t">ShortcutRepeatPolicy</span> = <span class="t">ShortcutRepeatPolicy</span>.<span class="t">RepeatWhileHeld</span>,
+    onInvoke: () -&gt; <span class="t">Unit</span>,
+): <span class="t">Modifier</span>
+
+<span class="c">/** Claims a one- or two-stroke physical shortcut before host keymap lookup. */</span>
+<span class="k">fun</span> <span class="t">Modifier</span>.claimShortcut(
+    sequence: <span class="t">KeySequence</span>,
+    enabled: <span class="t">Boolean</span> = <span class="k">true</span>,
+    blocksOuterClaims: <span class="t">Boolean</span> = <span class="k">false</span>,
+    repeatPolicy: <span class="t">ShortcutRepeatPolicy</span> = <span class="t">ShortcutRepeatPolicy</span>.<span class="t">RepeatWhileHeld</span>,
+    onInvoke: () -&gt; <span class="t">Unit</span>,
+): <span class="t">Modifier</span>
+
+<span class="c">/** Low-level single-event ownership for input that is not a shortcut sequence. */</span>
+<span class="k">fun</span> <span class="t">Modifier</span>.claimKeyEvent(
+    matcher: (<span class="t">KeyEvent</span>) -&gt; <span class="t">Boolean</span>,
+    enabled: <span class="t">Boolean</span> = <span class="k">true</span>,
+    onKeyEvent: (<span class="t">KeyEvent</span>) -&gt; <span class="t">Unit</span>,
+): <span class="t">Modifier</span></pre>
+  <p><code>shortcut(action)</code> is an action binding: it supplies availability and invocation for one host-registered <code>JewelAction</code>, while the host resolver owns keymap bindings. <code>JewelActionDefinition</code> is the complete host-neutral catalog item: title/semantics plus default keyboard bindings. In IJPL, <code>register()</code> first attaches to a same-ID <code>JewelActionBridgeAction</code> declared by <code>plugin.xml</code>, validating compatible template metadata without re-registering the <code>AnAction</code>; otherwise it registers a runtime bridge action. In standalone it declares the catalog item. Every host must resolve an ID or report a configuration error; no action is silently unavailable in standalone.</p>
+  <p><code>claimShortcut</code> claims a physical <code>KeySequence</code>, including a two-stroke chord, before host keymap lookup. <code>claimKeyEvent</code> is the deliberately low-level single-event escape hatch for editor-like input that is not a shortcut sequence. A matching enabled raw-event claim irrevocably owns and consumes the event, then invokes <code>onKeyEvent</code>; it never falls through to the host keymap or later ordinary Compose handlers. They are separate rather than implicit <code>onPreviewKeyEvent</code> behavior so bypassing user keymap customisation is visible in source review. A sealed <code>ShortcutBinding</code> overload could combine the names later, but action bindings, sequence claims, and raw-event claims must remain distinct.</p>
+
+  <h3>Claimed sequence state</h3>
+  <p>A sequence claim uses one/two-stroke state that is explicit and identical in both hosts. An exact one-stroke claim wins immediately over a longer claim sharing its first stroke; the longer sequence is therefore not entered. For a prefix with no exact candidate, the focused claim resolver selects candidates in inner-to-outer modifier order, consumes the first stroke, and enters pending state. In IJPL it also makes the focused host skip <code>IdeKeyEventDispatcher</code> for that prefix; in standalone the window-root pre-key resolver consumes it before ordinary Compose handlers.</p>
+  <ul>
+    <li>The pending state holds the focused host and candidate snapshot. Focus transfer, disposal, or timeout cancels it.</li>
+    <li>A matching second stroke invokes the innermost enabled exact claim and consumes the stroke. Multiple claims sharing a prefix are therefore supported.</li>
+    <li>A nonmatching second stroke cancels pending state and is consumed; the already-consumed prefix is never replayed. This deliberately matches IJPL’s conservative chord behavior rather than leaking an unexpected second input to a text field.</li>
+    <li><code>blocksOuterClaims</code> prevents outer modifier/ancestor claims from participating for the same prefix, including after an inner claim becomes disabled.</li>
+  </ul>
+
+  <h3>Repeat delivery</h3>
+  <p><code>ShortcutRepeatPolicy</code> is a Jewel resolver policy, not a claim about platform auto-repeat behavior. On every delivered auto-repeat key-down for a completed one-stroke Jewel binding, the resolver re-evaluates availability and may invoke it again. <code>OnceUntilRelease</code> suppresses later delivered key-down repeats until the final key-up and is appropriate for non-repeatable operations such as opening a dialog or toggling an exclusive mode. Existing mapped IJPL actions retain IJPL’s native repeat behavior.</p>
+  <ul>
+    <li>Repeat state is tracked per focused host and physical key sequence; key-up clears the one-shot latch.</li>
+    <li>A two-stroke prefix never repeats: repeated first-stroke key-downs are consumed while pending, and only the completed sequence may invoke repeatedly.</li>
+    <li>Focus transfer, modifier release, timeout, or disposal clears repeat and pending-sequence state.</li>
+    <li>The IJPL bridge applies the policy only for bridge-owned Jewel bindings; standalone applies it in its window-root resolver. Pointer and programmatic invocation are unaffected.</li>
+  </ul>
+
+  <h3>Focus-path selection and overrides</h3>
+  <p>A command ID does <strong>not</strong> identify one global callback. It identifies a host-visible action whose target is selected from the focused Jewel UI tree at invocation time. Each <code>shortcut</code> call is a <strong>binding</strong> modifier node, not action registration. The bridge/standalone resolver maintains the currently focused node and walks its Jewel ancestor path from leaf to root.</p>
+  <pre><span class="c">// Outer container supplies the ambient fallback.</span>
+<span class="t">Box</span>(<span class="t">Modifier</span>.shortcut(<span class="t">SelectAllRows</span>) { table.selectAll() }) {
+
+  <span class="c">// A focused embedded editor overrides precisely that same action.</span>
+  <span class="t">Editor</span>(
+    <span class="t">Modifier</span>.shortcut(<span class="t">SelectAllRows</span>) { editor.selectAllText() }
+  )
+}</pre>
+  <ol>
+    <li>Resolve only registrations on the focused node and its Jewel ancestors.</li>
+    <li>Choose the nearest enabled registration for the command ID; an unavailable registration falls through to its parent.</li>
+    <li>A registration can declare <code>blocksOuterBindings = true</code> to intentionally disable outer/ambient handlers rather than fall through.</li>
+    <li>When focus leaves the Jewel host, no Jewel registration participates.</li>
+  </ol>
+  <h4>Modifier-chain semantics</h4>
+  <ul>
+    <li><strong>Different actions never clash.</strong> Multiple <code>shortcut</code> modifiers on one UI node, such as Cut, Copy, and Paste, are independent entries keyed by <code>JewelActionId</code>.</li>
+    <li><strong>Duplicate action on one node follows normal modifier order.</strong> The resolver walks modifier entries inner-to-outer (rightmost applied modifier first), matching Compose <code>onKeyEvent</code> bubbling. Thus <code>Modifier.shortcut(copy, outer).shortcut(copy, inner)</code> selects <code>inner</code> while it is enabled.</li>
+    <li><strong>The selected entry owns its blocking policy.</strong> For duplicate bindings, the rightmost entry’s <code>blocksOuterBindings</code> value wins; flags are never merged. If that entry is disabled and does not block, traversal reaches the next outer entry, whose own flag then governs subsequent fall-through.</li>
+    <li><strong>Disabled bindings fall through.</strong> If the inner duplicate is disabled, lookup continues to the outer duplicate and then the parent UI node. If the entry currently being evaluated has <code>blocksOuterBindings = true</code>, lookup stops and the action is unavailable.</li>
+    <li><strong>Raw claims use resolver selection.</strong> For multiple matching <code>claimKeyEvent</code> records, the resolver selects the innermost enabled record by published modifier order, consumes before ordinary Compose dispatch, and invokes only that handler. Sequence claims use the same inner-to-outer modifier order when selecting their first-stroke candidate; the selected/rightmost candidate’s <code>blocksOuterClaims</code> flag governs traversal, without merging flags from duplicates.</li>
+  </ul>
+  <p>No public <code>ShortcutScope</code> is needed. Each shortcut modifier publishes an immutable binding record into a host-owned registry: its focus-anchor token, parent token, modifier order, and current atomic binding snapshot. Focus modifiers publish the currently focused anchor token. The resolver follows those recorded parent links and orders records by the published modifier order; it does <strong>not</strong> attempt to traverse arbitrary Compose modifier/layout internals, use composition order, or use a global “last registered wins” list. Delegated modifiers and interop must explicitly choose the nearest focus anchor when attaching.</p>
+
+  <h3>Action taxonomy: semantics, not an <code>AnAction</code> hierarchy</h3>
+  <p>Jewel should not reproduce IJPL inheritance classes. IJPL base classes combine platform execution, Swing rendering, dumb-mode capability, and menu construction; Jewel keeps only cross-host semantics in its action descriptor and composes UI separately.</p>
+  <table>
+    <thead><tr><th>IJPL concept</th><th>Jewel treatment</th><th>Why</th></tr></thead>
+    <tbody>
+      <tr><td><code>AnAction</code></td><td><code>JewelAction(kind = Command)</code></td><td>The normal invokable leaf action; IJPL and standalone adapters own execution.</td></tr>
+      <tr><td><code>ToggleAction</code>, checkbox/radio variants</td><td><code>JewelAction(kind = Toggle)</code> with dynamic <code>ActionPresentation.selected</code></td><td>Selection is state, while checkbox, pressed toolbar button, and radio item are view/accessibility choices. The host adapter maps an existing IJPL <code>ToggleAction</code> selected presentation directly.</td></tr>
+      <tr><td><code>KeepPopupOnPerform</code></td><td><code>MenuDismissPolicy</code></td><td>Applies to Jewel-rendered menus only. IJPL native popup retention is action-class/static policy, so a generic bridge action does not promise dynamic per-binding popup retention.</td></tr>
+      <tr><td><code>ActionGroup</code>, <code>DefaultActionGroup</code>, <code>Separator</code></td><td>Required separate <code>JewelActionGroup</code>/<code>JewelMenuEntry</code> tree model</td><td>A group is a dynamic content provider, not a leaf action with a shortcut or a handler. It must not be forced into the leaf-action hierarchy.</td></tr>
+      <tr><td><code>ComboBoxAction</code>, split-button/custom-component actions</td><td>Jewel composables consume a <code>JewelAction</code> or <code>JewelActionGroup</code></td><td>These are view/layout patterns already represented by Jewel components, not action semantics.</td></tr>
+      <tr><td><code>DumbAware</code>, remote-behavior markers, custom Swing component interfaces</td><td>Bridge registration metadata / adapter implementation</td><td>They are IJPL-specific capabilities with no standalone meaning; they must not leak into the common action API.</td></tr>
+    </tbody>
+  </table>
+  <h4>Required group surface</h4>
+  <p>Action groups are required for parity with IJPL action-driven menus/toolbars and for consuming existing IJPL groups in Jewel UI. They are deliberately separate from shortcut dispatch: only leaf actions have keymaps and focused modifier bindings.</p>
+  <pre><span class="a">@JvmInline</span>
+<span class="k">value class</span> <span class="t">JewelActionGroupId</span>(<span class="k">val</span> value: <span class="t">String</span>)
+
+<span class="k">interface</span> <span class="t">ActionContextKey</span>&lt;<span class="t">T</span>&gt;
+
+<span class="k">interface</span> <span class="t">ActionContext</span> {
+    <span class="k">val</span> hostId: <span class="t">Any</span>
+    <span class="k">val</span> focusStamp: <span class="t">Long</span>
+    <span class="k">operator fun</span> &lt;<span class="t">T</span>&gt; get(key: <span class="t">ActionContextKey</span>&lt;<span class="t">T</span>&gt;): <span class="t">T</span>?
+}
+
+<span class="k">data class</span> <span class="t">ActionGroupPresentation</span>(
+    <span class="k">val</span> text: <span class="t">String</span>,
+    <span class="k">val</span> icon: <span class="t">IconKey</span>? = <span class="k">null</span>,
+    <span class="k">val</span> visible: <span class="t">Boolean</span> = <span class="k">true</span>,
+    <span class="k">val</span> popup: <span class="t">Boolean</span> = <span class="k">false</span>,
+)
+
+<span class="k">interface</span> <span class="t">JewelActionGroup</span> {
+    <span class="k">val</span> id: <span class="t">JewelActionGroupId</span>
+    <span class="k">val</span> presentation: <span class="t">ActionGroupPresentation</span>
+    <span class="k">fun</span> children(context: <span class="t">ActionContext</span>): <span class="t">List</span>&lt;<span class="t">JewelMenuEntry</span>&gt;
+}
+
+<span class="k">sealed interface</span> <span class="t">JewelMenuEntry</span> {
+    <span class="k">data class</span> <span class="t">Action</span>(
+        <span class="k">val</span> action: <span class="t">JewelAction</span>,
+        <span class="k">val</span> placement: <span class="t">ActionPlacement</span> = <span class="t">ActionPlacement</span>.<span class="t">Primary</span>,
+    ) : <span class="t">JewelMenuEntry</span>
+    <span class="k">data class</span> <span class="t">Group</span>(<span class="k">val</span> group: <span class="t">JewelActionGroup</span>) : <span class="t">JewelMenuEntry</span>
+    <span class="k">data class</span> <span class="t">Separator</span>(<span class="k">val</span> text: <span class="t">String</span>? = <span class="k">null</span>) : <span class="t">JewelMenuEntry</span>
+}
+
+<span class="k">enum class</span> <span class="t">ActionPlacement</span> { <span class="t">Primary</span>, <span class="t">Secondary</span> }
+
+<span class="a">@Composable</span>
+<span class="k">fun</span> ActionToolbar(group: <span class="t">JewelActionGroup</span>, orientation: <span class="t">Orientation</span> = <span class="t">Orientation</span>.<span class="t">Horizontal</span>)
+
+<span class="a">@Composable</span>
+<span class="k">fun</span> ActionMenu(group: <span class="t">JewelActionGroup</span>)
+
+<span class="a">@Composable</span>
+<span class="k">fun</span> ActionMenuButton(group: <span class="t">JewelActionGroup</span>)
+
+<span class="a">@Composable</span>
+<span class="k">fun</span> SplitActionButton(primary: <span class="t">JewelAction</span>, menu: <span class="t">JewelActionGroup</span>)</pre>
+  <ul>
+    <li><strong>Lazy and context-sensitive children:</strong> groups expand against the same focused host <code>ActionContext</code> used by leaf actions. Their child list is sampled by the shared scheduler only while a menu/toolbar consumes it. Version one treats group presentation as static descriptor metadata; context-dependent group text/icon/visibility is deferred until an explicit group update contract exists.</li>
+    <li><strong>IJPL adapter:</strong> the bridge adapts an existing <code>ActionGroup</code> through its normal child-expansion/update path, preserving nested groups, separators, visibility, and primary/secondary placement. Version one does not register plugin-declared or runtime <code>JewelActionGroup</code>s through a generic bridge class.</li>
+    <li><strong>Standalone:</strong> the same directly supplied interface provides app-defined menu/toolbar contents. It has no dependency on IJPL group classes.</li>
+    <li><strong>Execution:</strong> menu leaf entries invoke the existing <code>ActionInvoker</code>; groups are normally non-invokable containers. A future explicit <em>perform group</em> capability can be added as group metadata rather than making every group a leaf action.</li>
+  </ul>
+  <h4>Toolbar and popup-group expansion</h4>
+  <ul>
+    <li><strong><code>ActionToolbar</code>:</strong> expands visible non-popup groups recursively, renders leaf actions as action-bound toolbar controls, and renders a visible <code>popup = true</code> group as an <code>ActionMenuButton</code>. Secondary entries are retained as overflow candidates rather than discarded.</li>
+    <li><strong><code>ActionMenu</code>:</strong> renders groups as submenus, separators as separators, and leaves through <code>ActionInvoker</code>. It resolves the group against the focused <code>ActionContext</code> immediately before opening, so dynamic child actions are current.</li>
+    <li><strong>Action that opens a menu:</strong> model it as a popup <code>JewelActionGroup</code> and render <code>ActionMenuButton(group)</code>. This is the Jewel equivalent of an IJPL popup <code>ActionGroup</code>/<code>ComboBoxAction</code>; it is not a fake leaf <code>JewelAction</code>.</li>
+    <li><strong>Action plus menu:</strong> model it as <code>SplitActionButton(primary, menu)</code>. The primary half invokes a real leaf action; the disclosure half opens a group. This mirrors IJPL split-button behavior without introducing a split-action subclass.</li>
+  </ul>
+
+  <h3>Registration lifecycle: startup and runtime</h3>
+  <p>Separate <strong>definition</strong> (the command/action that appears in a host keymap) from <strong>binding</strong> (the focused Compose handler selected at execution time). Definitions may be registered before any Compose UI exists or while the application is running; bindings are always dynamic and focus-driven.</p>
+  <table>
+    <thead><tr><th>When</th><th>IJPL bridge</th><th>Standalone</th></tr></thead>
+    <tbody>
+      <tr><td>Startup / declarative</td><td>Use the normal <code>plugin.xml</code> <code>&lt;action&gt;</code> element with bridge class <code>JewelActionBridgeAction</code>, then call <code>register(JewelActionDefinition(...))</code> during plugin startup. The registry attaches the matching descriptor to that existing action ID, validates template/default-shortcut compatibility, and never calls <code>ActionManager.registerAction</code>.</td><td>Register the same <code>JewelActionDefinition</code> in the application action catalog before creating windows; use its default bindings and presentation metadata.</td></tr>
+      <tr><td>Runtime / programmatic</td><td><code>JewelActionRegistry.register(definition)</code> creates the bridge <code>AnAction</code> only when no declared bridge action owns the ID; the returned closeable handle unregisters only a runtime-created action when closed. The bridge supplies a generic <code>AutoCloseable.closeWith(Disposable)</code> adapter for a plugin/project lifetime—without adding an IJPL parameter or overload to the common registry.</td><td><code>JewelActionRegistry.register(definition)</code> adds the definition to the standalone resolver and returns the same closeable handle. No IJPL lifetime type is required.</td></tr>
+      <tr><td>Compose UI</td><td colspan="2"><code>Modifier.shortcut</code> binds a previously registered ID to its UI node. Absence of a focused binding makes the action disabled; it does not unregister or remove it from Keymap settings.</td></tr>
+    </tbody>
+  </table>
+  <pre><span class="c">&lt;!-- plugin.xml: standard IJPL action/keymap declaration --&gt;</span>
+&lt;actions&gt;
+  &lt;action id=<span class="s">"com.acme.inventory.selectAllRows"</span>
+          class=<span class="s">"org.jetbrains.jewel.bridge.actionSystem.JewelActionBridgeAction"</span>
+          text=<span class="s">"Select All Rows"</span>
+          icon=<span class="s">"com.acme.InventoryIcons.SelectAll"</span>&gt;
+    &lt;keyboard-shortcut keymap=<span class="s">"$default"</span> first-keystroke=<span class="s">"control A"</span>/&gt;
+  &lt;/action&gt;
+&lt;/actions&gt;
+
+<span class="k">interface</span> <span class="t">ActionRegistration</span> : <span class="t">AutoCloseable</span> {
+    <span class="k">val</span> action: <span class="t">JewelAction</span>
+    <span class="k">override fun</span> close()
+}
+
+<span class="c">// Runtime/global: retain the handle for the application's chosen lifetime.</span>
+<span class="k">val</span> registration = JewelActionRegistry.register(
+    <span class="t">JewelActionDefinition</span>(<span class="t">JewelAction</span>(<span class="t">JewelActionId</span>(<span class="s">"com.acme.inventory.export"</span>), <span class="s">"Export"</span>))
+)
+<span class="c">// ... on shutdown or feature removal:</span>
+registration.close()</pre>
+  <pre><span class="c">// ide-laf-bridge only: reusable lifetime adapter, not an ActionRegistry API.</span>
+<span class="k">fun</span> &lt;<span class="t">T</span> : <span class="t">AutoCloseable</span>&gt; <span class="t">T</span>.closeWith(parent: <span class="t">Disposable</span>): <span class="t">T</span> = also { closeable -&gt;
+    <span class="t">Disposer</span>.register(parent) { closeable.close() }
+}
+
+<span class="c">// IJPL callers opt into the bridge adapter; the common call remains identical.</span>
+<span class="k">val</span> registration = JewelActionRegistry.register(JewelActionDefinition(action)).closeWith(project)</pre>
+  <h4>Standalone and composition lifetimes</h4>
+  <p>Standalone global registration is explicit: the application owns an <code>ActionRegistration</code> handle and closes it when its application, feature, or plugin-equivalent lifetime ends. A standalone application may create an action catalog at startup, retain all handles in its application object, and pass the registry into <code>IntUiTheme</code>. No Compose tree needs to remain alive for these globally discoverable actions to stay in the keymap.</p>
+  <pre><span class="a">@Composable</span>
+<span class="k">fun</span> RegisterAction(action: <span class="t">JewelAction</span>) {
+    <span class="k">val</span> registry = LocalJewelActionRegistry.current
+    DisposableEffect(registry, action) {
+        <span class="k">val</span> registration = registry.register(JewelActionDefinition(action))
+        onDispose { registration.close() }
+    }
+}</pre>
+  <p><code>RegisterAction</code> is the easy composition-scoped API for ephemeral feature actions. The registry reference-counts identical registrations by action ID and rejects incompatible duplicate descriptors. It must not be used for an action that should remain visible in settings/keymaps after the composable disappears. <code>ActionRegistration.close()</code> is idempotent, so manually closing a registration that was also <code>closeWith</code>-attached is safe; parent disposal merely performs a harmless second close. The bridge adapter is generic and belongs solely to the bridge artifact, so the common registry stays free of IJPL lifetime types and standalone callers never encounter a bridge-only overload.</p>
+  <p><code>JewelActionBridgeAction</code> is a generic bridge action: during <code>update()</code> and <code>actionPerformed()</code> it obtains its own registered action ID from <code>ActionManager</code>, then resolves that ID against the focused Jewel path. It holds no Compose state. This makes declarative and runtime actions identical from the keymap’s perspective.</p>
+
+  <h3>Common examples</h3>
+  <pre><span class="k">val</span> <span class="t">SelectAllRows</span> = <span class="t">JewelAction</span>(
+    <span class="t">JewelActionId</span>(<span class="s">"com.example.inventory.selectAllRows"</span>),
+    title = <span class="s">"Select All Rows"</span>,
+    category = <span class="s">"Inventory"</span>,
+)
+
+<span class="t">InventoryTable</span>(
+  <span class="t">Modifier</span>.shortcut(<span class="t">SelectAllRows</span>) {
+    model.selectAll()
+  }
+)</pre>
+  <pre><span class="c">// An editor surface that must own Cmd/Ctrl+Enter while focused.</span>
+<span class="t">Modifier</span>.claimShortcut(
+  sequence = <span class="t">KeySequence</span>(<span class="t">KeyStroke</span>.primary(<span class="t">Key</span>.<span class="t">Enter</span>)),
+  onInvoke = { submit() },
+)</pre>
+  <p>Standard edit actions are shared Jewel actions such as <code>JewelActions.Copy</code>, <code>JewelActions.Paste</code>, and <code>JewelActions.SelectAll</code>. The IJPL adapter maps those IDs to the corresponding existing IDE actions; the standalone adapter supplies the same action IDs, default bindings, and focused handlers. Common code never names an IJPL action ID or carries a host-specific no-op.</p>
+
+  <h2>Action-bound composables: Jewel’s ActionButton</h2>
+  <p>The shortcut API exposes observable <strong>action presentation</strong> directly from <code>JewelAction</code>. Components collect presentation state and invoke through the host, but common Jewel code never sees IJPL <code>AnAction</code> or <code>Presentation</code>.</p>
+  <pre><span class="k">data class</span> <span class="t">ActionPresentation</span>(
+    <span class="k">val</span> text: <span class="t">String</span>,
+    <span class="k">val</span> description: <span class="t">String</span>? = <span class="k">null</span>,
+    <span class="k">val</span> icon: <span class="t">IconKey</span>? = <span class="k">null</span>,
+    <span class="k">val</span> enabled: <span class="t">Boolean</span> = <span class="k">true</span>,
+    <span class="k">val</span> visible: <span class="t">Boolean</span> = <span class="k">true</span>,
+    <span class="k">val</span> selected: <span class="t">Boolean</span> = <span class="k">false</span>,
+    <span class="k">val</span> resolution: <span class="t">ActionResolution</span> = <span class="t">ActionResolution</span>.<span class="t">Unregistered</span>,
+)
+
+<span class="k">sealed interface</span> <span class="t">ActionResolution</span> {
+    <span class="k">data object</span> <span class="t">Resolved</span> : <span class="t">ActionResolution</span>
+    <span class="k">data object</span> <span class="t">Unregistered</span> : <span class="t">ActionResolution</span>
+    <span class="k">data object</span> <span class="t">NoFocusedBinding</span> : <span class="t">ActionResolution</span>
+    <span class="k">data object</span> <span class="t">UpdateFailed</span> : <span class="t">ActionResolution</span>
+    <span class="k">data object</span> <span class="t">HostUnavailable</span> : <span class="t">ActionResolution</span>
+}
+
+<span class="k">sealed interface</span> <span class="t">ActionTrigger</span> {
+    <span class="k">data class</span> <span class="t">Keyboard</span>(<span class="k">val</span> sequence: <span class="t">KeySequence</span>?) : <span class="t">ActionTrigger</span>
+    <span class="k">data object</span> <span class="t">Pointer</span> : <span class="t">ActionTrigger</span>
+    <span class="k">data object</span> <span class="t">Programmatic</span> : <span class="t">ActionTrigger</span>
+}
+
+<span class="k">data class</span> <span class="t">ActionInvocation</span>(
+    <span class="k">val</span> action: <span class="t">JewelAction</span>,
+    <span class="k">val</span> presentation: <span class="t">ActionPresentation</span>,
+    <span class="k">val</span> trigger: <span class="t">ActionTrigger</span>,
+)
+
+<span class="k">interface</span> <span class="t">ActionEventSource</span> {
+    <span class="k">val</span> invocations: <span class="t">SharedFlow</span>&lt;<span class="t">ActionInvocation</span>&gt;
+}
+
+<span class="k">interface</span> <span class="t">ActionInvoker</span> {
+    <span class="c">/** Requests normal host action execution; completion is observed via ActionEventSource. */</span>
+    <span class="k">fun</span> invoke(action: <span class="t">JewelAction</span>, trigger: <span class="t">ActionTrigger</span> = <span class="t">ActionTrigger</span>.<span class="t">Programmatic</span>): <span class="t">ActionDispatchResult</span>
+}
+
+<span class="k">sealed interface</span> <span class="t">ActionDispatchResult</span> {
+    <span class="k">data object</span> <span class="t">Dispatched</span> : <span class="t">ActionDispatchResult</span>
+    <span class="k">data class</span> <span class="t">Rejected</span>(<span class="k">val</span> reason: <span class="t">ActionDispatchRejection</span>) : <span class="t">ActionDispatchResult</span>
+}
+
+<span class="k">enum class</span> <span class="t">ActionDispatchRejection</span> {
+    <span class="t">Unregistered</span>, <span class="t">NoFocusedBinding</span>, <span class="t">Disabled</span>, <span class="t">HostUnavailable</span>,
+}
+
+<span class="k">internal interface</span> <span class="t">ActionPresentationRegistry</span> {
+    <span class="a">@Composable</span>
+    <span class="k">fun</span> collect(action: <span class="t">JewelAction</span>): <span class="t">State</span>&lt;<span class="t">ActionPresentation</span>&gt;
+}
+
+<span class="a">@Composable</span>
+<span class="k">fun</span> <span class="t">JewelAction</span>.collectPresentationAsState(): <span class="t">State</span>&lt;<span class="t">ActionPresentation</span>&gt;
+
+<span class="c">/** Recomposition occurs only when the selected rendered state changes by equality. */</span>
+<span class="a">@Composable</span>
+<span class="k">fun</span> &lt;<span class="t">T</span>&gt; <span class="t">JewelAction</span>.collectPresentationAsState(
+    selector: (<span class="t">ActionPresentation</span>) -&gt; <span class="t">T</span>,
+): <span class="t">State</span>&lt;<span class="t">T</span>&gt;
+
+<span class="a">@Composable</span>
+<span class="k">fun</span> rememberActionInvoker(): <span class="t">ActionInvoker</span>
+
+<span class="a">@Composable</span>
+<span class="k">fun</span> ActionButton(
+    action: <span class="t">JewelAction</span>,
+    modifier: <span class="t">Modifier</span> = <span class="t">Modifier</span>,
+    respectVisibility: <span class="t">Boolean</span> = <span class="k">true</span>,
+)</pre>
+  <p><code>collectPresentationAsState()</code> reads the host registry from an internal <code>CompositionLocal</code>; application composables do not configure or own polling. The bridge provides the application-level registry at <code>JewelComposePanel</code> creation and <code>IntUiTheme</code> provides the standalone registry. Each collection registers a stable reference-counted demand key of <code>(collector ID, action ID, host/window context)</code>; the current focus stamp is generation metadata on its sample. Identical update requests share one sample and one global scheduler tick. <code>DisposableEffect</code> removes the demand when the collector leaves composition. No composable creates a poll loop.</p>
+  <p>This is an additive API: callback-based <code>ActionButton(onClick = …)</code>, <code>IconActionButton</code>, and toggle controls stay intact. The action overload collects only the presentation projection it renders, uses <code>enabled</code> for interaction, omits the composable when <code>visible</code> is false and <code>respectVisibility</code> is true, uses <code>selected</code> for toggle/selected controls, and supplies text, description, and icon to the component’s normal styling and accessibility paths.</p>
+  <p><code>ToggleActionButton(action)</code>, <code>ToggleMenuItem(action)</code>, and radio-style menu components require <code>action.kind == Toggle</code>; they render the same dynamic <code>selected</code> state with their respective accessibility role. A toggle’s handler updates its external state, and the next action presentation sample reflects the new selection—there is no common <code>setSelected</code> method to mirror.</p>
+
+  <h3>Enabled and visible are independent</h3>
+  <p>The model preserves IJPL <code>Presentation</code> semantics instead of exposing a single “available” flag.</p>
+  <table>
+    <thead><tr><th>State</th><th>Meaning</th><th>Effect</th></tr></thead>
+    <tbody>
+      <tr><td><code>enabled</code></td><td>Whether the action may execute in the current focused context.</td><td>Controls keyboard/manual execution and disabled styling. A disabled action is never invoked.</td></tr>
+      <tr><td><code>visible</code></td><td>Whether the action should be rendered in menus, toolbars, and action-bound controls that respect visibility.</td><td>Controls presentation only. A hidden but enabled action remains eligible for a keymap shortcut or explicit programmatic invocation, matching IJPL behavior.</td></tr>
+    </tbody>
+  </table>
+  <p><code>Modifier.shortcut(enabled = …, presentation = ActionPresentationOverride(visible = PresentationValue.Set(…)))</code> updates them independently. If no focused binding is found, the bridge sets <code>enabled = false</code> but preserves template visibility; this lets a declared action remain discoverable in non-compact menus while correctly refusing execution. Standalone applies the same rule to its action catalog presentation.</p>
+
+  <h3>Action lifecycle events</h3>
+  <p><code>ActionEventSource.invocations</code> is the host-neutral observation point for cross-cutting features such as a Presentation Assistant, structured action logging, analytics, and black-box UI tests. “Executed” has one deliberately narrow meaning: a resolved Jewel callback returned normally. It is not a business-operation completion signal. Each bridge-owned/standalone dispatched request carries a registry correlation token, and the source emits at most one matching boundary event with the final presentation and trigger.</p>
+  <pre><span class="a">@Composable</span>
+<span class="k">fun</span> PresentationAssistant(events: <span class="t">ActionEventSource</span>) {
+    <span class="k">val</span> invocation <span class="k">by</span> events.invocations.collectAsState&lt;<span class="t">ActionInvocation</span>?&gt;(initial = <span class="k">null</span>)
+    invocation?.let { showPopup(it.presentation.text, it.trigger) }
+}</pre>
+  <p>The action registry is the single publisher boundary for <code>BridgeOwned</code> actions: keyboard resolution, <code>ActionButton</code> clicks, and programmatic execution must all flow through it and produce at most one event. A <code>MappedIdeAction</code> preserves IJPL ownership: neither keyboard nor invoker execution emits a Jewel lifecycle event, because <code>tryToExecute</code> cannot safely carry a Jewel correlation through arbitrary asynchronous platform dispatch. Consumers observe those actions through ordinary IJPL facilities.</p>
+
+  <h3>Manual invocation</h3>
+  <p>Use <code>rememberActionInvoker()</code> from any Compose code, including a custom action-bound component. It requests the action from the host rather than calling a bound callback directly, so it preserves update/enablement checks, lifecycle boundaries, and IJPL action callbacks. Repeat policy applies only to keyboard dispatch.</p>
+  <pre><span class="a">@Composable</span>
+<span class="k">fun</span> ExportLink(action: <span class="t">JewelAction</span>) {
+    <span class="k">val</span> invoker = rememberActionInvoker()
+    Link(<span class="s">"Export"</span>, onClick = { invoker.invoke(action, <span class="t">ActionTrigger</span>.<span class="t">Pointer</span>) })
+}</pre>
+  <p>In IJPL, the invoker resolves either a <code>BridgeOwned</code> action (which requires a focused Jewel binding) or a <code>MappedIdeAction</code> (which uses the platform action’s own <code>DataContext</code> behavior), then calls <code>ActionManager.tryToExecute</code> with the data-provider host component and action place. In standalone, it resolves a focused binding through the action registry. Request submission alone does not imply that a disabled or stale action executed; mapped actions report only dispatch acceptance, not a Jewel completion event.</p>
+
+  <h3>Failure, lifecycle, and race contract</h3>
+  <p>Misconfiguration and lifecycle races must be visible and safe; no route is allowed to silently invoke an arbitrary fallback callback.</p>
+  <table>
+    <thead><tr><th>Condition</th><th>Presentation collection</th><th>Invocation / dispatch</th></tr></thead>
+    <tbody>
+      <tr><td>Action ID is not registered in this host</td><td>Returns descriptor fallback text/icon with <code>enabled = false</code> and <code>resolution = Unregistered</code>. A coalesced diagnostic identifies the ID and host.</td><td>Returns <code>Rejected(Unregistered)</code>; no callback, key consumption, or lifecycle event.</td></tr>
+      <tr><td>Action is registered but has no focused Jewel binding</td><td>Returns template presentation with <code>enabled = false</code> and <code>resolution = NoFocusedBinding</code>. This does not apply to a mapped existing IJPL action that supplies its own context behavior.</td><td>Returns <code>Rejected(NoFocusedBinding)</code>; no callback or lifecycle event.</td></tr>
+      <tr><td>Focused binding is disabled</td><td>Returns the resolved presentation with <code>enabled = false</code> and <code>resolution = Resolved</code>.</td><td>Returns <code>Rejected(Disabled)</code>; hidden state alone does not reject.</td></tr>
+      <tr><td>Action unregistered after it was displayed or became a chord candidate</td><td>Next poll changes to <code>Unregistered</code>; outstanding demand is released.</td><td>Re-resolves at execution time, rejects as unregistered, and cancels any pending chord candidate without replaying its consumed prefix.</td></tr>
+      <tr><td>Focus/context changes between update and execution</td><td>Old sample is marked stale and replaced on the next poll.</td><td>Always resolves against the current focus stamp. It may invoke a valid binding in the new context; otherwise it rejects. It never invokes the stale prior binding.</td></tr>
+      <tr><td>Update, child expansion, or handler throws</td><td>Reports a coalesced diagnostic and publishes <code>UpdateFailed</code> with disabled fallback presentation. An individual broken group contributes no children for that expansion.</td><td>Action execution follows host error reporting; it emits no successful <code>ActionInvocation</code>. Other actions/groups remain functional.</td></tr>
+    </tbody>
+  </table>
+  <ul>
+    <li><strong>Duplicate IDs:</strong> exact duplicate action descriptors may be reference-counted; differing descriptors for the same ID fail registration with a diagnostic. IJPL <code>plugin.xml</code> collisions retain the platform’s registration error behavior.</li>
+    <li><strong>Stale keymap entries:</strong> keymaps may retain mappings for an action that was removed. Both hosts leave those keystrokes unconsumed, report one coalesced stale-mapping diagnostic, and preserve the mapping for future re-registration or settings cleanup.</li>
+    <li><strong>Disposed host:</strong> collectors return disabled <code>HostUnavailable</code> fallback state, dispatch returns <code>Rejected(HostUnavailable)</code>, and scheduler demand/pending sequences are cancelled.</li>
+    <li><strong>Programmer feedback:</strong> development builds may surface a visible diagnostic/inspection for unregistered action use; production behavior remains disabled and non-throwing inside composition.</li>
+  </ul>
+
+  <h3>Dynamic enablement and presentation</h3>
+  <p><code>JewelAction</code> is an immutable identity and default presentation. A focused <code>Modifier.shortcut</code> owns the dynamic state for that UI location: the independent <code>enabled</code> execution gate plus <code>ActionPresentationOverride</code> fields, including <code>visible</code>. <code>PresentationValue.Inherit</code> leaves a template value intact; <code>Set(null)</code> deliberately clears nullable fields such as an icon. Modifier updates publish an atomically replaceable immutable binding snapshot (including callback/version) on Compose-safe updates; IJPL and schedulers read only that snapshot and take an execution lease that is rechecked immediately before invocation. The bridge merges the focused binding’s override over the action/template presentation, while standalone performs the same merge over its action catalog default.</p>
+  <pre><span class="k">val</span> canExport <span class="k">by</span> viewModel.canExport.collectAsState()
+<span class="k">val</span> exportLabel <span class="k">by</span> viewModel.exportLabel.collectAsState()
+
+<span class="t">Modifier</span>.shortcut(
+    action = <span class="t">InventoryActions</span>.<span class="t">Export</span>,
+    enabled = canExport,
+    presentation = <span class="t">ActionPresentationOverride</span>(text = <span class="t">PresentationValue</span>.<span class="t">Set</span>(exportLabel)),
+    onInvoke = viewModel::export,
+)</pre>
+  <p>Action-bound composables do <strong>not</strong> call <code>update()</code> during recomposition. <code>JewelAction.collectPresentationAsState()</code> registers demand with one host-level presentation scheduler while it is collected. A poll first normalizes the real host presentation and compares it with the last published presentation; the scheduler writes its <code>State&lt;ActionPresentation&gt;</code> only when they differ by equality. An unchanged poll therefore triggers no invalidation or recomposition.</p>
+  <p>Controls then observe only what they render through the selector overload of <code>collectPresentationAsState</code>. For example, an icon-only action button selects <code>ActionIconButtonState(icon, enabled, visible, selected)</code>; a change to text or description alone does not recompose that button. A text button includes text, while a tooltip includes description. The derived selected value is likewise equality-gated, so a control recomposes only when the part of real action state it displays is dirty.</p>
+  <ol>
+    <li><strong>Poll, then recompose:</strong> IJPL uses one bridge presentation scheduler per application, registered with the platform action-update timer/cadence. Demand is keyed by stable <code>(collector ID, action ID, host context)</code>; a focus stamp is sample-generation metadata, not part of the key. On focus change, demand migrates atomically to the newest generation and deduplicates update requests. One action shared by several visible Jewel controls in the same context is updated once per tick. It never starts an update from a composition or modifier callback.</li>
+    <li><strong>Focus/traversal:</strong> focus changes, node attach/detach, and modifier-chain changes publish a new immutable focused-path snapshot and advance a focus stamp. They invalidate the affected stable demands; the next poll reads the latest snapshot. <code>JewelActionBridgeAction.update()</code> reads this snapshot on EDT and never invokes composition.</li>
+    <li><strong>External non-Compose state:</strong> callers that cannot expose Compose-observed state call <code>ActionRegistry.invalidate(actionId?)</code>. This only marks matching sampled entries dirty (and may request a coalesced normal UI refresh); it does not synchronously run or fan out <code>update()</code> calls. The next poll rereads a thread-safe external snapshot.</li>
+    <li><strong>Stale safety:</strong> <code>actionPerformed()</code> and <code>ActionInvoker.invoke()</code> always resolve current state again, so an action disabled after its last visual update cannot execute.</li>
+  </ol>
+  <p>Standalone uses the same demand/deduplication/stale model with its window action scheduler. Its cadence is configurable by the host, and it polls only actions with an active presentation consumer (visible action composables, open menus, or shortcut-feedback UI). This prevents a large hidden Compose tree or a spammy action from creating per-recomposition update traffic.</p>
+
+  <h3>Bridge implementation</h3>
+  <ol>
+    <li><strong>Resolve:</strong> <code>action.collectPresentationAsState()</code> resolves the action ID through the host registry. The IJPL adapter may map a standard Jewel action to an existing IDE action; a standalone adapter resolves the same Jewel action through its own registry. Missing mappings are reported consistently as host configuration errors.</li>
+    <li><strong>Update:</strong> the bridge presentation scheduler invokes the action’s standard IJPL update path against the current Jewel host <code>DataContext</code>, respecting <code>ActionUpdateThread</code> and the platform’s polling cadence. It copies the resulting IJPL <code>Presentation</code> into immutable <code>ActionPresentation</code> state. Updates are deduplicated and demand-driven—not performed by composition, focus callbacks, or individual invalidations.</li>
+    <li><strong>Perform:</strong> the control obtains <code>rememberActionInvoker()</code> and calls <code>invoke(action, Pointer)</code>; the bridge calls <code>ActionManager.tryToExecute(action, null, hostComponent, place, true)</code>. It does not call <code>actionPerformed()</code> directly. Thus listeners, transactions, dumb-mode handling, and the focus-path command resolver all remain on the IJPL path.</li>
+    <li><strong>Icons:</strong> the bridge adapts an IJPL <code>Icon</code> to Jewel <code>IconKey</code> (or a bridge painter) at the boundary. The common model exposes no Swing type.</li>
+    <li><strong>Lifecycle:</strong> the bridge-owned registry emits one correlated <code>ActionInvocation</code> after its resolved callback returns normally. Mapped IDE actions stay in IJPL’s lifecycle facilities. The standalone resolver emits the same event after its handler returns successfully.</li>
+  </ol>
+  <p>For a Jewel action, its registered bridge <code>AnAction.update()</code> resolves the focused leaf-to-root handler described above. Therefore an <code>ActionButton</code> and the same action’s keyboard shortcut always agree on visible, enabled, selected, and execution behavior.</p>
+  <pre><span class="k">val</span> runPresentation <span class="k">by</span> <span class="t">JewelActions</span>.<span class="t">Run</span>.collectPresentationAsState()
+ActionButton(action = <span class="t">JewelActions</span>.<span class="t">Run</span>)
+
+<span class="c">// The same API is available in a standalone host, backed by its resolver.</span>
+ActionButton(action = <span class="t">SelectAllRows</span>)</pre>
+
+  <h2>Standalone keymap and dispatch</h2>
+  <p>Standalone is not “a list of hard-coded <code>onKeyEvent</code> checks.” It is a keyboard-only analogue of the IJPL keymap subsystem: named schemes, parent inheritance, effective action-to-shortcut mappings, conflicts, two-stroke sequences, an active-keymap manager, and runtime mutation. Mouse shortcuts are the sole intentionally omitted capability in the first version. The same action registry and modifier bindings are used in both hosts.</p>
+  <pre><span class="k">interface</span> <span class="t">JewelKeymap</span> {
+    <span class="k">val</span> name: <span class="t">String</span>
+    <span class="k">val</span> parent: <span class="t">JewelKeymap</span>?
+    <span class="k">val</span> changes: <span class="t">StateFlow</span>&lt;<span class="t">Unit</span>&gt;
+
+    <span class="k">fun</span> shortcutsFor(action: <span class="t">JewelActionId</span>): <span class="t">List</span>&lt;<span class="t">KeySequence</span>&gt;
+    <span class="k">fun</span> actionIdsFor(sequence: <span class="t">KeySequence</span>): <span class="t">List</span>&lt;<span class="t">JewelActionId</span>&gt;
+    <span class="k">fun</span> actionIds(): <span class="t">List</span>&lt;<span class="t">JewelActionId</span>&gt;
+    <span class="k">fun</span> conflicts(action: <span class="t">JewelActionId</span>, sequence: <span class="t">KeySequence</span>): <span class="t">Map</span>&lt;<span class="t">JewelActionId</span>, <span class="t">List</span>&lt;<span class="t">KeySequence</span>&gt;&gt;
+}
+
+<span class="k">interface</span> <span class="t">MutableJewelKeymap</span> : <span class="t">JewelKeymap</span> {
+    <span class="k">fun</span> bind(action: <span class="t">JewelActionId</span>, sequence: <span class="t">KeySequence</span>)
+    <span class="k">fun</span> unbind(action: <span class="t">JewelActionId</span>, sequence: <span class="t">KeySequence</span>)
+    <span class="k">fun</span> replaceBindings(action: <span class="t">JewelActionId</span>, sequences: <span class="t">List</span>&lt;<span class="t">KeySequence</span>&gt;)
+    <span class="k">fun</span> removeAllBindings(action: <span class="t">JewelActionId</span>)
+}
+
+<span class="k">interface</span> <span class="t">JewelKeymapManager</span> {
+    <span class="k">val</span> activeKeymap: <span class="t">StateFlow</span>&lt;<span class="t">JewelKeymap</span>&gt;
+    <span class="k">val</span> keymaps: <span class="t">StateFlow</span>&lt;<span class="t">List</span>&lt;<span class="t">JewelKeymap</span>&gt;&gt;
+    <span class="k">fun</span> addKeymap(keymap: <span class="t">JewelKeymap</span>)
+    <span class="k">fun</span> removeKeymap(name: <span class="t">String</span>)
+    <span class="k">fun</span> setActiveKeymap(name: <span class="t">String</span>)
+}
+
+<span class="k">data class</span> <span class="t">KeySequence</span>(
+    <span class="k">val</span> first: <span class="t">KeyStroke</span>,
+    <span class="k">val</span> second: <span class="t">KeyStroke</span>? = <span class="k">null</span>,
+)
+
+<span class="k">data class</span> <span class="t">JewelShortcutResolverConfiguration</span>(
+    <span class="k">val</span> secondStrokeTimeoutMillis: <span class="t">Long</span> = 2_000,
+    <span class="k">val</span> priority: (<span class="t">JewelActionId</span>) -&gt; <span class="t">Int</span> = { 0 },
+)</pre>
+  <p><code>KeyStroke</code> here is a host-neutral Jewel value type based on Compose <code>Key</code> and modifier flags—not <code>javax.swing.KeyStroke</code>. <code>KeySequence</code> deliberately has one or two strokes, matching IJPL <code>KeyboardShortcut</code>. <code>JewelActionDefinition</code> contributes default bindings; <code>IntUiTheme</code> supplies OS-specific defaults for built-in actions. The application may layer persisted user schemes above those defaults without changing its composables. The standalone configuration owns timeout and conflict ordering: candidates sort by descending <code>priority</code>, then ascending stable action-ID string, so equal priorities are deterministic. The IJPL bridge follows the platform timeout and action promotion rules.</p>
+
+  <h3>IJPL-keymap capability contract</h3>
+  <table>
+    <thead><tr><th>IJPL keyboard capability</th><th>Standalone requirement</th></tr></thead>
+    <tbody>
+      <tr><td>Named keymaps and active scheme</td><td><code>JewelKeymapManager</code> owns named schemes, exposes active-keymap changes, and switches atomically.</td></tr>
+      <tr><td>Parent keymap inheritance</td><td>A scheme exposes effective bindings after recursively applying its parent, including removal/replace markers that hide inherited bindings.</td></tr>
+      <tr><td>Action ↔ shortcut lookup</td><td>Support both <code>shortcutsFor(action)</code> and <code>actionIdsFor(sequence)</code>, including all action IDs mapped to the same sequence.</td></tr>
+      <tr><td>One- and two-stroke shortcuts</td><td><code>KeySequence(first, second?)</code>, prefix lookup, timeout, cancellation, and correct consumption behavior.</td></tr>
+      <tr><td>Conflicts</td><td>Expose conflicts before edits; allow them if requested, just as IJPL may map a shortcut to multiple actions. Runtime selection is context-sensitive.</td></tr>
+      <tr><td>Mutable user schemes</td><td>Add, remove, replace-all, and remove-all bindings at runtime; publish changes for menus, action models, and dispatch.</td></tr>
+      <tr><td>Default/plugin bindings</td><td>Action catalogs contribute defaults to a base scheme; applications may contribute at startup or runtime. The host does not hard-code the final active mapping.</td></tr>
+      <tr><td>Mouse shortcuts</td><td>Explicitly deferred. APIs remain extensible to a general <code>Shortcut</code> supertype without breaking keyboard API compatibility.</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Standalone event order</h3>
+  <ol>
+    <li>The standalone host installs one window-root <code>onPreviewKeyEvent</code> resolver. It first consults only published <code>claimShortcut</code>/<code>claimKeyEvent</code> records from the focused path; arbitrary application preview/key handlers are not claims.</li>
+    <li>If no claim matches, it queries the active <code>JewelKeymap</code> and the focused binding snapshot before ordinary Compose handlers receive the event.</li>
+    <li>It orders enabled candidates using the action registry’s explicit priority (the standalone counterpart to IJPL action promotion) and invokes the nearest matching binding for the selected action ID.</li>
+    <li>Only an explicit claim, an enabled exact command, or a valid chord prefix is consumed. Otherwise it returns <code>false</code>, allowing normal Compose preview/key handlers and component navigation to proceed.</li>
+  </ol>
+  <p>This gives standalone the same semantic precedence as the bridge: focused raw input first, host keymap actions second, ordinary unbound input last. Unlike IJPL, it is a root Compose preview handler; the ordering is intentionally installed before arbitrary descendant handlers to preserve the explicit-claim policy.</p>
+
+  <h3>Sequences, conflicts, and updates</h3>
+  <ul>
+    <li><strong>Two-stroke shortcuts:</strong> an exact one-stroke action wins immediately over a longer sequence with the same first stroke. Otherwise focused sequence claims and mapped keymap actions use pending-sequence state. A matching first stroke is consumed, waits for the second with the configured timeout, and cancels on focus change. A nonmatching second stroke clears the state and is consumed.</li>
+    <li><strong>Conflicts:</strong> a keymap may contain several action IDs for one sequence. The resolver filters to focused, enabled bindings, then applies explicit action priority. Default keymaps must not ship unresolved ambiguities; user schemes may retain conflicts with diagnostics.</li>
+    <li><strong>Live rebinding:</strong> updates to a mutable scheme or active-keymap switches publish <code>changes</code>. Menu hints and collected action presentations refresh through the shared registry; no recomposition of modifier bindings is required.</li>
+    <li><strong>Persistence:</strong> Jewel provides the in-memory scheme, inheritance, and import/export model. Whether overrides are serialized, synchronized, or surfaced in settings remains an application decision.</li>
+  </ul>
+  <h3>Consumption contract</h3>
+  <table>
+    <thead><tr><th>Resolved state</th><th>One-stroke event</th><th>Chord state</th></tr></thead>
+    <tbody>
+      <tr><td>Explicit enabled raw claim</td><td>Consume and deliver to the claim.</td><td>Consume a valid prefix and the matching or nonmatching second stroke.</td></tr>
+      <tr><td>Enabled bridge-owned/standalone binding</td><td>Consume after dispatch.</td><td>Consume prefix; consume second stroke whether it matches or cancels.</td></tr>
+      <tr><td>Disabled, no focused binding, or update-failed action</td><td>Do not consume. IJPL may continue its own candidate processing; standalone returns false.</td><td>Never enters Jewel pending state.</td></tr>
+      <tr><td>Unregistered/stale keymap ID</td><td>Do not consume and emit one coalesced diagnostic.</td><td>Never enters Jewel pending state.</td></tr>
+      <tr><td>Hidden but enabled action</td><td>Same as enabled: visibility never changes keyboard consumption.</td><td>Same as enabled.</td></tr>
+    </tbody>
+  </table>
+  <figure>
+    <svg viewBox="0 0 980 205" role="img" aria-labelledby="standalone-title standalone-description">
+      <title id="standalone-title">Standalone shortcut dispatch</title>
+      <desc id="standalone-description">A standalone window-root preview resolver first checks explicit raw shortcut claims, then mapped actions. Only unconsumed input reaches ordinary focused Compose controls.</desc>
+      <defs><marker id="arrow-standalone" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="currentColor"/></marker></defs>
+      <rect class="diagram-node" x="20" y="74" width="160" height="58" rx="7"/><text class="diagram-label" x="100" y="98">Compose KeyEvent</text><text class="diagram-detail" x="100" y="117">focused component</text>
+      <path class="diagram-arrow" style="marker-end:url(#arrow-standalone)" d="M180 103 H235"/>
+      <rect class="diagram-claim" x="235" y="62" width="200" height="82" rx="7"/><text class="diagram-label" x="335" y="91">Root preview resolver</text><text class="diagram-detail" x="335" y="111">explicit claims only</text><text class="diagram-detail" x="335" y="128">consume or continue</text>
+      <path class="diagram-arrow" style="marker-end:url(#arrow-standalone)" d="M435 103 H490"/>
+      <rect class="diagram-host" x="490" y="62" width="210" height="82" rx="7"/><text class="diagram-label" x="595" y="91">Window keymap resolver</text><text class="diagram-detail" x="595" y="111">focused bindings + JewelKeymap</text><text class="diagram-detail" x="595" y="128">including two-stroke state</text>
+      <path class="diagram-arrow" style="marker-end:url(#arrow-standalone)" d="M700 87 H755 V48 H805"/><text class="diagram-detail" x="752" y="66">enabled action</text>
+      <rect class="diagram-host" x="805" y="20" width="155" height="58" rx="7"/><text class="diagram-label" x="882" y="44">Invoke binding</text><text class="diagram-detail" x="882" y="63">consume</text>
+      <path class="diagram-arrow" style="marker-end:url(#arrow-standalone)" d="M700 119 H755 V158 H805"/><text class="diagram-detail" x="754" y="148">no match</text>
+      <rect class="diagram-node" x="805" y="130" width="155" height="58" rx="7"/><text class="diagram-label" x="882" y="154">Unconsumed input</text><text class="diagram-detail" x="882" y="173">normal processing</text>
+    </svg>
+    <figcaption>Figure 3. Standalone dispatch uses a root preview resolver before ordinary handlers, so only explicit claims preempt keymap lookup.</figcaption>
+  </figure>
+
+  <h2>Host implementations</h2>
+  <table>
+    <thead><tr><th>Concern</th><th>IJPL bridge (<code>ide-laf-bridge</code>)</th><th>Standalone (<code>int-ui-standalone</code> or optional host artifact)</th></tr></thead>
+    <tbody>
+      <tr><td>Key ownership</td><td>The actual focused Compose host must implement/proxy <code>KeyboardAwareFocusOwner</code> and consult immutable claim snapshots. There is no <code>NonLockedEventDispatcher</code> fallback because it consumes the entire AWT dispatch rather than only skipping IJPL keymap lookup.</td><td>A window-root preview resolver runs before ordinary Compose handlers; only published explicit claims preempt its keymap lookup.</td></tr>
+      <tr><td>Action bindings</td><td>Uses either <code>BridgeOwned</code> actions (one stable bridge <code>AnAction</code> per Jewel ID) or <code>MappedIdeAction</code> (an existing IDE action ID with its native context semantics); the active IJPL keymap supplies shortcuts.</td><td>Uses the same Jewel action IDs with an application-owned resolver, OS defaults, and optional persisted overrides.</td></tr>
+      <tr><td>Enablement/context</td><td><code>AnAction.update()</code> resolves the nearest enabled binding on the focused Jewel path; <code>actionPerformed()</code> resolves the same route again before invoking it. Existing <code>provideData</code> continues to supply IJPL data.</td><td>Resolver uses the identical focused-path algorithm directly.</td></tr>
+      <tr><td>Keymap and menu hints</td><td>Extend the existing bridge provider to show the resolved current IJPL keymap shortcut.</td><td><code>JewelKeymap</code> resolves defaults and user overrides; existing standalone providers render its current bindings.</td></tr>
+      <tr><td>Action-bound controls</td><td>Maps IJPL <code>Presentation</code> to <code>ActionPresentation</code>; performs via <code>ActionManager.tryToExecute</code>.</td><td>Maps resolver state to the same <code>ActionPresentation</code> model.</td></tr>
+      <tr><td>Action lifecycle</td><td>Bridge-owned actions emit one correlated boundary event after their callback returns; mapped IDE actions stay observable through IJPL only.</td><td>Resolver emits one boundary event after its handler returns normally.</td></tr>
+    </tbody>
+  </table>
+  <figure>
+    <svg viewBox="0 0 980 265" role="img" aria-labelledby="module-title module-description">
+      <title id="module-title">Public API and host implementation boundaries</title>
+      <desc id="module-description">Jewel foundation owns the shared action, modifier-binding, and raw-claim contracts. The IntelliJ bridge and standalone host each provide their own key ownership and action resolver implementations. The IntelliJ bridge depends on IJPL action and keymap services, while the standalone host uses application defaults.</desc>
+      <defs><marker id="arrow-module" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="currentColor"/></marker></defs>
+      <rect class="diagram-common" x="315" y="20" width="350" height="72" rx="7"/><text class="diagram-label" x="490" y="47">Jewel foundation: public API</text><text class="diagram-detail" x="490" y="67">Modifier.shortcut · JewelAction · claimShortcut</text><text class="diagram-detail" x="490" y="84">No IntelliJ dependencies</text>
+      <path class="diagram-arrow" style="marker-end:url(#arrow-module)" d="M402 92 V132 H240 V164"/>
+      <path class="diagram-arrow" style="marker-end:url(#arrow-module)" d="M578 92 V132 H740 V164"/>
+      <rect class="diagram-host" x="65" y="164" width="350" height="72" rx="7"/><text class="diagram-label" x="240" y="191">IJPL bridge implementation</text><text class="diagram-detail" x="240" y="211">KeyboardAwareFocusOwner</text><text class="diagram-detail" x="240" y="228">AnAction registry · active Keymap · DataContext</text>
+      <rect class="diagram-node" x="565" y="164" width="350" height="72" rx="7"/><text class="diagram-label" x="740" y="191">Standalone implementation</text><text class="diagram-detail" x="740" y="211">Compose/AWT key routing</text><text class="diagram-detail" x="740" y="228">application defaults and optional persistence</text>
+    </svg>
+    <figcaption>Figure 2. One public Jewel contract, two host adapters. IJPL-specific types stay in <code>ide-laf-bridge</code>; standalone policy stays outside the common API.</figcaption>
+  </figure>
+
+  <h3>IJPL registration detail</h3>
+  <p>The bridge owns one registry per application and a focused-path tracker per Compose host. Startup <code>plugin.xml</code> actions stay registered for the plugin/application lifetime; their matching <code>JewelActionDefinition</code> is attached during startup rather than re-registered. Runtime registrations create and own a bridge <code>AnAction</code> only when the ID is not already declaratively owned. A modifier binding never controls registration lifetime.</p>
+  <p><strong>Route configuration is explicit.</strong> The bridge exposes <code>JewelActionMappings.map(jewelActionId, ideActionId)</code> in its bridge artifact for standard-action adaptation. This creates a <code>MappedIdeAction</code> route and validates that the target exists; standalone never needs this mapping because it registers the same <code>JewelActionDefinition</code> as <code>BridgeOwned</code>. The common action API does not expose <code>AnAction</code>, nor does a common action become a no-op outside IJPL.</p>
+
+  <h4><code>JewelActionBridgeAction</code> contract</h4>
+  <p><code>JewelActionBridgeAction</code> is a public, no-argument bridge <code>AnAction</code> intended for normal <code>plugin.xml</code> action registration. Its IJPL action ID <strong>must equal</strong> the corresponding <code>JewelActionId.value</code>. It contains no Compose, project, component, or mutable presentation fields; all ephemeral state lives in the host’s focused-path snapshot and registry.</p>
+  <pre><span class="k">class</span> <span class="t">JewelActionBridgeAction</span> : <span class="t">AnAction</span>() {
+    <span class="k">override fun</span> getActionUpdateThread() = <span class="t">ActionUpdateThread</span>.<span class="t">EDT</span>
+
+    <span class="k">override fun</span> update(event: <span class="t">AnActionEvent</span>) {
+        registryFor(event).update(actionIdFor(<span class="k">this</span>), event)
+    }
+
+    <span class="k">override fun</span> actionPerformed(event: <span class="t">AnActionEvent</span>) {
+        registryFor(event).perform(actionIdFor(<span class="k">this</span>), event)
+    }
+}</pre>
+  <ol>
+    <li><strong>Locate:</strong> <code>registryFor(event)</code> obtains the focused data-provider Jewel host from the normal IJPL <code>DataContext</code>, then its immutable focused modifier-path snapshot. The focused AWT component and the data-provider host must resolve to that same tracker. No captured Compose lambda crosses action lifetime boundaries.</li>
+    <li><strong>Update:</strong> <code>update()</code> selects the nearest eligible snapshot for its ID. It copies enabled state and merges the binding’s <code>ActionPresentationOverride</code> over template text, description, icon, visibility, and selected state from <code>plugin.xml</code>. EDT is required because selection consults UI/focus state and must be fast.</li>
+    <li><strong>Perform:</strong> <code>actionPerformed()</code> repeats resolution, obtains an execution lease, and invokes the selected callback only if the snapshot remains current and enabled. The surrounding IJPL action system provides callbacks, transactions, and dumb-mode checks.</li>
+    <li><strong>Lifecycle:</strong> after the callback returns normally, the registry emits one correlated <code>ActionInvocation</code>. A disabled, missing, stale, or repeat-suppressed binding emits nothing.</li>
+    <li><strong>Dumb mode:</strong> provide a separate <code>DumbAwareJewelActionBridgeAction</code> class for declarative actions available during indexing. Version one runtime registration always creates the ordinary, non-dumb-aware bridge action; indexing-capable runtime actions must be declared up front until a reviewed host-neutral capability contract is added.</li>
+  </ol>
+  <p>Existing IDE actions mapped to a standard Jewel action (for example Copy) retain their original <code>AnAction</code> class and use the explicit <code>MappedIdeAction</code> route. They do not require a focused Jewel callback: their native <code>update()</code>, presentation, and <code>DataContext</code> remain authoritative. They do not emit through <code>ActionEventSource</code>, including when launched through <code>ActionInvoker</code>; all such execution remains observable through ordinary IJPL lifecycle facilities.</p>
+  <p>Thus an IJPL keystroke for a bridge-registered Jewel action follows the normal path: <code>KeymapManager → ActionManager → JewelActionBridgeAction.update() → JewelActionBridgeAction.actionPerformed()</code>. The only exceptions are <code>claimShortcut</code> and <code>claimKeyEvent</code>: they deliberately declare local physical input ownership, bypassing the keymap before any action is selected. This lets Settings | Keymap bind a stable action ID and requires no extension to <code>ActionManager</code>, <code>KeymapManager</code>, or <code>IdeKeyEventDispatcher</code>.</p>
+
+  <h2>Bridge surface and compatibility</h2>
+  <ul>
+    <li>Add one bridge entry point or overload: <code>JewelComposePanel(..., shortcutHandling = JewelShortcutHandling.Enabled)</code>. Default <code>Enabled</code> makes the bridge work without changes at call sites.</li>
+    <li>Keep <code>compose()</code>, <code>JewelComposePanel()</code>, <code>provideData</code>, current menu APIs, and component <code>onPreviewKeyEvent</code> source-compatible.</li>
+    <li>Do not expose IJPL <code>KeyStroke</code>, <code>AnAction</code>, <code>DataKey</code>, or IDE action IDs from common Jewel types. The bridge maps a host-neutral <code>JewelActionId</code> to an existing IJPL action where appropriate; standalone maps the same ID to its own resolver.</li>
+    <li>Do not replace existing platform Copy/Cut/Paste/Select All actions. Complete their Compose semantic/data-provider adapters in the bridge so the existing action IDs remain the primary integration point.</li>
+  </ul>
+
+  <h2>Rejected alternatives</h2>
+  <table>
+    <thead><tr><th>Alternative</th><th>Why rejected</th></tr></thead>
+    <tbody>
+      <tr><td>Always skip <code>IdeKeyEventDispatcher</code> for ComposePanel</td><td>Breaks IDE keymaps, discoverability, and user customisation in every Jewel tool window.</td></tr>
+      <tr><td>Make all Compose <code>onPreviewKeyEvent</code>s preempt IJPL</td><td>Creates an implicit, hard-to-review policy and cannot distinguish input ownership from normal component navigation.</td></tr>
+      <tr><td>Fork or modify the IJPL dispatcher/action system</td><td>Violates scope and would make every non-Jewel host pay for a bridge-specific concern.</td></tr>
+      <tr><td>Use only <code>ActionPromoter</code> or <code>AnActionListener</code></td><td>Both operate after shortcut lookup; listeners cannot veto and promoters do not give raw input back to Compose.</td></tr>
+      <tr><td>Register a custom shortcut action for every possible key</td><td>Cannot correctly cover dynamic keymaps, multi-strokes, text input, or unknown application shortcuts.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Proof plan</h2>
+  <p>The design is mechanically testable because its boundary is a boolean decision made before IJPL keymap lookup. The following tests establish the required properties.</p>
+  <table>
+    <thead><tr><th>Test</th><th>Assertion</th><th>Location</th></tr></thead>
+    <tbody>
+      <tr><td>Focused raw claim</td><td>A conflicting registered platform action is not updated or performed; Compose handler receives and consumes the key.</td><td>New bridge integration test using <code>IdeKeyEventDispatcher</code> + Jewel host.</td></tr>
+      <tr><td>Unclaimed conflict</td><td>The same action remains available and executes through the active IJPL keymap.</td><td>Same fixture.</td></tr>
+      <tr><td>Focused-path and modifier-chain override</td><td>A focused child binding wins over its parent; on one node, the inner/rightmost duplicate wins over the outer duplicate. Disabled bindings fall through, while <code>blocksOuterBindings</code> prevents fallback.</td><td>Foundation/UI plus bridge integration tests.</td></tr>
+      <tr><td>Repeat delivery</td><td><code>RepeatWhileHeld</code> invokes once per repeated completed key-down; <code>OnceUntilRelease</code> invokes only once until key-up; availability is re-evaluated for every allowed repeat.</td><td>Shared resolver tests plus IJPL and standalone integration tests.</td></tr>
+      <tr><td>Focused-subtree isolation</td><td>Claims and actions in an unfocused Jewel panel cannot affect the focused panel.</td><td>Bridge integration test.</td></tr>
+      <tr><td>Custom keymap</td><td>Rebinding a Jewel action in a test keymap changes execution and menu hint without recomposition changes.</td><td>Bridge action/keymap test.</td></tr>
+      <tr><td>Action-group scope</td><td>Directly supplied Jewel groups render static presentation, nested groups, separators, focused-context-dependent children, and primary/secondary placement in both hosts; existing IJPL groups retain their native update path. Selecting a leaf follows normal action invocation.</td><td>Group resolver tests plus bridge and standalone menu/toolbar integration tests.</td></tr>
+      <tr><td>Registration parity</td><td>A <code>plugin.xml</code> <code>JewelActionBridgeAction</code>, an explicit closeable runtime registration, and a composition-scoped registration have identical lookup/presentation/routing while live; only their owner determines when registration ends.</td><td>Bridge action/keymap and standalone lifecycle integration tests.</td></tr>
+      <tr><td>Action-button parity</td><td>The model-based button reflects dynamic text, icon, enabled, visible, and selected states; clicking follows the same <code>AnAction</code> execution path as its shortcut.</td><td>Bridge UI/action integration test.</td></tr>
+      <tr><td>Manual invocation parity</td><td><code>ActionInvoker.invoke()</code> applies current enablement and executes through the normal host path. Bridge-owned actions emit the same correlated execution-boundary event as keyboard invocation; mapped IDE actions report dispatch acceptance and remain observable through IJPL only.</td><td>Shared registry tests plus bridge and standalone integration tests.</td></tr>
+      <tr><td>Failure and lifecycle safety</td><td>Unregistered, no-binding, disabled, disposed-host, stale-keymap, duplicate-ID, focus-race, unregister-during-chord, and throwing update/handler cases produce defined fallback/rejection/diagnostic behavior without stale invocation or duplicate events.</td><td>Shared registry tests plus bridge and standalone race/failure integration tests.</td></tr>
+      <tr><td>Dynamic state refresh</td><td>Recomposition, focus changes, and explicit invalidation update enabled and visible independently without stale execution; a hidden enabled action remains keymap-invocable, while a disabled visible action is rendered but cannot run.</td><td>Foundation/UI plus bridge and standalone integration tests.</td></tr>
+      <tr><td>Presentation polling scalability</td><td>Many controls sharing one action/context produce one update per scheduler tick; recomposition and repeated invalidation cause no synchronous updates; disposed/hidden consumers are removed from demand.</td><td>Bridge scheduler and standalone scheduler tests.</td></tr>
+      <tr><td>Render-state equality</td><td>An unchanged poll publishes nothing. A presentation field not selected by a control causes no recomposition; a selected field change causes exactly one recomposition with the new rendered state.</td><td>Action-model Compose tests plus bridge and standalone integration tests.</td></tr>
+      <tr><td>Presentation-assistant boundary</td><td>Bridge-owned keyboard, pointer, and programmatic routes emit exactly one event after their callback returns normally. Mapped IDE actions remain outside this source; failed/disabled actions emit none.</td><td>Shared action-registry tests plus bridge and standalone integration tests.</td></tr>
+      <tr><td>Multi-stroke safety</td><td>Unclaimed first strokes still start IJPL's keymap second-stroke state. Claimed one- and two-stroke prefixes skip IJPL, consume their prefix and cancellation stroke, and never leave either state stuck. Starting a Jewel claim while IJPL already awaits a second stroke is rejected by the feasibility contract or explicitly clears platform state before enabling claims.</td><td>Extend <code>IdeKeyEventDispatcherTest</code> coverage plus bridge/standalone fixtures.</td></tr>
+      <tr><td>Standalone precedence</td><td>The window-root preview resolver sees explicit claims and mapped keys before arbitrary descendant handlers; an unmapped/disabled key remains ordinary Compose input.</td><td>Standalone Compose window integration test.</td></tr>
+      <tr><td>Standalone keymap updates</td><td>Default bindings, persisted overrides, conflict diagnostics, and live rebindings update execution and menu hints without recomposing modifier bindings.</td><td>Standalone resolver and UI tests.</td></tr>
+      <tr><td>Standalone chord safety</td><td>Mapped first strokes enter pending state, timeout safely, and consume a nonmatching second stroke when cancelling, matching the defined conservative chord contract.</td><td>Standalone resolver tests.</td></tr>
+      <tr><td>Standalone parity</td><td>The same action and modifier binding invoke under a standalone resolver; no IJPL dependencies load.</td><td>Foundation/UI and standalone tests.</td></tr>
+      <tr><td>Platform edit actions</td><td>Copy, cut, paste, select-all enable and perform against focused Compose semantics.</td><td>Bridge semantic/provider tests.</td></tr>
+    </tbody>
+  </table>
+  <p class="callout"><strong>Proof obligation:</strong> for every claimed key, the test must observe zero platform action <code>update()</code>/<code>actionPerformed()</code> calls and one Compose handler call. For every unclaimed keymap-bound command, it must observe the inverse. This directly proves that IJPL does not steal the former and still owns the latter.</p>
+
+  <h2>Implementation slices</h2>
+  <ol>
+    <li><strong>Feasibility spike:</strong> prove a Jewel-owned actual focus component can implement/proxy <code>KeyboardAwareFocusOwner</code>, that its data-provider component resolves to the same host tracker, and that an active IJPL second-stroke state cannot become orphaned when a Jewel claim begins. If this cannot be proven without changing IJPL/Compose, do not ship raw claims; <code>NonLockedEventDispatcher</code> is not an equivalent fallback.</li>
+    <li><strong>Foundation API:</strong> add action, modifier binding, claim, and resolver contracts; add host-neutral unit tests.</li>
+    <li><strong>Standalone resolver:</strong> adapt present default shortcut providers and sample wiring.</li>
+    <li><strong>IJPL resolver:</strong> focused-subtree tracker, lifecycle-safe dynamic actions, semantic edit providers, keymap menu hints.</li>
+    <li><strong>Conflict suite:</strong> execute the proof matrix on all supported desktop OSes and update Jewel API compatibility dumps for public additions.</li>
+  </ol>
+
+  <h2>Open decisions for implementation review</h2>
+  <ul>
+    <li>Whether custom Jewel actions are registered eagerly at application start (best Keymap settings discoverability) or while a runtime feature owner exists (smallest registry footprint). Recommendation: eager registration for documented application actions; runtime-bound registration only for ephemeral/internal actions.</li>
+    <li>Whether a standalone persistent keymap belongs in Jewel or remains an app-provided resolver. Recommendation: Jewel provides a default in-memory resolver and extension point; persistence remains application policy.</li>
+    <li>Whether standard action mappings (for example <code>JewelActions.Copy → IdeActions.ACTION_COPY</code>) are supplied entirely by the bridge or may be overridden by an application. Recommendation: bridge defaults plus an explicit, validated host override hook.</li>
+  </ul>
+
+  <h2>Source map</h2>
+  <ul>
+    <li><code>platform/platform-impl/src/com/intellij/openapi/keymap/impl/IdeKeyEventDispatcher.kt</code></li>
+    <li><code>platform/platform-impl/src/com/intellij/ide/KeyboardAwareFocusOwner.java</code></li>
+    <li><code>platform/jewel/ide-laf-bridge/.../JewelComposePanelWrapper.kt</code></li>
+    <li><code>platform/jewel/ide-laf-bridge/.../actionSystem/RootDataProviderNode.kt</code></li>
+    <li><code>platform/jewel/foundation/.../actionSystem/ProvideData.kt</code></li>
+    <li><code>platform/jewel/ide-laf-bridge/.../menuShortcut/BridgeMenuItemShortcutProvider.kt</code></li>
+    <li><code>platform/jewel/int-ui/int-ui-standalone/.../theme/IntUiTheme.kt</code></li>
+    <li>IntelliJ Platform SDK: <a href="https://plugins.jetbrains.com/docs/intellij/action-system.html">Action System</a></li>
+  </ul>
+</body>
+</html>

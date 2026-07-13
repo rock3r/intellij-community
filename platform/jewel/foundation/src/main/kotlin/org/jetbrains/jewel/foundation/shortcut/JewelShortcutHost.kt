@@ -55,19 +55,33 @@ public class JewelShortcutHostState(private val keymapProvider: () -> JewelKeyma
      */
     public val presentations: ActionPresentationScheduler = ActionPresentationScheduler(::samplePresentation)
 
-    /** Standalone programmatic execution preserving enablement; emits through [events] on success. */
-    public val invoker: ActionInvoker =
+    /**
+     * Normal host action execution. The standalone default resolves the nearest focused enabled Jewel
+     * binding and emits through [events]; the IJPL bridge substitutes a platform-routing invoker so
+     * `ActionManager` update, enablement, and listeners stay authoritative there.
+     */
+    public var invoker: ActionInvoker =
         object : ActionInvoker {
             override fun invoke(action: JewelAction, trigger: ActionTrigger): ActionDispatchResult {
                 val binding =
                     engine.resolveFocusedBinding(action.id)
                         ?: return ActionDispatchResult.Rejected(ActionDispatchRejection.NoFocusedBinding)
-                binding.onInvoke()
-                eventSource.emit(ActionInvocation(action.id, null, trigger))
-                presentations.invalidate()
+                runResolvedInvocation(action.id, trigger, binding.onInvoke)
                 return ActionDispatchResult.Dispatched
             }
         }
+
+    /**
+     * Runs [handler] as one completed Jewel-owned invocation of [actionId]: exactly one [events] emission,
+     * then a presentation re-sample. This is the emission point for host integrations that resolve focused
+     * handlers themselves (the IJPL bridge action); keyboard dispatch through [onPreviewKeyEvent] emits on
+     * its own and must not be routed through here too.
+     */
+    public fun runResolvedInvocation(actionId: JewelActionId, trigger: ActionTrigger, handler: () -> Unit) {
+        handler()
+        eventSource.emit(ActionInvocation(actionId, (trigger as? ActionTrigger.Keyboard)?.sequence, trigger))
+        presentations.invalidate()
+    }
 
     public val isAwaitingSecondStroke: Boolean
         get() = engine.isAwaitingSecondStroke

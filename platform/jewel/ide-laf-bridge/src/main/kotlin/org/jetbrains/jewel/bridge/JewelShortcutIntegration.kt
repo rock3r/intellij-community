@@ -8,6 +8,8 @@ import androidx.compose.runtime.remember
 import java.awt.KeyEventDispatcher
 import java.awt.KeyboardFocusManager
 import javax.swing.SwingUtilities
+import org.jetbrains.jewel.bridge.actionSystem.JewelActionMappings
+import org.jetbrains.jewel.bridge.actionSystem.JewelBridgeActionInvoker
 import org.jetbrains.jewel.foundation.shortcut.InMemoryJewelKeymap
 import org.jetbrains.jewel.foundation.shortcut.JewelShortcutHostState
 import org.jetbrains.jewel.foundation.shortcut.ProvideJewelShortcutHost
@@ -37,6 +39,13 @@ internal fun ShortcutHostBridge(wrapper: JewelComposePanelWrapper, content: @Com
     val state = remember { JewelShortcutHostState(keymapProvider = { bridgeKeymap }) }
 
     DisposableEffect(wrapper, state) {
+        // Idempotent and non-clobbering; running it per panel keeps the bridge free of startup hooks
+        // while guaranteeing the standard edit actions route to the platform before any invocation.
+        JewelActionMappings.installStandardMappings()
+        // Route programmatic invocations (ActionButton and friends) through the platform action system,
+        // so ActionManager update, enablement, listeners, and dumb-mode handling stay authoritative.
+        state.invoker = JewelBridgeActionInvoker(wrapper)
+
         wrapper.shortcutHostState = state
         wrapper.shortcutClaimEvaluator = { awtEvent ->
             awtEvent.id == AwtKeyEvent.KEY_PRESSED && state.claimsKeyDown(ComposeKeyEvent(awtEvent))

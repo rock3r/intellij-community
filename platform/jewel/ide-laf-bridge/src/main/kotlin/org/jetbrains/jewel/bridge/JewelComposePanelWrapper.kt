@@ -20,6 +20,7 @@ import java.awt.event.MouseEvent
 import javax.swing.JComponent
 import org.jetbrains.annotations.ApiStatus
 import org.jetbrains.jewel.bridge.actionSystem.ComponentDataProviderBridge
+import org.jetbrains.jewel.bridge.actionSystem.JEWEL_SHORTCUT_HOST_STATE
 import org.jetbrains.jewel.bridge.component.JBPopupRenderer
 import org.jetbrains.jewel.bridge.theme.SwingBridgeTheme
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
@@ -275,6 +276,7 @@ public class JewelComposePanelWrapper(private val focusOnClickInside: Boolean) :
     }
 
     override fun uiDataSnapshot(sink: DataSink) {
+        shortcutHostState?.let { sink[JEWEL_SHORTCUT_HOST_STATE] = it }
         targetProvider?.uiDataSnapshot(sink)
     }
 }

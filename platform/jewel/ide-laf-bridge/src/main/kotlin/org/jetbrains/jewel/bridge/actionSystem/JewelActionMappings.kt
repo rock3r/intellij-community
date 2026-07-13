@@ -7,6 +7,7 @@ import com.intellij.openapi.actionSystem.IdeActions
 import java.awt.Component
 import java.util.concurrent.ConcurrentHashMap
 import org.jetbrains.annotations.ApiStatus
+import org.jetbrains.annotations.TestOnly
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import org.jetbrains.jewel.foundation.shortcut.ActionDispatchRejection
 import org.jetbrains.jewel.foundation.shortcut.ActionDispatchResult
@@ -39,12 +40,25 @@ public object JewelActionMappings {
 
     public fun ideActionIdFor(jewelActionId: JewelActionId): String? = mappings[jewelActionId]
 
-    /** Bridge defaults for the standard edit actions; call once at bridge startup. */
+    /**
+     * Bridge defaults for the standard edit actions. Idempotent and non-clobbering: an explicit [map]
+     * override for a standard action survives any number of install calls, so hosts may install eagerly
+     * (`ShortcutHostBridge` does, on every panel) and applications may override at any point before that.
+     *
+     * Unlike [map], targets are not validated eagerly: the standard IDE action IDs are
+     * platform-guaranteed, and this may run before the [ActionManager] service would be warm — a missing
+     * target still surfaces at invocation time as an `Unregistered` rejection.
+     */
     public fun installStandardMappings() {
-        map(JewelActions.Copy.id, IdeActions.ACTION_COPY)
-        map(JewelActions.Cut.id, IdeActions.ACTION_CUT)
-        map(JewelActions.Paste.id, IdeActions.ACTION_PASTE)
-        map(JewelActions.SelectAll.id, IdeActions.ACTION_SELECT_ALL)
+        mappings.putIfAbsent(JewelActions.Copy.id, IdeActions.ACTION_COPY)
+        mappings.putIfAbsent(JewelActions.Cut.id, IdeActions.ACTION_CUT)
+        mappings.putIfAbsent(JewelActions.Paste.id, IdeActions.ACTION_PASTE)
+        mappings.putIfAbsent(JewelActions.SelectAll.id, IdeActions.ACTION_SELECT_ALL)
+    }
+
+    @TestOnly
+    internal fun clearForTests() {
+        mappings.clear()
     }
 }
 
