@@ -257,6 +257,11 @@ internal class KeyboardAwareFocusOwnerProviderTest {
     val dispatcher = IdeKeyEventDispatcher(null)
     assertTrue(dispatcher.dispatchKeyEvent(pressed(inner, SINGLE_STROKE)))
     assertTrue(dispatcher.dispatchKeyEvent(typed(inner, '<')), "typed event after a performed action is swallowed")
+    // The one-shot typed suppression armed by the performed action is cleared by the next non-typed
+    // event that reaches the dispatcher's state machine. A real input stream always contains this key
+    // release; without it the stale flag would swallow the typed event asserted on below (a vetoed
+    // press returns before the flag bookkeeping, exactly like the exact-focus-owner hatch).
+    assertFalse(dispatcher.dispatchKeyEvent(released(inner, SINGLE_STROKE)))
 
     // Claimed pressed event: the typed event is NOT swallowed and would reach the focused component.
     panel.claim = { it.id == KeyEvent.KEY_PRESSED }
