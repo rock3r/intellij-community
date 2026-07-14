@@ -132,6 +132,34 @@ and unchanged samples cause no recomposition. `JewelShortcutHostState.events` em
 Repeat delivery is per binding/claim via `ShortcutRepeatPolicy` (`OnceUntilRelease` suppresses
 delivered auto-repeats until key-up).
 
+## Testing your shortcuts
+
+Shortcuts are verifiable in plain Compose UI tests — no window, no AWT hooks, no IDE fixture:
+
+- The resolver root participates in the scene's key-event **preview pass**, so idiomatic scene
+  injection drives real dispatch (focus resolution, fall-through, claims, chords):
+
+  ```kotlin
+  composeRule.setContent { Box(state.resolverRootModifier) { AppContent() } }
+  composeRule.onNodeWithTag("editor").performKeyInput { withKeyDown(Key.CtrlLeft) { pressKey(Key.S) } }
+  ```
+
+  In production this scene-level lane coexists safely with the AWT hooks: events they consume never
+  reach the scene, and events they passed re-evaluate to the same pass without mutating dispatch
+  state. KEY_TYPED suppression remains the AWT hooks' job — test scenes never produce typed events,
+  so assert typed suppression at the engine level or in the live harnesses.
+
+- Bindings and claims publish **semantics**, so tests (and tooling) can discover keyboard behavior:
+  `JewelShortcutActions` carries the bound action IDs, `JewelClaimedShortcuts` the claimed sequences'
+  display texts:
+
+  ```kotlin
+  composeRule.onNodeWithTag("editor")
+      .assert(SemanticsMatcher.expectValue(JewelClaimedShortcuts, listOf("Ctrl+Enter")))
+  ```
+
+`ShortcutUiTest` in the foundation test sources demonstrates both.
+
 ## Status
 
 Implemented and tested: dispatch core (incl. repeat policies and menu scopes), standalone resolver,

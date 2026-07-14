@@ -1422,6 +1422,15 @@ package org.jetbrains.jewel.foundation.shortcut {
     enum_constant public static final org.jetbrains.jewel.foundation.shortcut.ShortcutRepeatPolicy RepeatWhileHeld;
   }
 
+  public final class ShortcutSemanticsKt {
+    method @SuppressCompatibility @org.jetbrains.annotations.ApiStatus.Experimental @org.jetbrains.jewel.foundation.ExperimentalJewelApi public static androidx.compose.ui.semantics.SemanticsPropertyKey<java.util.List<java.lang.String>> getJewelClaimedShortcuts();
+    method @SuppressCompatibility @org.jetbrains.annotations.ApiStatus.Experimental @org.jetbrains.jewel.foundation.ExperimentalJewelApi public static androidx.compose.ui.semantics.SemanticsPropertyKey<java.util.List<java.lang.String>> getJewelShortcutActions();
+    method @SuppressCompatibility @org.jetbrains.annotations.ApiStatus.Experimental @org.jetbrains.jewel.foundation.ExperimentalJewelApi public static void jewelClaimedShortcuts(androidx.compose.ui.semantics.SemanticsPropertyReceiver, java.util.List<java.lang.String> displayTexts);
+    method @SuppressCompatibility @org.jetbrains.annotations.ApiStatus.Experimental @org.jetbrains.jewel.foundation.ExperimentalJewelApi public static void jewelShortcutActions(androidx.compose.ui.semantics.SemanticsPropertyReceiver, java.util.List<java.lang.String> actionIds);
+    property @SuppressCompatibility @org.jetbrains.annotations.ApiStatus.Experimental @org.jetbrains.jewel.foundation.ExperimentalJewelApi public static androidx.compose.ui.semantics.SemanticsPropertyKey<java.util.List<java.lang.String>> JewelClaimedShortcuts;
+    property @SuppressCompatibility @org.jetbrains.annotations.ApiStatus.Experimental @org.jetbrains.jewel.foundation.ExperimentalJewelApi public static androidx.compose.ui.semantics.SemanticsPropertyKey<java.util.List<java.lang.String>> JewelShortcutActions;
+  }
+
   @SuppressCompatibility @org.jetbrains.annotations.ApiStatus.Experimental @org.jetbrains.jewel.foundation.ExperimentalJewelApi public final class StaticJewelActionGroup implements org.jetbrains.jewel.foundation.shortcut.JewelActionGroup {
     ctor @KotlinOnly public StaticJewelActionGroup(org.jetbrains.jewel.foundation.shortcut.JewelActionGroupId id, org.jetbrains.jewel.foundation.shortcut.ActionGroupPresentation presentation, java.util.List<org.jetbrains.jewel.foundation.shortcut.JewelMenuEntry> entries);
     method public java.util.List<org.jetbrains.jewel.foundation.shortcut.JewelMenuEntry> children(org.jetbrains.jewel.foundation.shortcut.ActionContext context);

@@ -1,0 +1,125 @@
+// Copyright 2000-2026 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.
+package org.jetbrains.jewel.foundation.shortcut
+
+import androidx.compose.foundation.focusable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.junit4.ComposeContentTestRule
+import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.performKeyInput
+import androidx.compose.ui.test.pressKey
+import androidx.compose.ui.test.withKeyDown
+import kotlinx.coroutines.runBlocking
+import org.junit.Assert.assertEquals
+import org.junit.Rule
+import org.junit.Test
+
+/**
+ * The UI-test story for shortcuts: a plain Compose UI test can drive dispatch with idiomatic scene key injection
+ * ([performKeyInput]) — no window, no AWT hook, no manual host calls — because the resolver root participates in the
+ * scene's key-event preview pass. Bindings and claims are also discoverable through semantics ([JewelShortcutActions],
+ * [JewelClaimedShortcuts]).
+ */
+internal class ShortcutUiTest {
+    @JvmField @Rule internal val rule: ComposeContentTestRule = createComposeRule()
+
+    private val selectAll = JewelAction(JewelActionId("test.ui.selectAll"), "Select All Rows")
+    private val keymap =
+        InMemoryJewelKeymap("ui-test").apply {
+            bind(selectAll.id, JewelKeySequence(JewelKeyStroke(Key.S, ctrl = true)))
+        }
+    private val host = JewelShortcutHostState { keymap }
+
+    private var bindingInvocations = 0
+    private var claimInvocations = 0
+    private var keysSeenByFocusedChild = 0
+
+    private val boundFocus = FocusRequester()
+    private val claimerFocus = FocusRequester()
+
+    @Composable
+    private fun Content() {
+        Box(host.resolverRootModifier) {
+            Column {
+                Box(
+                    Modifier.testTag("bound")
+                        .shortcut(selectAll) { bindingInvocations++ }
+                        .focusRequester(boundFocus)
+                        .focusable()
+                )
+                Box(
+                    Modifier.testTag("claimer")
+                        .claimShortcut(JewelKeySequence(JewelKeyStroke(Key.M, ctrl = true))) { claimInvocations++ }
+                        .focusRequester(claimerFocus)
+                        .focusable()
+                        .onKeyEvent {
+                            keysSeenByFocusedChild++
+                            false
+                        }
+                )
+            }
+        }
+    }
+
+    private fun focus(requester: FocusRequester) {
+        runBlocking {
+            rule.runOnIdle { requester.requestFocus() }
+            rule.awaitIdle()
+        }
+    }
+
+    @Test
+    fun `keymap command dispatches from injected scene input while its binding is focused`() {
+        rule.setContent { Content() }
+        focus(boundFocus)
+
+        rule.onNodeWithTag("bound").performKeyInput { withKeyDown(Key.CtrlLeft) { pressKey(Key.S) } }
+        rule.waitForIdle()
+        assertEquals(1, bindingInvocations)
+
+        // Unfocused binding: same injection at the other node must not dispatch.
+        focus(claimerFocus)
+        rule.onNodeWithTag("claimer").performKeyInput { withKeyDown(Key.CtrlLeft) { pressKey(Key.S) } }
+        rule.waitForIdle()
+        assertEquals(1, bindingInvocations)
+    }
+
+    @Test
+    fun `focused claim consumes injected input before ordinary key handling`() {
+        rule.setContent { Content() }
+        focus(claimerFocus)
+
+        rule.onNodeWithTag("claimer").performKeyInput { withKeyDown(Key.CtrlLeft) { pressKey(Key.M) } }
+        rule.waitForIdle()
+        assertEquals(1, claimInvocations)
+        // Consumed on the preview pass at the resolver root: the focused child's own key handling
+        // never saw the claimed stroke (only the Ctrl presses/releases at most).
+        val seenAfterClaim = keysSeenByFocusedChild
+
+        // An unbound key falls through to ordinary input and DOES reach the focused child.
+        rule.onNodeWithTag("claimer").performKeyInput { pressKey(Key.B) }
+        rule.waitForIdle()
+        assertEquals(1, claimInvocations)
+        assertEquals(seenAfterClaim + 2, keysSeenByFocusedChild) // key-down + key-up of B
+    }
+
+    @Test
+    fun `bindings and claims are discoverable through semantics`() {
+        rule.setContent { Content() }
+
+        rule
+            .onNodeWithTag("bound")
+            .assert(SemanticsMatcher.expectValue(JewelShortcutActions, listOf(selectAll.id.value)))
+        rule.onNodeWithTag("claimer").assert(SemanticsMatcher.expectValue(JewelClaimedShortcuts, listOf("Ctrl+M")))
+    }
+}

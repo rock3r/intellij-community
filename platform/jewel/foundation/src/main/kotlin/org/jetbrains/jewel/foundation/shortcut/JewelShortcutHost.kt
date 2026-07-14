@@ -6,6 +6,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.KeyInputModifierNode
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.node.ModifierNodeElement
 import androidx.compose.ui.node.TraversableNode
@@ -328,7 +329,8 @@ public fun rememberJewelShortcutHostState(
 
 @InternalJewelApi
 @ApiStatus.Internal
-public class ShortcutResolverRootNode(public var state: JewelShortcutHostState) : Modifier.Node(), TraversableNode {
+public class ShortcutResolverRootNode(public var state: JewelShortcutHostState) :
+    Modifier.Node(), TraversableNode, KeyInputModifierNode {
     override val traverseKey: TraverseKey = TraverseKey
 
     override fun onAttach() {
@@ -338,6 +340,19 @@ public class ShortcutResolverRootNode(public var state: JewelShortcutHostState) 
     override fun onDetach() {
         state.detachRoot(this)
     }
+
+    /**
+     * Scene-level dispatch, on the preview (tunneling) pass so focused claims keep beating ordinary component input.
+     * This is what makes shortcuts observable to plain Compose UI tests: injected key events (`performKeyInput`) reach
+     * the host with no window or AWT hook present.
+     *
+     * Safe next to the production hooks: anything the window hook or the bridge's key-event dispatcher consumes never
+     * reaches the scene, and an event they passed re-evaluates to the same pass here without mutating dispatch state.
+     * KEY_TYPED suppression stays with the AWT-level hooks — scenes never see typed events.
+     */
+    override fun onPreKeyEvent(event: KeyEvent): Boolean = state.onPreviewKeyEvent(event)
+
+    override fun onKeyEvent(event: KeyEvent): Boolean = false
 
     public companion object TraverseKey
 }

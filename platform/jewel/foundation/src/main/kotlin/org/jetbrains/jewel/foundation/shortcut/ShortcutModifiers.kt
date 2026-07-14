@@ -6,8 +6,11 @@ import androidx.compose.ui.focus.FocusEventModifierNode
 import androidx.compose.ui.focus.FocusState
 import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.node.ModifierNodeElement
+import androidx.compose.ui.node.SemanticsModifierNode
 import androidx.compose.ui.node.TraversableNode
+import androidx.compose.ui.node.invalidateSemantics
 import androidx.compose.ui.platform.InspectorInfo
+import androidx.compose.ui.semantics.SemanticsPropertyReceiver
 import org.jetbrains.annotations.ApiStatus
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import org.jetbrains.jewel.foundation.InternalJewelApi
@@ -68,12 +71,20 @@ public class ShortcutBindingNode(
     public var repeatPolicy: ShortcutRepeatPolicy,
     public var presentationOverride: ActionPresentationOverride,
     public var onInvoke: () -> Unit,
-) : Modifier.Node(), FocusEventModifierNode, TraversableNode {
+) : Modifier.Node(), FocusEventModifierNode, TraversableNode, SemanticsModifierNode {
     public var hasFocus: Boolean = false
         private set
 
     override fun onFocusEvent(focusState: FocusState) {
         hasFocus = focusState.hasFocus
+    }
+
+    override fun SemanticsPropertyReceiver.applySemantics() {
+        jewelShortcutActions(listOf(action.id.value))
+    }
+
+    internal fun onActionChanged() {
+        invalidateSemantics()
     }
 
     override val traverseKey: TraverseKey = TraverseKey
@@ -93,12 +104,14 @@ private class ShortcutBindingElement(
         ShortcutBindingNode(action, enabled, blocksOuterBindings, repeatPolicy, presentationOverride, onInvoke)
 
     override fun update(node: ShortcutBindingNode) {
+        val actionChanged = node.action != action
         node.action = action
         node.enabled = enabled
         node.blocksOuterBindings = blocksOuterBindings
         node.repeatPolicy = repeatPolicy
         node.presentationOverride = presentationOverride
         node.onInvoke = onInvoke
+        if (actionChanged) node.onActionChanged()
     }
 
     override fun InspectorInfo.inspectableProperties() {
@@ -126,12 +139,20 @@ public class ShortcutClaimNode(
     public var blocksOuterClaims: Boolean,
     public var repeatPolicy: ShortcutRepeatPolicy,
     public var onInvoke: () -> Unit,
-) : Modifier.Node(), FocusEventModifierNode, TraversableNode {
+) : Modifier.Node(), FocusEventModifierNode, TraversableNode, SemanticsModifierNode {
     public var hasFocus: Boolean = false
         private set
 
     override fun onFocusEvent(focusState: FocusState) {
         hasFocus = focusState.hasFocus
+    }
+
+    override fun SemanticsPropertyReceiver.applySemantics() {
+        jewelClaimedShortcuts(listOf(sequence.displayText()))
+    }
+
+    internal fun onSequenceChanged() {
+        invalidateSemantics()
     }
 
     override val traverseKey: TraverseKey = TraverseKey
@@ -149,11 +170,13 @@ private class ShortcutClaimElement(
     override fun create() = ShortcutClaimNode(sequence, enabled, blocksOuterClaims, repeatPolicy, onInvoke)
 
     override fun update(node: ShortcutClaimNode) {
+        val sequenceChanged = node.sequence != sequence
         node.sequence = sequence
         node.enabled = enabled
         node.blocksOuterClaims = blocksOuterClaims
         node.repeatPolicy = repeatPolicy
         node.onInvoke = onInvoke
+        if (sequenceChanged) node.onSequenceChanged()
     }
 
     override fun InspectorInfo.inspectableProperties() {
