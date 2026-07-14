@@ -122,4 +122,14 @@ public class ComponentsViewModel(
     public fun setCurrentView(view: ViewInfo) {
         _currentView = view
     }
+
+    public fun selectNextView() {
+        val index = views.indexOf(_currentView)
+        _currentView = views[(index + 1).mod(views.size)]
+    }
+
+    public fun selectPreviousView() {
+        val index = views.indexOf(_currentView)
+        _currentView = views[(index - 1).mod(views.size)]
+    }
 }

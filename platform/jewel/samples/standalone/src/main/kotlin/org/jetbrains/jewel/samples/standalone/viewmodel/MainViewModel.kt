@@ -18,8 +18,10 @@ import org.jetbrains.jewel.samples.showcase.ShowcaseIcons
 import org.jetbrains.jewel.samples.showcase.views.ComponentsView
 import org.jetbrains.jewel.samples.showcase.views.ComponentsViewModel
 import org.jetbrains.jewel.samples.showcase.views.KeyBinding
+import org.jetbrains.jewel.samples.showcase.views.ShortcutTesterView
 import org.jetbrains.jewel.samples.showcase.views.ViewInfo
 import org.jetbrains.jewel.samples.standalone.IntUiThemes
+import org.jetbrains.jewel.samples.standalone.ShowcaseShortcutHost
 import org.jetbrains.jewel.samples.standalone.view.MarkdownDemo
 import org.jetbrains.jewel.samples.standalone.view.WelcomeView
 import org.jetbrains.jewel.samples.standalone.viewmodel.MainViewModel.componentsViewModel
@@ -94,5 +96,14 @@ private val mainMenuItems =
             keyboardShortcut =
                 KeyBinding(macOs = setOf("⌥", "M"), windows = setOf("Alt", "M"), linux = setOf("Alt", "M")),
             content = { MarkdownDemo() },
+        ),
+        ViewInfo(
+            title = "Shortcuts",
+            iconKey = ShowcaseIcons.terminal,
+            keyboardShortcut =
+                KeyBinding(macOs = setOf("⌥", "S"), windows = setOf("Alt", "S"), linux = setOf("Alt", "S")),
+            content = {
+                ShortcutTesterView(keymap = ShowcaseShortcutHost.keymap, registry = ShowcaseShortcutHost.registry)
+            },
         ),
     )

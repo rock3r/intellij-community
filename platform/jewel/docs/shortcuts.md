@@ -158,7 +158,17 @@ Shortcuts are verifiable in plain Compose UI tests — no window, no AWT hooks, 
       .assert(SemanticsMatcher.expectValue(JewelClaimedShortcuts, listOf("Ctrl+Enter")))
   ```
 
-`ShortcutUiTest` in the foundation test sources demonstrates both.
+`ShortcutUiTest` in the foundation test sources demonstrates both, and `ShortcutTesterUiTest` in the
+showcase module shows the same pattern against real application UI.
+
+## Try it live
+
+The standalone sample is the living demo: it installs one host at the window root (see
+`ShowcaseShortcutHost` and `Main.kt`), binds ambient page-navigation commands
+(<kbd>Alt</kbd>+<kbd>W</kbd>/<kbd>C</kbd>/<kbd>M</kbd>/<kbd>S</kbd>), switches component sections with
+<kbd>⌘</kbd>/<kbd>Ctrl</kbd>+<kbd>↑</kbd>/<kbd>↓</kbd>, and ships a **Shortcuts** page
+(<kbd>Alt</kbd>+<kbd>S</kbd>) — an interactive tester covering nested overrides, claims vetoing
+commands, typed suppression, chords, action components, and live keymap rebinding.
 
 ## Status
 
