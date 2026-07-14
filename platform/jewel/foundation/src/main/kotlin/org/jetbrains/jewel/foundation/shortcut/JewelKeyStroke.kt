@@ -8,6 +8,7 @@ import androidx.compose.ui.input.key.isCtrlPressed
 import androidx.compose.ui.input.key.isMetaPressed
 import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.utf16CodePoint
 import org.jetbrains.annotations.ApiStatus
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 
@@ -59,38 +60,39 @@ public data class JewelKeyStroke(
          *
          * ### AltGr aliasing
          *
-         * On Windows, AltGr is reported as Ctrl+Alt: an AltGr key-down carries both `isCtrlPressed` and `isAltPressed`
-         * (the underlying AWT event has `isControlDown`, `isAltDown`, and `isAltGraphDown` all set). AltGr is a
-         * *typing* modifier, not a chord modifier — e.g. on the German layout AltGr+Q types `@`. Reporting such a
-         * stroke as `Ctrl+Alt+Q` would let a Ctrl+Alt+Q claim or binding steal the typed character. We therefore drop
-         * the Ctrl and Alt flags when the originating event is AltGr-derived, mirroring the platform's
-         * `IdeKeyEventDispatcher.removeAltGraph` semantics. A genuine Ctrl+Alt chord never sets AltGraph, so it is
-         * unaffected. Compose exposes no `isAltGraphPressed`, and its own AWT→Compose conversion folds AltGraph *into*
-         * `isAltPressed` rather than out of it, so we read the flag off the preserved native AWT event (the bridge's
-         * [toComposeKeyEvent] and Compose Desktop both keep it as `nativeKeyEvent`).
+         * On Windows, AltGr is reported as Ctrl+Alt, and AltGr is a *typing* modifier, not a chord modifier — e.g. on
+         * the Italian layout AltGr+E types `€`/`é`. Reporting such a key-down as `Ctrl+Alt+<key>` would let a Ctrl+Alt
+         * claim or binding steal the typed character. On the KEY_PRESSED the AltGraph modifier bit is NOT set (it only
+         * appears on the following KEY_TYPED); what marks the key-down as AltGr typing is that it carries a printable
+         * code point. We therefore drop the Ctrl and Alt flags when a Ctrl+Alt key-down carries a printable character,
+         * so it resolves to a bare stroke and never matches a Ctrl+Alt claim/binding. A genuine Ctrl+Alt chord — or an
+         * AltGr combination with no printable output, such as AltGr+G — carries no printable code point and is
+         * unaffected. (The bridge's [toComposeKeyEvent] applies the same rule at the AWT boundary.)
          */
         public fun fromKeyDownOrNull(event: KeyEvent): JewelKeyStroke? {
             if (event.key in modifierKeys) return null
-            val altGraph = event.isAltGraphDerived()
+            val altGrTyping = event.isAltGrTyping()
             return JewelKeyStroke(
                 key = event.key,
-                ctrl = event.isCtrlPressed && !altGraph,
+                ctrl = event.isCtrlPressed && !altGrTyping,
                 shift = event.isShiftPressed,
-                alt = event.isAltPressed && !altGraph,
+                alt = event.isAltPressed && !altGrTyping,
                 meta = event.isMetaPressed,
             )
         }
 
         /**
-         * Whether this Compose key event originates from an AltGr press, read from the preserved native AWT event.
-         * Returns `false` for events without an AWT native event (e.g. synthetic events in non-desktop hosts).
+         * Whether this Compose key-down is a Windows AltGr *typing* event: Ctrl+Alt held while a printable character is
+         * produced (the AltGraph bit is not set on the KEY_PRESSED, so the printable code point is the reliable
+         * signal).
          */
-        private fun KeyEvent.isAltGraphDerived(): Boolean =
-            try {
-                (nativeKeyEvent as? java.awt.event.KeyEvent)?.isAltGraphDown == true
-            } catch (_: Throwable) {
-                false
-            }
+        private fun KeyEvent.isAltGrTyping(): Boolean {
+            if (!isCtrlPressed || !isAltPressed) return false
+            val codePoint = utf16CodePoint
+            return codePoint != 0 &&
+                codePoint != java.awt.event.KeyEvent.CHAR_UNDEFINED.code &&
+                !Character.isISOControl(codePoint)
+        }
     }
 }
 

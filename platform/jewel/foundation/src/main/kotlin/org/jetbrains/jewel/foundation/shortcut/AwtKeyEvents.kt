@@ -19,15 +19,18 @@ import org.jetbrains.jewel.foundation.InternalJewelApi
 @InternalJewelApi
 @OptIn(InternalComposeUiApi::class)
 public fun KeyEvent.toComposeKeyEvent(): ComposeKeyEvent {
-    // On Windows, AltGr is reported as Ctrl+Alt: an AltGr key-down has `isControlDown`, `isAltDown`, and
-    // `isAltGraphDown` all set. AltGr is a *typing* modifier, not a chord modifier — e.g. German AltGr+Q types `@` —
-    // so the aliased Ctrl+Alt must be dropped, or a Ctrl+Alt claim/binding would steal the typed character. We strip
-    // it here, at the AWT boundary where `isAltGraphDown` is authoritative, mirroring the platform's
-    // `IdeKeyEventDispatcher.removeAltGraph`; the resulting Compose `KeyEvent` reconstructs its native event from these
-    // flag arguments, so the AltGraph bit is not otherwise preserved past this point. A genuine Ctrl+Alt chord never
-    // sets AltGraph, so it is unaffected. (See also `JewelKeyStroke.fromKeyDownOrNull`, which applies the same rule to
-    // Compose-native events that still carry a real AWT `nativeKeyEvent`.)
-    val altGraph = isAltGraphDown
+    // On Windows, AltGr is reported as Ctrl+Alt, and AltGr is a *typing* modifier, not a chord modifier — e.g. on the
+    // Italian layout AltGr+E types `€`/`é`. Reporting such a key-down as `Ctrl+Alt+<key>` would let a Ctrl+Alt claim or
+    // binding steal the typed character. Crucially, on the KEY_PRESSED the AltGraph bit is NOT set (it only appears on
+    // the following KEY_TYPED); what marks the key-down as AltGr typing is that it carries a printable `keyChar`. So we
+    // treat a Ctrl+Alt key-down with a printable char as typing and drop the Ctrl/Alt (this also survives the
+    // platform's `IdeKeyEventDispatcher.removeAltGraph`, which clears only the modifier bits, not `keyChar`). We still
+    // honor `isAltGraphDown` for hosts that do surface it. A genuine Ctrl+Alt chord — or an AltGr combination with no
+    // printable output, such as AltGr+G — carries no `keyChar` and is unaffected. (See also
+    // `JewelKeyStroke.fromKeyDownOrNull`, which applies the same rule to Compose-native events.)
+    val altGraph =
+        isAltGraphDown ||
+            (isControlDown && isAltDown && keyChar != KeyEvent.CHAR_UNDEFINED && !Character.isISOControl(keyChar))
     return ComposeKeyEvent(
         key =
             Key(

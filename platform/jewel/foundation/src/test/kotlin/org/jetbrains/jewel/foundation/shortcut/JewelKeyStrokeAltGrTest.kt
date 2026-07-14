@@ -8,17 +8,17 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
-import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
  * Pins the Windows AltGr contract for [JewelKeyStroke.fromKeyDownOrNull] (IJPL-212347).
  *
- * On Windows, AltGr is reported as Ctrl+Alt: the AWT key-down carries `isControlDown`, `isAltDown`, and
- * `isAltGraphDown` all set. AltGr is a *typing* modifier — e.g. on the German layout AltGr+Q types `@` — so an AltGr
- * key-down must never resolve to a `Ctrl+Alt` stroke, or a `Ctrl+Alt+Q` claim/binding would steal the typed character.
- * A genuine `Ctrl+Alt` chord never sets AltGraph and must be preserved. This mirrors the platform's
- * `IdeKeyEventDispatcher.removeAltGraph` handling.
+ * On Windows, AltGr is reported as Ctrl+Alt, and AltGr is a *typing* modifier (e.g. Italian AltGr+E types '€'/'é').
+ * Verified against a real physical AltGr key press on Windows/JBR: the KEY_PRESSED reports Ctrl+Alt with the AltGraph
+ * bit **not** set and carries the printable char; the AltGraph bit only appears on the following KEY_TYPED. So the
+ * reliable key-down signal is "Ctrl+Alt held while a printable character is produced" — which must resolve to a bare
+ * stroke, or a Ctrl+Alt claim/binding would steal the typed character. A genuine Ctrl+Alt chord, or an AltGr
+ * combination with no printable output (AltGr+G), carries no printable char and stays a chord.
  */
 internal class JewelKeyStrokeAltGrTest {
     private val source = JPanel()
@@ -34,50 +34,37 @@ internal class JewelKeyStrokeAltGrTest {
             AwtKeyEvent.KEY_LOCATION_STANDARD,
         )
 
+    private val ctrlAlt = AwtKeyEvent.CTRL_DOWN_MASK or AwtKeyEvent.ALT_DOWN_MASK
+
     @Test
-    fun `Windows reports AltGr as Ctrl plus Alt plus AltGraph`() {
-        val altGrQ =
-            awtKeyDown(
-                AwtKeyEvent.VK_Q,
-                '@',
-                AwtKeyEvent.CTRL_DOWN_MASK or AwtKeyEvent.ALT_DOWN_MASK or AwtKeyEvent.ALT_GRAPH_DOWN_MASK,
-            )
-        // Oracle for the whole test: the raw event really does alias AltGr as Ctrl+Alt.
-        assertTrue(altGrQ.isControlDown)
-        assertTrue(altGrQ.isAltDown)
-        assertTrue(altGrQ.isAltGraphDown)
+    fun `a real Windows AltGr key-down is Ctrl plus Alt with a printable char and no AltGraph bit`() {
+        // Oracle for the whole test, matching the observed physical-press behavior on Windows/JBR.
+        val altGrE = awtKeyDown(AwtKeyEvent.VK_E, 'é', ctrlAlt)
+        assertEquals(true, altGrE.isControlDown)
+        assertEquals(true, altGrE.isAltDown)
+        assertEquals(false, altGrE.isAltGraphDown) // NOT set on the KEY_PRESSED
     }
 
     @Test
-    fun `AltGr plus Q resolves without Ctrl or Alt so a Ctrl plus Alt plus Q claim cannot steal the typed character`() {
-        val altGrQ =
-            awtKeyDown(
-                AwtKeyEvent.VK_Q,
-                '@',
-                AwtKeyEvent.CTRL_DOWN_MASK or AwtKeyEvent.ALT_DOWN_MASK or AwtKeyEvent.ALT_GRAPH_DOWN_MASK,
-            )
+    fun `AltGr plus E resolves without Ctrl or Alt so a Ctrl plus Alt plus E claim cannot steal the typed character`() {
+        val altGrE = awtKeyDown(AwtKeyEvent.VK_E, 'é', ctrlAlt)
 
-        val stroke = JewelKeyStroke.fromKeyDownOrNull(altGrQ.toComposeKeyEvent())
+        val stroke = JewelKeyStroke.fromKeyDownOrNull(altGrE.toComposeKeyEvent())
 
         assertNotNull(stroke)
-        assertEquals(Key.Q, stroke!!.key)
-        assertFalse("AltGr-derived Ctrl must be dropped", stroke.ctrl)
-        assertFalse("AltGr-derived Alt must be dropped", stroke.alt)
+        assertEquals(Key.E, stroke!!.key)
+        assertFalse("AltGr-typing Ctrl must be dropped", stroke.ctrl)
+        assertFalse("AltGr-typing Alt must be dropped", stroke.alt)
         assertNotEquals(
-            "AltGr+Q must not equal (and therefore never match) a Ctrl+Alt+Q claim",
-            JewelKeyStroke(Key.Q, ctrl = true, alt = true),
+            "AltGr+E must not equal (and therefore never match) a Ctrl+Alt+E claim",
+            JewelKeyStroke(Key.E, ctrl = true, alt = true),
             stroke,
         )
     }
 
     @Test
-    fun `a genuine Ctrl plus Alt plus Q chord is preserved because it never sets AltGraph`() {
-        val ctrlAltQ =
-            awtKeyDown(
-                AwtKeyEvent.VK_Q,
-                AwtKeyEvent.CHAR_UNDEFINED,
-                AwtKeyEvent.CTRL_DOWN_MASK or AwtKeyEvent.ALT_DOWN_MASK,
-            )
+    fun `a genuine Ctrl plus Alt plus Q chord with no printable output is preserved`() {
+        val ctrlAltQ = awtKeyDown(AwtKeyEvent.VK_Q, AwtKeyEvent.CHAR_UNDEFINED, ctrlAlt)
 
         val stroke = JewelKeyStroke.fromKeyDownOrNull(ctrlAltQ.toComposeKeyEvent())
 
@@ -85,18 +72,22 @@ internal class JewelKeyStrokeAltGrTest {
     }
 
     @Test
-    fun `AltGr plus G with no printable output also drops Ctrl and Alt`() {
-        // German AltGr+G produces no character but still aliases as Ctrl+Alt+AltGraph. The engine has no stateful
-        // KEY_TYPED wait (unlike the platform dispatcher), so it favors never stealing typed input: AltGr strokes are
-        // never treated as Ctrl+Alt chords. Recorded here as the deliberate, tested behavior.
-        val altGrG =
-            awtKeyDown(
-                AwtKeyEvent.VK_G,
-                AwtKeyEvent.CHAR_UNDEFINED,
-                AwtKeyEvent.CTRL_DOWN_MASK or AwtKeyEvent.ALT_DOWN_MASK or AwtKeyEvent.ALT_GRAPH_DOWN_MASK,
-            )
+    fun `AltGr plus G with no printable output stays a Ctrl plus Alt chord`() {
+        // German/Italian AltGr+G produces no character; with no printable code point it is indistinguishable from a
+        // real Ctrl+Alt+G chord and is left as one, matching the platform's behavior for a non-typing AltGr combo.
+        val altGrG = awtKeyDown(AwtKeyEvent.VK_G, AwtKeyEvent.CHAR_UNDEFINED, ctrlAlt)
 
         val stroke = JewelKeyStroke.fromKeyDownOrNull(altGrG.toComposeKeyEvent())
+
+        assertEquals(JewelKeyStroke(Key.G, ctrl = true, alt = true), stroke)
+    }
+
+    @Test
+    fun `an AltGraph-flagged Ctrl plus Alt key-down is also treated as typing`() {
+        // Some hosts/layouts do surface isAltGraphDown on the key-down; honor it as well.
+        val altGraphQ = awtKeyDown(AwtKeyEvent.VK_Q, '@', ctrlAlt or AwtKeyEvent.ALT_GRAPH_DOWN_MASK)
+
+        val stroke = JewelKeyStroke.fromKeyDownOrNull(altGraphQ.toComposeKeyEvent())
 
         assertNotNull(stroke)
         assertFalse(stroke!!.ctrl)
