@@ -21,6 +21,9 @@ import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.test.withKeyDown
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertThrows
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 
@@ -121,5 +124,65 @@ internal class ShortcutUiTest {
             .onNodeWithTag("bound")
             .assert(SemanticsMatcher.expectValue(JewelShortcutActions, listOf(selectAll.id.value)))
         rule.onNodeWithTag("claimer").assert(SemanticsMatcher.expectValue(JewelClaimedShortcuts, listOf("Ctrl+M")))
+    }
+
+    @Test
+    fun `armed chord resets when focus leaves the resolver root`() {
+        val reformat = JewelAction(JewelActionId("test.ui.reformat"), "Reformat")
+        val chordKeymap =
+            InMemoryJewelKeymap("ui-test-chord").apply {
+                bind(
+                    reformat.id,
+                    JewelKeySequence(JewelKeyStroke(Key.K, ctrl = true), JewelKeyStroke(Key.D, ctrl = true)),
+                )
+            }
+        val chordHost = JewelShortcutHostState { chordKeymap }
+        var reformats = 0
+        val outsideFocus = FocusRequester()
+
+        rule.setContent {
+            Column {
+                Box(chordHost.resolverRootModifier) {
+                    Box(
+                        Modifier.testTag("chordTarget")
+                            .shortcut(reformat) { reformats++ }
+                            .focusRequester(boundFocus)
+                            .focusable()
+                    )
+                }
+                // A focus target OUTSIDE the resolver root: moving here is "focus leaves the surface".
+                Box(Modifier.testTag("outside").focusRequester(outsideFocus).focusable())
+            }
+        }
+
+        focus(boundFocus)
+        rule.onNodeWithTag("chordTarget").performKeyInput { withKeyDown(Key.CtrlLeft) { pressKey(Key.K) } }
+        rule.runOnIdle { assertTrue(chordHost.isAwaitingSecondStroke) }
+
+        // Focus round-trip: the armed chord must not survive it.
+        focus(outsideFocus)
+        rule.runOnIdle { assertFalse(chordHost.isAwaitingSecondStroke) }
+        focus(boundFocus)
+
+        rule.onNodeWithTag("chordTarget").performKeyInput { withKeyDown(Key.CtrlLeft) { pressKey(Key.D) } }
+        rule.waitForIdle()
+        assertEquals(0, reformats)
+
+        // And the full chord still works after the reset.
+        rule.onNodeWithTag("chordTarget").performKeyInput {
+            withKeyDown(Key.CtrlLeft) { pressKey(Key.K) }
+            withKeyDown(Key.CtrlLeft) { pressKey(Key.D) }
+        }
+        rule.waitForIdle()
+        assertEquals(1, reformats)
+    }
+
+    @Test
+    fun `claimShortcut rejects two-stroke sequences`() {
+        assertThrows(IllegalArgumentException::class.java) {
+            Modifier.claimShortcut(
+                JewelKeySequence(JewelKeyStroke(Key.K, ctrl = true), JewelKeyStroke(Key.D, ctrl = true))
+            ) {}
+        }
     }
 }

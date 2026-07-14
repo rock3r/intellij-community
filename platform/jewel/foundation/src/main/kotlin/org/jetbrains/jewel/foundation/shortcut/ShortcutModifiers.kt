@@ -48,7 +48,15 @@ public fun Modifier.claimShortcut(
     blocksOuterClaims: Boolean = false,
     repeatPolicy: ShortcutRepeatPolicy = ShortcutRepeatPolicy.RepeatWhileHeld,
     onInvoke: () -> Unit,
-): Modifier = this then ShortcutClaimElement(sequence, enabled, blocksOuterClaims, repeatPolicy, onInvoke)
+): Modifier {
+    // Two-stroke claims are not part of this contract: claims resolve (and host vetoes evaluate) on a single
+    // key-down, so a chord claim could never be invoked yet would shadow the stroke. Fail fast instead.
+    require(sequence.second == null) {
+        "claimShortcut only supports one-stroke sequences, got '${sequence.displayText()}'. " +
+            "Bind a command through the keymap for two-stroke chords."
+    }
+    return this then ShortcutClaimElement(sequence, enabled, blocksOuterClaims, repeatPolicy, onInvoke)
+}
 
 /**
  * Low-level single-event ownership for focused input that is not a shortcut sequence. A matching enabled claim owns and

@@ -100,6 +100,13 @@ public class ShortcutDispatchEngine(
     /** Innermost focused enabled binding for [actionId], or null. Used by hosts for presentation. */
     public fun resolveFocusedBinding(actionId: JewelActionId): EngineBinding? = resolveBinding(actionId)
 
+    /**
+     * True when [onKeyDown] with [stroke] would consume it through the claim lane. This is the host-veto predicate (the
+     * IJPL bridge skips `IdeKeyEventDispatcher` when it holds) and it deliberately shares [resolveClaim] with
+     * [onKeyDown]: a veto that diverged from delivery could suppress a host action without Jewel invoking anything.
+     */
+    public fun claimsStroke(stroke: JewelKeyStroke): Boolean = resolveClaim(stroke) != null
+
     /** Call for every key-up so OnceUntilRelease latches clear. */
     public fun onKeyUp(stroke: JewelKeyStroke?) {
         if (stroke != null && repeatLatchedStroke == stroke) repeatLatchedStroke = null

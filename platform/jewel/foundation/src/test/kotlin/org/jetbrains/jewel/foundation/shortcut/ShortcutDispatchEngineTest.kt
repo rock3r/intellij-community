@@ -39,8 +39,12 @@ internal class ShortcutDispatchEngineTest {
             blocksOuter: Boolean = false,
         ): EngineBinding = EngineBinding(actionId, enabled, blocksOuter, name) { invocations.add(name) }
 
-        fun claim(sequence: JewelKeySequence, name: String, enabled: Boolean = true): EngineClaim =
-            EngineClaim(sequence, enabled, blocksOuterClaims = false) { invocations.add(name) }
+        fun claim(
+            sequence: JewelKeySequence,
+            name: String,
+            enabled: Boolean = true,
+            blocksOuter: Boolean = false,
+        ): EngineClaim = EngineClaim(sequence, enabled, blocksOuterClaims = blocksOuter) { invocations.add(name) }
     }
 
     private fun engine(
@@ -255,5 +259,47 @@ internal class ShortcutDispatchEngineTest {
         assertEquals(listOf(JewelKeySequence(ctrlEnter)), child.shortcutsFor(selectAll))
 
         assertEquals(listOf(reformat), child.actionIdsForPrefix(ctrlK))
+    }
+
+    @Test
+    fun `veto predicate agrees with delivery for enabled claims`() {
+        val recorder = Recorder()
+        val engine = engine({ emptyList() }, { listOf(recorder.claim(JewelKeySequence(ctrlEnter), "submit")) })
+
+        assertTrue(engine.claimsStroke(ctrlEnter))
+        assertTrue(engine.onKeyDown(ctrlEnter) is DispatchDecision.Consumed)
+        assertFalse(engine.claimsStroke(plainQ))
+    }
+
+    @Test
+    fun `veto predicate agrees with delivery when a disabled inner claim blocks an enabled outer one`() {
+        val recorder = Recorder()
+        val engine =
+            engine(
+                bindings = { emptyList() },
+                claims = {
+                    // Innermost claims come last: the enabled outer claim would match, but the disabled
+                    // blocking inner claim stops resolution. The veto must see the same outcome, or a host
+                    // would suppress its own action for a stroke Jewel then refuses to deliver.
+                    listOf(
+                        recorder.claim(JewelKeySequence(ctrlEnter), "outer"),
+                        recorder.claim(JewelKeySequence(ctrlEnter), "inner", enabled = false, blocksOuter = true),
+                    )
+                },
+            )
+
+        assertFalse(engine.claimsStroke(ctrlEnter))
+        assertEquals(DispatchDecision.Pass, engine.onKeyDown(ctrlEnter))
+        assertTrue(recorder.invocations.isEmpty())
+    }
+
+    @Test
+    fun `veto predicate never matches a two-stroke claim delivery cannot invoke`() {
+        val recorder = Recorder()
+        val engine = engine({ emptyList() }, { listOf(recorder.claim(JewelKeySequence(ctrlK, ctrlD), "chordy")) })
+
+        assertFalse(engine.claimsStroke(ctrlK))
+        assertEquals(DispatchDecision.Pass, engine.onKeyDown(ctrlK))
+        assertTrue(recorder.invocations.isEmpty())
     }
 }

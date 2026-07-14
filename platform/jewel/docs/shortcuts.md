@@ -99,7 +99,13 @@ Window(onPreviewKeyEvent = state::onPreviewKeyEvent, onCloseRequest = ...) {
   in-flight IDE chord leaves the platform's pending second-stroke state behind; it self-heals on key
   release or the `actionSystem.secondKeystrokeTimeout` timeout, but one unclaimed stroke can be
   swallowed in the interim.
-- Bridge claims are one-stroke sequences in this slice; two-stroke claims and repeat policies follow.
+- Claims are one-stroke sequences in this slice, and `Modifier.claimShortcut` enforces it: passing a
+  two-stroke sequence throws `IllegalArgumentException`, because a claim resolves on a single key-down
+  and a chord claim could never be invoked yet would shadow its first stroke. The IJPL bridge veto
+  shares the engine's claim resolution (`ShortcutDispatchEngine.claimsStroke`), so the host never skips
+  its own keymap for a stroke Jewel would not deliver. Two-stroke claims may follow in a later slice.
+- Chord and typed-suppression state resets when focus leaves the resolver root's subtree (and on host
+  disposal), so returning focus never encounters a half-armed two-stroke sequence.
 
 The engine (`ShortcutDispatchEngine`) is free of Compose and AWT types; its unit tests in
 `foundation/src/test/.../shortcut/` pin every rule above.

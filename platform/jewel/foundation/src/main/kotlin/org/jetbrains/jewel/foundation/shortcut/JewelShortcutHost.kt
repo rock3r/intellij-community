@@ -4,6 +4,8 @@ package org.jetbrains.jewel.foundation.shortcut
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusEventModifierNode
+import androidx.compose.ui.focus.FocusState
 import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.KeyInputModifierNode
@@ -214,10 +216,10 @@ public class JewelShortcutHostState(
      * remain IJPL actions resolved through the platform keymap.
      */
     public fun claimsKeyDown(event: KeyEvent): Boolean {
-        val stroke = JewelKeyStroke.fromKeyDownOrNull(event) ?: return false
-        val claimed =
-            collectFocusedClaims().asReversed().firstOrNull { it.sequence.first == stroke && it.enabled } != null
-        return claimed || resolveRawClaim(event) != null
+        val stroke = JewelKeyStroke.fromKeyDownOrNull(event)
+        // Delegates to the engine's claim resolution so veto and delivery can never disagree: a disabled inner
+        // claim with blocksOuterClaims suppresses both, and only one-stroke claims veto.
+        return (stroke != null && engine.claimsStroke(stroke)) || resolveRawClaim(event) != null
     }
 
     /** Clears chord/typed state; call on focus loss or host disposal. */
@@ -330,8 +332,20 @@ public fun rememberJewelShortcutHostState(
 @InternalJewelApi
 @ApiStatus.Internal
 public class ShortcutResolverRootNode(public var state: JewelShortcutHostState) :
-    Modifier.Node(), TraversableNode, KeyInputModifierNode {
+    Modifier.Node(), TraversableNode, KeyInputModifierNode, FocusEventModifierNode {
     override val traverseKey: TraverseKey = TraverseKey
+
+    private var subtreeHadFocus = false
+
+    /**
+     * The host-state contract's focus-loss reset: an armed chord or pending typed suppression must not survive focus
+     * leaving the surface, or returning focus would encounter stale pending state.
+     */
+    override fun onFocusEvent(focusState: FocusState) {
+        val hasFocus = focusState.hasFocus
+        if (subtreeHadFocus && !hasFocus) state.reset()
+        subtreeHadFocus = hasFocus
+    }
 
     override fun onAttach() {
         state.attachRoot(this)
