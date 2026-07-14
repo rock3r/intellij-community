@@ -18,8 +18,17 @@ import org.jetbrains.jewel.foundation.InternalJewelApi
 @ApiStatus.Internal
 @InternalJewelApi
 @OptIn(InternalComposeUiApi::class)
-public fun KeyEvent.toComposeKeyEvent(): ComposeKeyEvent =
-    ComposeKeyEvent(
+public fun KeyEvent.toComposeKeyEvent(): ComposeKeyEvent {
+    // On Windows, AltGr is reported as Ctrl+Alt: an AltGr key-down has `isControlDown`, `isAltDown`, and
+    // `isAltGraphDown` all set. AltGr is a *typing* modifier, not a chord modifier — e.g. German AltGr+Q types `@` —
+    // so the aliased Ctrl+Alt must be dropped, or a Ctrl+Alt claim/binding would steal the typed character. We strip
+    // it here, at the AWT boundary where `isAltGraphDown` is authoritative, mirroring the platform's
+    // `IdeKeyEventDispatcher.removeAltGraph`; the resulting Compose `KeyEvent` reconstructs its native event from these
+    // flag arguments, so the AltGraph bit is not otherwise preserved past this point. A genuine Ctrl+Alt chord never
+    // sets AltGraph, so it is unaffected. (See also `JewelKeyStroke.fromKeyDownOrNull`, which applies the same rule to
+    // Compose-native events that still carry a real AWT `nativeKeyEvent`.)
+    val altGraph = isAltGraphDown
+    return ComposeKeyEvent(
         key =
             Key(
                 nativeKeyCode = keyCode,
@@ -33,9 +42,10 @@ public fun KeyEvent.toComposeKeyEvent(): ComposeKeyEvent =
                 else -> KeyEventType.Unknown
             },
         codePoint = keyChar.code,
-        isCtrlPressed = isControlDown,
+        isCtrlPressed = isControlDown && !altGraph,
         isMetaPressed = isMetaDown,
-        isAltPressed = isAltDown,
+        isAltPressed = isAltDown && !altGraph,
         isShiftPressed = isShiftDown,
         nativeEvent = this,
     )
+}
