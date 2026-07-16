@@ -138,6 +138,27 @@ and unchanged samples cause no recomposition. `JewelShortcutHostState.events` em
 Repeat delivery is per binding/claim via `ShortcutRepeatPolicy` (`OnceUntilRelease` suppresses
 delivered auto-repeats until key-up).
 
+## Threading
+
+The subsystem has a deliberate two-tier threading contract:
+
+- **Dispatch is UI-thread-synchronous.** The handlers bound through `Modifier.shortcut`,
+  `Modifier.claimShortcut`, and `Modifier.claimKeyEvent`, and the host entry points that invoke them
+  (`onPreviewKeyEvent`, `claimsKeyDown`, `runResolvedInvocation`), run on the surface's UI thread —
+  the AWT event dispatch thread in production — while a key event is being processed. Handlers must
+  be fast and non-blocking: launch a coroutine for real work; a slow handler delays every subsequent
+  keystroke. Violations are logged as errors; enable `JewelFlags.strictMode` (or the
+  `jewel.strictMode` system property) to make them throw instead — keep strict mode on in
+  development and tests.
+- **Presentation sampling is thread-safe and eventually consistent.** `presentationFor` and the
+  presentation scheduler may be called from any thread; the IJPL bridge samples them from background
+  action updates (`ActionUpdateThread.BGT`). They read an atomically published snapshot of the
+  focused bindings and may observe state up to one UI frame stale, which the next demand-driven
+  sample corrects. Presentation is advisory: dispatch itself never consults it.
+
+`InMemoryJewelKeymap` and `DefaultJewelActionRegistry` are safe to read from any thread; perform
+writes (binding, rebinding, action registration) on the UI thread.
+
 ## Testing your shortcuts
 
 Shortcuts are verifiable in plain Compose UI tests — no window, no AWT hooks, no IDE fixture:

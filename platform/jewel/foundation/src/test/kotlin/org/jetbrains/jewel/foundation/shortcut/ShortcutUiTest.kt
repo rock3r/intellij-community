@@ -5,6 +5,9 @@ import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -20,6 +23,7 @@ import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.test.withKeyDown
 import kotlinx.coroutines.runBlocking
+import org.jetbrains.jewel.foundation.JewelFlags
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertThrows
@@ -184,5 +188,71 @@ internal class ShortcutUiTest {
                 JewelKeySequence(JewelKeyStroke(Key.K, ctrl = true), JewelKeyStroke(Key.D, ctrl = true))
             ) {}
         }
+    }
+
+    @Test
+    fun `dispatch survives a host-state swap without a focus change`() {
+        // ShortcutResolverRootElement.update() swaps the state under a stable root node with no focus
+        // transitions firing anywhere; registrations live on the root node precisely so they survive this.
+        val keymapB =
+            InMemoryJewelKeymap("ui-test-b").apply {
+                bind(selectAll.id, JewelKeySequence(JewelKeyStroke(Key.S, ctrl = true)))
+            }
+        val hostB = JewelShortcutHostState { keymapB }
+        var currentHost by mutableStateOf(host)
+
+        rule.setContent {
+            Box(currentHost.resolverRootModifier) {
+                Box(
+                    Modifier.testTag("bound")
+                        .shortcut(selectAll) { bindingInvocations++ }
+                        .focusRequester(boundFocus)
+                        .focusable()
+                )
+            }
+        }
+        focus(boundFocus)
+
+        rule.onNodeWithTag("bound").performKeyInput { withKeyDown(Key.CtrlLeft) { pressKey(Key.S) } }
+        rule.waitForIdle()
+        assertEquals(1, bindingInvocations)
+
+        rule.runOnIdle { currentHost = hostB }
+        rule.waitForIdle()
+
+        rule.onNodeWithTag("bound").performKeyInput { withKeyDown(Key.CtrlLeft) { pressKey(Key.S) } }
+        rule.waitForIdle()
+        assertEquals(2, bindingInvocations)
+    }
+
+    @Test
+    fun `strict mode makes off-thread dispatch throw`() {
+        rule.setContent { Content() }
+        rule.waitForIdle()
+
+        val awtEvent =
+            java.awt.event.KeyEvent(
+                java.awt.Panel(),
+                java.awt.event.KeyEvent.KEY_PRESSED,
+                0L,
+                java.awt.event.KeyEvent.CTRL_DOWN_MASK,
+                java.awt.event.KeyEvent.VK_S,
+                's',
+            )
+        val composeEvent = awtEvent.toComposeKeyEvent()
+
+        JewelFlags.strictMode = true
+        try {
+            var thrown: Throwable? = null
+            val thread = Thread { thrown = runCatching { host.onPreviewKeyEvent(composeEvent) }.exceptionOrNull() }
+            thread.start()
+            thread.join(10_000)
+
+            assertTrue("Expected IllegalStateException, got $thrown", thrown is IllegalStateException)
+            assertTrue(thrown!!.message!!.contains("UI thread"))
+        } finally {
+            JewelFlags.strictMode = false
+        }
+        assertEquals(0, bindingInvocations)
     }
 }

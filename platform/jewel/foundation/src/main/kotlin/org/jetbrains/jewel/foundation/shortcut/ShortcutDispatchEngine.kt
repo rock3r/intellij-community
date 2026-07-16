@@ -133,6 +133,9 @@ public class ShortcutDispatchEngine(
     public fun reset() {
         pendingFirstStroke = null
         suppressNextTyped = false
+        // The OnceUntilRelease latch too: if focus left mid-hold, the matching key-up may never reach this host,
+        // and a latch that survives the round-trip would swallow the next genuine press of the same stroke.
+        repeatLatchedStroke = null
     }
 
     /**

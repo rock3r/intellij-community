@@ -9,6 +9,7 @@ import androidx.compose.ui.node.ModifierNodeElement
 import androidx.compose.ui.node.SemanticsModifierNode
 import androidx.compose.ui.node.TraversableNode
 import androidx.compose.ui.node.invalidateSemantics
+import androidx.compose.ui.node.traverseAncestors
 import androidx.compose.ui.platform.InspectorInfo
 import androidx.compose.ui.semantics.SemanticsPropertyReceiver
 import org.jetbrains.annotations.ApiStatus
@@ -22,6 +23,10 @@ import org.jetbrains.jewel.foundation.InternalJewelApi
  *
  * Like `Modifier.provideData`, the node observes focus of nodes attached AFTER it in the modifier chain (and of
  * descendants), so it must come before `focusable()` in the chain.
+ *
+ * **Threading:** [onInvoke] is called synchronously on the surface's UI thread (the AWT event dispatch thread in
+ * production) while a key event is being processed. Keep it fast and non-blocking — launch a coroutine for real work; a
+ * slow handler delays every subsequent keystroke.
  */
 @ApiStatus.Experimental
 @ExperimentalJewelApi
@@ -39,6 +44,9 @@ public fun Modifier.shortcut(
  * Claims a one-stroke physical shortcut before host keymap lookup while this node's subtree has focus. The deliberate,
  * review-visible escape hatch for editor-like components; in the IJPL bridge it also makes the host skip
  * `IdeKeyEventDispatcher` for the claimed stroke.
+ *
+ * **Threading:** [onInvoke] is called synchronously on the surface's UI thread (the AWT event dispatch thread in
+ * production) while a key event is being processed. Keep it fast and non-blocking.
  */
 @ApiStatus.Experimental
 @ExperimentalJewelApi
@@ -61,6 +69,9 @@ public fun Modifier.claimShortcut(
 /**
  * Low-level single-event ownership for focused input that is not a shortcut sequence. A matching enabled claim owns and
  * consumes the event; it never falls through to the host keymap.
+ *
+ * **Threading:** [matcher] and [onKeyEvent] are called synchronously on the surface's UI thread (the AWT event dispatch
+ * thread in production) while a key event is being processed. Keep them fast and non-blocking.
  */
 @ApiStatus.Experimental
 @ExperimentalJewelApi
@@ -69,6 +80,59 @@ public fun Modifier.claimKeyEvent(
     enabled: Boolean = true,
     onKeyEvent: (KeyEvent) -> Unit,
 ): Modifier = this then RawKeyClaimElement(matcher, enabled, onKeyEvent)
+
+/**
+ * Shared focus-registration lifecycle for the shortcut participant nodes. On the focus-gain transition a node finds its
+ * nearest [ShortcutResolverRootNode] ancestor (which binds it to the correct dispatch scope, including nested hosts)
+ * and registers with it; on focus-loss or detach it deregisters. Dispatch then reads the root's registered set instead
+ * of traversing the subtree on every keystroke.
+ */
+@InternalJewelApi
+@ApiStatus.Internal
+public abstract class ShortcutRegistrarNode : Modifier.Node(), FocusEventModifierNode, TraversableNode {
+    public var hasFocus: Boolean = false
+        private set
+
+    private var registeredRoot: ShortcutResolverRootNode? = null
+
+    override fun onFocusEvent(focusState: FocusState) {
+        val nowFocused = focusState.hasFocus
+        if (nowFocused == hasFocus) return
+        hasFocus = nowFocused
+        if (nowFocused) {
+            var root: ShortcutResolverRootNode? = null
+            traverseAncestors(ShortcutResolverRootNode.TraverseKey) { node ->
+                root = node as? ShortcutResolverRootNode
+                false
+            }
+            registeredRoot = root?.also { it.register(this) }
+        } else {
+            registeredRoot?.deregister(this)
+            registeredRoot = null
+        }
+    }
+
+    override fun onDetach() {
+        registeredRoot?.deregister(this)
+        registeredRoot = null
+        hasFocus = false
+    }
+
+    /**
+     * The number of same-key traversable ancestors, used to order registered nodes outermost-first (the engine treats
+     * the last entries as innermost). All simultaneously focused nodes lie on one focus chain, so ancestor counts give
+     * a total order; ancestors above the dispatch root add the same constant to every node under it and cannot change
+     * relative order.
+     */
+    internal fun nestingDepth(): Int {
+        var depth = 0
+        traverseAncestors(traverseKey) {
+            depth++
+            true
+        }
+        return depth
+    }
+}
 
 @InternalJewelApi
 @ApiStatus.Internal
@@ -79,14 +143,7 @@ public class ShortcutBindingNode(
     public var repeatPolicy: ShortcutRepeatPolicy,
     public var presentationOverride: ActionPresentationOverride,
     public var onInvoke: () -> Unit,
-) : Modifier.Node(), FocusEventModifierNode, TraversableNode, SemanticsModifierNode {
-    public var hasFocus: Boolean = false
-        private set
-
-    override fun onFocusEvent(focusState: FocusState) {
-        hasFocus = focusState.hasFocus
-    }
-
+) : ShortcutRegistrarNode(), SemanticsModifierNode {
     override fun SemanticsPropertyReceiver.applySemantics() {
         jewelShortcutActions(listOf(action.id.value))
     }
@@ -147,14 +204,7 @@ public class ShortcutClaimNode(
     public var blocksOuterClaims: Boolean,
     public var repeatPolicy: ShortcutRepeatPolicy,
     public var onInvoke: () -> Unit,
-) : Modifier.Node(), FocusEventModifierNode, TraversableNode, SemanticsModifierNode {
-    public var hasFocus: Boolean = false
-        private set
-
-    override fun onFocusEvent(focusState: FocusState) {
-        hasFocus = focusState.hasFocus
-    }
-
+) : ShortcutRegistrarNode(), SemanticsModifierNode {
     override fun SemanticsPropertyReceiver.applySemantics() {
         jewelClaimedShortcuts(listOf(sequence.displayText()))
     }
@@ -209,14 +259,7 @@ public class RawKeyClaimNode(
     public var matcher: (KeyEvent) -> Boolean,
     public var enabled: Boolean,
     public var onKeyEvent: (KeyEvent) -> Unit,
-) : Modifier.Node(), FocusEventModifierNode, TraversableNode {
-    public var hasFocus: Boolean = false
-        private set
-
-    override fun onFocusEvent(focusState: FocusState) {
-        hasFocus = focusState.hasFocus
-    }
-
+) : ShortcutRegistrarNode() {
     override val traverseKey: TraverseKey = TraverseKey
 
     public companion object TraverseKey

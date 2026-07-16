@@ -294,6 +294,34 @@ internal class ShortcutDispatchEngineTest {
     }
 
     @Test
+    fun `reset clears the OnceUntilRelease repeat latch`() {
+        var invocations = 0
+        val binding =
+            EngineBinding(
+                actionId = selectAll,
+                enabled = true,
+                blocksOuterBindings = false,
+                origin = "table",
+                repeatPolicy = ShortcutRepeatPolicy.OnceUntilRelease,
+            ) {
+                invocations++
+            }
+        val engine = engine({ listOf(binding) })
+
+        engine.onKeyDown(ctrlA)
+        assertEquals(1, invocations)
+
+        // Focus left mid-hold: reset() ran, and the key-up landed in another surface, so this host
+        // never sees it. A fresh press of the same stroke must invoke, not be swallowed as a repeat.
+        engine.reset()
+        val decision = engine.onKeyDown(ctrlA)
+
+        assertTrue(decision is DispatchDecision.Consumed)
+        assertEquals(DispatchDecision.Consumed.Route.Keymap, (decision as DispatchDecision.Consumed).route)
+        assertEquals(2, invocations)
+    }
+
+    @Test
     fun `veto predicate never matches a two-stroke claim delivery cannot invoke`() {
         val recorder = Recorder()
         val engine = engine({ emptyList() }, { listOf(recorder.claim(JewelKeySequence(ctrlK, ctrlD), "chordy")) })

@@ -12,12 +12,12 @@ import androidx.compose.ui.input.key.KeyInputModifierNode
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.node.ModifierNodeElement
 import androidx.compose.ui.node.TraversableNode
-import androidx.compose.ui.node.traverseDescendants
 import androidx.compose.ui.platform.InspectorInfo
 import java.util.concurrent.ConcurrentHashMap
 import org.jetbrains.annotations.ApiStatus
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import org.jetbrains.jewel.foundation.InternalJewelApi
+import org.jetbrains.jewel.foundation.JewelFlags
 import org.jetbrains.jewel.foundation.util.myLogger
 
 /**
@@ -31,6 +31,13 @@ import org.jetbrains.jewel.foundation.util.myLogger
  *   `IdeKeyEventDispatcher` for claimed strokes; commands stay with the IJPL keymap. Compose popups/dialogs run in
  *   their own scene layers with separate key handling: Jewel-owned popups must thread [onPreviewKeyEvent] into their
  *   `Popup(onPreviewKeyEvent = …)` for dispatch to work while they are open.
+ *
+ * **Threading:** dispatch is UI-thread-synchronous — [onPreviewKeyEvent], [claimsKeyDown], and [runResolvedInvocation]
+ * must run on the surface's UI thread (the AWT event dispatch thread in production), and the bound handlers they invoke
+ * run there too. Violations are logged as errors, or thrown when [org.jetbrains.jewel.foundation.JewelFlags.strictMode]
+ * is enabled. The exception is presentation sampling: [presentationFor] and [presentations] are safe to call from any
+ * thread (the IJPL bridge samples them from background action updates) and read an atomically published snapshot that
+ * may be up to one UI frame stale.
  */
 @ApiStatus.Experimental
 @ExperimentalJewelApi
@@ -38,7 +45,7 @@ public class JewelShortcutHostState(
     private val registry: JewelActionRegistry? = null,
     private val keymapProvider: () -> JewelKeymap,
 ) {
-    private var rootNode: ShortcutResolverRootNode? = null
+    @Volatile private var rootNode: ShortcutResolverRootNode? = null
 
     private val logger = myLogger()
 
@@ -48,8 +55,8 @@ public class JewelShortcutHostState(
     private val engine =
         ShortcutDispatchEngine(
             keymap = keymapProvider,
-            focusedBindings = ::collectFocusedBindings,
-            focusedClaims = ::collectFocusedClaims,
+            focusedBindings = { rootNode?.engineBindings() ?: emptyList() },
+            focusedClaims = { rootNode?.engineClaims() ?: emptyList() },
         )
 
     /** Fired after every consumed dispatch; drives Presentation Assistant-style overlays and tests. */
@@ -90,6 +97,7 @@ public class JewelShortcutHostState(
      * through here too.
      */
     public fun runResolvedInvocation(actionId: JewelActionId, trigger: ActionTrigger, handler: () -> Unit) {
+        checkUiThread("runResolvedInvocation")
         handler()
         eventSource.emit(ActionInvocation(actionId, (trigger as? ActionTrigger.Keyboard)?.sequence, trigger))
         presentations.invalidate()
@@ -109,6 +117,10 @@ public class JewelShortcutHostState(
      * The action's current presentation for this host: the failure rows of the PRD table (Unregistered when a
      * [registry] is installed and does not know the ID; NoFocusedBinding otherwise) or the nearest focused enabled
      * binding's [ActionPresentationOverride] merged over the action's template.
+     *
+     * **Threading:** safe to call from any thread — the IJPL bridge samples it from background action updates. Reads an
+     * atomically published snapshot of the focused bindings; the result may be up to one UI frame stale, which the next
+     * demand-driven sample corrects. Presentation is advisory: dispatch itself never consults it.
      */
     public fun presentationFor(actionId: JewelActionId): ActionPresentation = samplePresentation(actionId)
 
@@ -169,6 +181,7 @@ public class JewelShortcutHostState(
 
     /** Window-level AWT pre-scene handler; consumes claimed/mapped strokes and suppressed typed events. */
     public fun onPreviewKeyEvent(event: KeyEvent): Boolean {
+        checkUiThread("onPreviewKeyEvent")
         when (event.type) {
             KeyEventType.KeyDown -> {
                 resolveMenuScopeAction(JewelKeyStroke.fromKeyDownOrNull(event))?.let { action ->
@@ -216,6 +229,7 @@ public class JewelShortcutHostState(
      * remain IJPL actions resolved through the platform keymap.
      */
     public fun claimsKeyDown(event: KeyEvent): Boolean {
+        checkUiThread("claimsKeyDown")
         val stroke = JewelKeyStroke.fromKeyDownOrNull(event)
         // Delegates to the engine's claim resolution so veto and delivery can never disagree: a disabled inner
         // claim with blocksOuterClaims suppresses both, and only one-stroke claims veto.
@@ -236,61 +250,26 @@ public class JewelShortcutHostState(
         engine.reset()
     }
 
-    private fun collectFocusedBindings(): List<EngineBinding> {
-        val result = mutableListOf<EngineBinding>()
-        // Pre-order traversal visits ancestors before descendants, so focused nodes accumulate
-        // outermost-first and the engine treats the LAST entries as innermost.
-        rootNode?.traverseDescendants(ShortcutBindingNode.TraverseKey) { node ->
-            if (node is ShortcutBindingNode && node.hasFocus) {
-                result.add(
-                    EngineBinding(
-                        actionId = node.action.id,
-                        enabled = node.enabled,
-                        blocksOuterBindings = node.blocksOuterBindings,
-                        origin = node.action.title,
-                        repeatPolicy = node.repeatPolicy,
-                        presentationOverride = node.presentationOverride,
-                        onInvoke = node.onInvoke,
-                    )
-                )
-            }
-            TraversableNode.Companion.TraverseDescendantsAction.ContinueTraversal
-        }
-        return result
-    }
+    private fun resolveRawClaim(event: KeyEvent): RawKeyClaimNode? = rootNode?.rawClaimFor(event)
 
-    private fun collectFocusedClaims(): List<EngineClaim> {
-        val result = mutableListOf<EngineClaim>()
-        rootNode?.traverseDescendants(ShortcutClaimNode.TraverseKey) { node ->
-            if (node is ShortcutClaimNode && node.hasFocus) {
-                result.add(
-                    EngineClaim(
-                        sequence = node.sequence,
-                        enabled = node.enabled,
-                        blocksOuterClaims = node.blocksOuterClaims,
-                        repeatPolicy = node.repeatPolicy,
-                        onInvoke = node.onInvoke,
-                    )
-                )
-            }
-            TraversableNode.Companion.TraverseDescendantsAction.ContinueTraversal
+    /**
+     * Dispatch entry points and the handlers they invoke are bound to the surface's UI thread — the thread the resolver
+     * root attached on (the AWT EDT in production, the test thread under a Compose test rule). Violations log an error,
+     * or throw when [JewelFlags.strictMode] is on. No root attached means no surface, so no contract to enforce (plain
+     * unit tests drive the engine directly).
+     */
+    private fun checkUiThread(entryPoint: String) {
+        val expected = rootNode?.uiThread ?: return
+        val actual = Thread.currentThread()
+        if (actual !== expected) {
+            val message =
+                "$entryPoint must run on the surface's UI thread ('${expected.name}') but was called on " +
+                    "'${actual.name}'. Shortcut dispatch is UI-thread-synchronous; only presentation sampling " +
+                    "(presentationFor) is safe from other threads. See the Threading section in " +
+                    "platform/jewel/docs/shortcuts.md."
+            if (JewelFlags.strictMode) error(message) else logger.error(message)
         }
-        return result
     }
-
-    private fun resolveRawClaim(event: KeyEvent): RawKeyClaimNode? {
-        var match: RawKeyClaimNode? = null
-        rootNode?.traverseDescendants(RawKeyClaimNode.TraverseKey) { node ->
-            if (node is RawKeyClaimNode && node.claims(event)) {
-                // Keep overwriting: the innermost focused match is visited last in pre-order.
-                match = node
-            }
-            TraversableNode.Companion.TraverseDescendantsAction.ContinueTraversal
-        }
-        return match
-    }
-
-    private fun RawKeyClaimNode.claims(event: KeyEvent): Boolean = hasFocus && enabled && matcher(event)
 }
 
 /**
@@ -338,6 +317,98 @@ public class ShortcutResolverRootNode(public var state: JewelShortcutHostState) 
     private var subtreeHadFocus = false
 
     /**
+     * Focus-driven registrations replace per-keystroke subtree traversal: participant nodes register on focus-gain and
+     * deregister on focus-loss/detach (see [ShortcutRegistrarNode]). The registry lives on this node — not on the host
+     * state — because [ShortcutResolverRootElement.update] can swap the state under a stable root without any focus
+     * transitions firing; node ownership keeps registrations valid across such swaps. Mutations happen on the UI
+     * thread; each mutation publishes an immutable, outermost-first-sorted snapshot so presentation sampling can read
+     * from any thread (at most one UI frame stale).
+     */
+    private val focusedBindingNodes = mutableListOf<ShortcutBindingNode>()
+    private val focusedClaimNodes = mutableListOf<ShortcutClaimNode>()
+    private val focusedRawClaimNodes = mutableListOf<RawKeyClaimNode>()
+
+    @Volatile private var bindingSnapshot: List<ShortcutBindingNode> = emptyList()
+
+    @Volatile private var claimSnapshot: List<ShortcutClaimNode> = emptyList()
+
+    @Volatile private var rawClaimSnapshot: List<RawKeyClaimNode> = emptyList()
+
+    /** The surface's UI thread, recorded at attach; dispatch entry points are bound to it. */
+    internal var uiThread: Thread? = null
+        private set
+
+    internal fun register(node: ShortcutRegistrarNode) {
+        when (node) {
+            is ShortcutBindingNode -> {
+                focusedBindingNodes.add(node)
+                bindingSnapshot = sortedSnapshot(focusedBindingNodes)
+            }
+            is ShortcutClaimNode -> {
+                focusedClaimNodes.add(node)
+                claimSnapshot = sortedSnapshot(focusedClaimNodes)
+            }
+            is RawKeyClaimNode -> {
+                focusedRawClaimNodes.add(node)
+                rawClaimSnapshot = sortedSnapshot(focusedRawClaimNodes)
+            }
+        }
+    }
+
+    internal fun deregister(node: ShortcutRegistrarNode) {
+        when (node) {
+            is ShortcutBindingNode -> {
+                focusedBindingNodes.remove(node)
+                bindingSnapshot = focusedBindingNodes.toList()
+            }
+            is ShortcutClaimNode -> {
+                focusedClaimNodes.remove(node)
+                claimSnapshot = focusedClaimNodes.toList()
+            }
+            is RawKeyClaimNode -> {
+                focusedRawClaimNodes.remove(node)
+                rawClaimSnapshot = focusedRawClaimNodes.toList()
+            }
+        }
+    }
+
+    /**
+     * Outermost-first by nesting depth (the engine treats the LAST entries as innermost), matching the pre-order
+     * contract of the dispatch tests. Depth is recomputed on every registration change, so tree edits that fire focus
+     * or attach events can never leave a stale order behind; the sort is stable, so registration order breaks ties.
+     */
+    private fun <T : ShortcutRegistrarNode> sortedSnapshot(nodes: List<T>): List<T> =
+        nodes.sortedBy(ShortcutRegistrarNode::nestingDepth)
+
+    internal fun engineBindings(): List<EngineBinding> =
+        bindingSnapshot.map { node ->
+            EngineBinding(
+                actionId = node.action.id,
+                enabled = node.enabled,
+                blocksOuterBindings = node.blocksOuterBindings,
+                origin = node.action.title,
+                repeatPolicy = node.repeatPolicy,
+                presentationOverride = node.presentationOverride,
+                onInvoke = node.onInvoke,
+            )
+        }
+
+    internal fun engineClaims(): List<EngineClaim> =
+        claimSnapshot.map { node ->
+            EngineClaim(
+                sequence = node.sequence,
+                enabled = node.enabled,
+                blocksOuterClaims = node.blocksOuterClaims,
+                repeatPolicy = node.repeatPolicy,
+                onInvoke = node.onInvoke,
+            )
+        }
+
+    /** The innermost registered raw claim matching [event]; raw claims are deliberately local, enabled-only. */
+    internal fun rawClaimFor(event: KeyEvent): RawKeyClaimNode? =
+        rawClaimSnapshot.lastOrNull { it.enabled && it.matcher(event) }
+
+    /**
      * The host-state contract's focus-loss reset: an armed chord or pending typed suppression must not survive focus
      * leaving the surface, or returning focus would encounter stale pending state.
      */
@@ -348,11 +419,13 @@ public class ShortcutResolverRootNode(public var state: JewelShortcutHostState) 
     }
 
     override fun onAttach() {
+        uiThread = Thread.currentThread()
         state.attachRoot(this)
     }
 
     override fun onDetach() {
         state.detachRoot(this)
+        uiThread = null
     }
 
     /**
