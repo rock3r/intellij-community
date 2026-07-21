@@ -16,6 +16,7 @@ import androidx.compose.ui.focus.FocusManager
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.InputMode
 import androidx.compose.ui.input.InputModeManager
+import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.isAltPressed
 import androidx.compose.ui.input.key.isCtrlPressed
@@ -29,6 +30,8 @@ import androidx.compose.ui.window.PopupProperties
 import androidx.compose.ui.window.rememberPopupPositionProviderAtPosition
 import java.awt.event.InputEvent
 import javax.swing.KeyStroke
+import org.jetbrains.jewel.foundation.shortcut.JewelKeyStroke
+import org.jetbrains.jewel.foundation.shortcut.LocalJewelShortcutHost
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.styling.MenuStyle
 import org.jetbrains.jewel.ui.icon.IconKey
@@ -77,19 +80,27 @@ internal fun ContextMenu(
     var inputModeManager: InputModeManager? by remember { mutableStateOf(null) }
     val menuController = remember(onDismissRequest) { DefaultMenuController(onDismissRequest = onDismissRequest) }
     val currentOnDismissRequest by rememberUpdatedState(onDismissRequest)
+    val shortcutHost = LocalJewelShortcutHost.current
 
     Popup(
         popupPositionProvider = rememberPopupPositionProviderAtPosition(position, style.metrics.offset),
         onDismissRequest = { currentOnDismissRequest(InputMode.Touch) },
         properties = PopupProperties(focusable = focusable),
-        onPreviewKeyEvent = { false },
+        // Popup scene layers do not inherit window key hooks: thread the shortcut host in so dispatch
+        // (including this menu's own shortcuts, absorbed as a host menu scope) keeps working while open.
+        onPreviewKeyEvent = { shortcutHost?.onPreviewKeyEvent(it) == true },
         onKeyEvent = {
             val currentFocusManager = checkNotNull(focusManager) { "FocusManager must not be null" }
             val currentInputModeManager = checkNotNull(inputModeManager) { "InputModeManager must not be null" }
-            val swingKeyStroke = composeKeyEventToSwingKeyStroke(it)
-
-            menuController.findAndExecuteShortcut(swingKeyStroke)
-                ?: handlePopupMenuOnKeyEvent(it, currentFocusManager, currentInputModeManager, menuController)
+            // With a host, its preview hook has already resolved menu-local shortcuts; only the legacy
+            // host-less path may dispatch through the controller map, so the two can never race.
+            val menuLocal =
+                if (shortcutHost == null) {
+                    menuController.findAndExecuteShortcut(composeKeyEventToSwingKeyStroke(it))
+                } else {
+                    null
+                }
+            menuLocal ?: handlePopupMenuOnKeyEvent(it, currentFocusManager, currentInputModeManager, menuController)
         },
         cornerSize = style.metrics.cornerSize,
     ) {
@@ -187,6 +198,21 @@ public sealed class ContextMenuItemOptionAction {
 
     /** Represents a "Select All" action. */
     public data object SelectAllMenuItemOptionAction : ContextMenuItemOptionAction()
+}
+
+/**
+ * The [JewelKeyStroke] for a menu-item shortcut [keyStroke], or null for strokes Jewel dispatch cannot represent. The
+ * inverse of [composeKeyEventToSwingKeyStroke] for registration purposes.
+ */
+internal fun swingKeyStrokeToJewelKeyStroke(keyStroke: KeyStroke): JewelKeyStroke? {
+    if (keyStroke.keyCode == java.awt.event.KeyEvent.VK_UNDEFINED) return null
+    return JewelKeyStroke(
+        key = Key(keyStroke.keyCode),
+        ctrl = keyStroke.modifiers and InputEvent.CTRL_DOWN_MASK != 0,
+        shift = keyStroke.modifiers and InputEvent.SHIFT_DOWN_MASK != 0,
+        alt = keyStroke.modifiers and InputEvent.ALT_DOWN_MASK != 0,
+        meta = keyStroke.modifiers and InputEvent.META_DOWN_MASK != 0,
+    )
 }
 
 internal fun composeKeyEventToSwingKeyStroke(event: KeyEvent): KeyStroke? {

@@ -55,6 +55,7 @@ jvm_library(
         "//platform/core-api:core",
         "//platform/editor-ui-api:editor-ui",
         "//platform/jewel/foundation",
+        "//platform/icons-api",
         "//platform/jewel/ui",
         "//platform/projectModel-api:projectModel",
         "//platform/projectModel-impl",
@@ -195,6 +196,7 @@ jvm_library(
     runtime_deps = [
         # do not sort,
         ":ideLafBridge-tests",
+        "//platform/ide-core:ide-core_test_lib",
         "//platform/platform-impl:ide-impl_test_lib",
     ],
     deps = [
@@ -205,6 +207,7 @@ jvm_library(
         "@lib//:jetbrains-annotations",
         "//platform/core-api:core",
         "//platform/core-api:core_test_lib",
+        "//platform/ide-core",
         "//platform/editor-ui-api:editor-ui",
         "//platform/editor-ui-api:editor-ui_test_lib",
         "//platform/jewel/foundation",

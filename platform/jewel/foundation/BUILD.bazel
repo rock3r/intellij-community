@@ -46,6 +46,7 @@ jvm_library(
     visibility = ["//visibility:public"],
     exports = [
         # do not sort,
+        "//platform/icons-api",
         "//libraries/compose-foundation-desktop",
         "//libraries/skiko",
     ],
@@ -54,6 +55,7 @@ jvm_library(
         "@lib//:kotlin-stdlib",
         "//libraries/kotlinx/coroutines/core",
         "@lib//:jetbrains-annotations",
+        "//platform/icons-api",
         "//libraries/compose-foundation-desktop",
         "//libraries/skiko",
     ],
