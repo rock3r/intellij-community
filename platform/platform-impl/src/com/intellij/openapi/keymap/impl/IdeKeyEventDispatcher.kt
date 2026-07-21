@@ -12,6 +12,8 @@ import com.intellij.ide.DataManager
 import com.intellij.ide.IdeBundle
 import com.intellij.ide.IdeEventQueue
 import com.intellij.ide.KeyboardAwareFocusOwner
+import com.intellij.ide.KeyboardAwareFocusOwnerProvider
+import java.lang.ref.WeakReference
 import com.intellij.openapi.MnemonicHelper
 import com.intellij.openapi.actionSystem.ActionManager
 import com.intellij.openapi.actionSystem.ActionPlaces
@@ -267,6 +269,9 @@ class IdeKeyEventDispatcher(private val queue: IdeEventQueue?) {
       LOG.debug { "Key event not processed because ${focusOwner} is in focus and implements ${KeyboardAwareFocusOwner::class.java}" }
       return false
     }
+    if (focusOwner != null && skipByFocusOwnerAncestor(focusOwner, e)) {
+      return false
+    }
 
     val id = e.id
     if (ignoreNextKeyTypedEvent) {
@@ -359,6 +364,63 @@ class IdeKeyEventDispatcher(private val queue: IdeEventQueue?) {
     finally {
       context.clear()
     }
+  }
+
+  /**
+   * The providers on [cachedProviderOwner]'s ancestor chain, innermost first, or empty when it has none. Resolution
+   * is cached because that chain only changes when focus moves, while this is consulted on every key event: without
+   * the cache the common case — no provider anywhere in the IDE — walks the hierarchy to the root on every keystroke
+   * and still finds nothing. Weak references so a cached entry never keeps a component alive.
+   */
+  private var cachedProviderOwner: WeakReference<Component>? = null
+  private var cachedProviders: List<WeakReference<KeyboardAwareFocusOwnerProvider>> = emptyList()
+
+  /**
+   * Lets an ancestor of the focus owner skip IDE shortcut processing on behalf of a focused component it
+   * cannot control (for example, the internal canvas of an embedded renderer). Consulted only when the focus
+   * owner itself is not a [KeyboardAwareFocusOwner] that skips the event, so behavior is unchanged unless a
+   * [KeyboardAwareFocusOwnerProvider] is actually present in the focused hierarchy.
+   *
+   * Providers are resolved once per focus owner and remembered, including the "none" answer. Each event then only
+   * asks the resolved providers, innermost first, whether they want that particular event — inherently per-event
+   * state that cannot be cached.
+   */
+  private fun skipByFocusOwnerAncestor(focusOwner: Component, e: KeyEvent): Boolean {
+    for (reference in resolveProvidersFor(focusOwner)) {
+      val provider = reference.get() ?: continue
+      if (provider.skipKeyEventDispatcher(focusOwner, e)) {
+        LOG.debug {
+          "Key event not processed because ${provider} is an ancestor of the focus owner ${focusOwner} " +
+          "and implements ${KeyboardAwareFocusOwnerProvider::class.java}"
+        }
+        return true
+      }
+    }
+    return false
+  }
+
+  private fun resolveProvidersFor(focusOwner: Component): List<WeakReference<KeyboardAwareFocusOwnerProvider>> {
+    if (cachedProviderOwner?.get() === focusOwner) {
+      // A cached chain is reusable only while its innermost provider is still an ancestor: the hierarchy can be
+      // rebuilt without focus ever moving. Verifying stops at that provider, unlike the full walk it replaces.
+      val innermost = cachedProviders.firstOrNull()?.get()
+      if (innermost == null || SwingUtilities.isDescendingFrom(focusOwner, innermost as? Component)) {
+        return cachedProviders
+      }
+    }
+
+    var found: MutableList<WeakReference<KeyboardAwareFocusOwnerProvider>>? = null
+    var component = focusOwner.parent
+    while (component != null) {
+      if (component is KeyboardAwareFocusOwnerProvider) {
+        val list = found ?: mutableListOf<WeakReference<KeyboardAwareFocusOwnerProvider>>().also { found = it }
+        list.add(WeakReference(component))
+      }
+      component = component.parent
+    }
+    cachedProviderOwner = WeakReference(focusOwner)
+    cachedProviders = found ?: emptyList()
+    return cachedProviders
   }
 
   private fun inWaitForSecondStrokeState(): Boolean {
