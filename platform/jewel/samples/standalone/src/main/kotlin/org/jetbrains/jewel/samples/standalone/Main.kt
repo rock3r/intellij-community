@@ -4,6 +4,7 @@ import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.focus.FocusRequester
@@ -28,6 +29,8 @@ import org.jetbrains.jewel.intui.window.decoratedWindow
 import org.jetbrains.jewel.intui.window.styling.dark
 import org.jetbrains.jewel.intui.window.styling.light
 import org.jetbrains.jewel.intui.window.styling.lightWithLightHeader
+import org.jetbrains.jewel.samples.showcase.LocalShowcaseActionRegistry
+import org.jetbrains.jewel.samples.showcase.LocalShowcaseKeymap
 import org.jetbrains.jewel.samples.showcase.ShowcaseShortcuts
 import org.jetbrains.jewel.samples.standalone.view.TitleBarView
 import org.jetbrains.jewel.samples.standalone.viewmodel.MainViewModel
@@ -100,7 +103,12 @@ public fun main() {
                                 .focusable()
                         ) {
                             LaunchedEffect(Unit) { windowFocus.requestFocus() }
-                            ProvideMarkdownStyling { currentView.content() }
+                            CompositionLocalProvider(
+                                LocalShowcaseKeymap provides ShowcaseShortcutHost.keymap,
+                                LocalShowcaseActionRegistry provides ShowcaseShortcutHost.registry,
+                            ) {
+                                ProvideMarkdownStyling { currentView.content() }
+                            }
                         }
                     }
                 },

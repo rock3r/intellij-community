@@ -4,6 +4,7 @@ package org.jetbrains.jewel.ui.icon
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
+import com.intellij.platform.icons.Icon as IconDescriptor
 import com.intellij.platform.icons.design.Circle
 import com.intellij.platform.icons.design.DisplayPoint
 import com.intellij.platform.icons.design.IconAlign
@@ -16,6 +17,7 @@ import com.intellij.platform.icons.design.circle
 import com.intellij.platform.icons.design.dp
 import com.intellij.platform.icons.design.rectangle
 import com.intellij.platform.icons.filters.ColorFilter
+import com.intellij.platform.icons.icon
 import com.intellij.platform.icons.impl.design.DefaultSRGB
 import com.intellij.platform.icons.impl.filters.TintColorFilter
 import com.intellij.platform.icons.modifiers.IconModifier
@@ -65,6 +67,16 @@ public fun fillArea(width: Dp, heigth: Dp): FillAreaScale = fillArea(width.toIco
 @ApiStatus.Experimental
 /** Applies a stroke with the given Compose [composeColor] to this [IconModifier]. */
 public fun IconModifier.stroke(composeColor: Color): IconModifier = stroke(composeColor.toIconsColor())
+
+/**
+ * Wraps this icon in a single-layer composite carrying [modifier].
+ *
+ * Icon descriptors are immutable and hold their modifiers per layer, so "modifying" one means describing a new icon
+ * whose only layer is this one. An empty modifier returns the receiver untouched, which keeps the descriptor's own
+ * identity — and therefore its renderer — for the common unmodified path.
+ */
+internal fun IconDescriptor.withModifier(modifier: IconModifier): IconDescriptor =
+    if (modifier === IconModifier) this else icon { icon(this@withModifier, modifier) }
 
 @ExperimentalJewelApi
 @ApiStatus.Experimental

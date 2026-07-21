@@ -50,6 +50,11 @@ public class ComponentsViewModel(
         mutableStateListOf(
             ViewInfo(title = "Buttons", iconKey = ShowcaseIcons.Components.button, content = { Buttons() }),
             ViewInfo(
+                title = "Action Components",
+                iconKey = ShowcaseIcons.Components.toolbar,
+                content = { ActionComponentsView() },
+            ),
+            ViewInfo(
                 title = "Radio Buttons",
                 iconKey = ShowcaseIcons.Components.radioButton,
                 content = { RadioButtons() },

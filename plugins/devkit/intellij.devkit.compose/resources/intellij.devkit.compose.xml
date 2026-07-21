@@ -76,6 +76,14 @@
       <add-to-group group-id="ToolsMenu" relative-to-action="Dev.PsiViewerActions" anchor="after"/>
     </group>
 
+    <!-- Driven from both toolkits by the Swing Comparison tab's action-components row. -->
+    <action id="JewelComparison.Save" class="com.intellij.devkit.compose.demo.JewelComparisonSaveAction"
+            text="Save" description="Save the current document" icon="AllIcons.Actions.MenuSaveall"/>
+    <action id="JewelComparison.WordWrap" class="com.intellij.devkit.compose.demo.JewelComparisonWordWrapAction"
+            text="Word Wrap" description="Toggle soft wrap" icon="AllIcons.Actions.ToggleSoftWrap"/>
+    <action id="JewelComparison.Delete" class="com.intellij.devkit.compose.demo.JewelComparisonDeleteAction"
+            text="Delete" description="Disabled while word wrap is on" icon="AllIcons.Actions.GC"/>
+
     <!-- Legacy actions, only available from Search Everywhere -->
     <action id="ComposeShowcase" class="com.intellij.devkit.compose.showcase.ComposeShowcaseAction"/>
     <action id="JewelActionSystemTest" class="com.intellij.devkit.compose.demo.ActionSystemTestAction"/>

@@ -24,6 +24,10 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
+import com.intellij.platform.icons.Icon as IconDescriptor
+import com.intellij.platform.icons.scale.IconScale
+import org.jetbrains.annotations.ApiStatus
+import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.styling.IconButtonStyle
 import org.jetbrains.jewel.ui.component.styling.TooltipStyle
@@ -293,6 +297,101 @@ private fun CoreIconActionButton(
             hint = hint,
             colorFilter = colorFilter,
         )
+    }
+}
+
+/**
+ * An icon-only action button that renders the icon described by [icon].
+ *
+ * Icon descriptors carry their own rendering configuration (layers, modifiers, filters), so unlike the [IconKey]
+ * overloads this one takes no [PainterHint]s: anything a hint would express belongs on the descriptor itself.
+ */
+@ApiStatus.Experimental
+@ExperimentalJewelApi
+@Composable
+public fun IconActionButton(
+    icon: IconDescriptor,
+    contentDescription: String?,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    iconModifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    focusable: Boolean = true,
+    style: IconButtonStyle = JewelTheme.iconButtonStyle,
+    scale: IconScale? = null,
+    interactionSource: MutableInteractionSource = remember { MutableInteractionSource() },
+) {
+    CoreIconActionButton(
+        icon = icon,
+        contentDescription = contentDescription,
+        enabled = enabled,
+        focusable = focusable,
+        style = style,
+        scale = scale,
+        interactionSource = interactionSource,
+        onClick = onClick,
+        modifier = modifier,
+        iconModifier = iconModifier,
+    )
+}
+
+/**
+ * An icon-only action button that renders the icon described by [icon], with a tooltip.
+ *
+ * Wraps the button in a [Tooltip] composable using the provided [tooltip] content.
+ */
+@Suppress("ComposableParamOrder") // To fix in JEWEL-924
+@ApiStatus.Experimental
+@ExperimentalJewelApi
+@Composable
+public fun IconActionButton(
+    icon: IconDescriptor,
+    contentDescription: String?,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    iconModifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    focusable: Boolean = true,
+    style: IconButtonStyle = JewelTheme.iconButtonStyle,
+    scale: IconScale? = null,
+    tooltipStyle: TooltipStyle = JewelTheme.tooltipStyle,
+    tooltipModifier: Modifier = Modifier,
+    tooltipPlacement: TooltipPlacement = FixedCursorPoint(offset = DpOffset(0.dp, 16.dp)),
+    interactionSource: MutableInteractionSource = remember { MutableInteractionSource() },
+    tooltip: @Composable () -> Unit,
+) {
+    Tooltip(tooltip, style = tooltipStyle, modifier = tooltipModifier, tooltipPlacement = tooltipPlacement) {
+        @Suppress("ModifierNotUsedAtRoot") // This is intentional
+        CoreIconActionButton(
+            icon = icon,
+            contentDescription = contentDescription,
+            enabled = enabled,
+            focusable = focusable,
+            style = style,
+            scale = scale,
+            interactionSource = interactionSource,
+            onClick = onClick,
+            modifier = modifier,
+            iconModifier = iconModifier,
+        )
+    }
+}
+
+@Composable
+private fun CoreIconActionButton(
+    icon: IconDescriptor,
+    contentDescription: String?,
+    enabled: Boolean,
+    focusable: Boolean,
+    style: IconButtonStyle,
+    scale: IconScale?,
+    interactionSource: MutableInteractionSource,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    iconModifier: Modifier = Modifier,
+) {
+    IconButton(onClick, modifier, enabled, focusable, style, interactionSource) {
+        Icon(icon = icon, contentDescription = contentDescription, modifier = iconModifier, scale = scale)
     }
 }
 
