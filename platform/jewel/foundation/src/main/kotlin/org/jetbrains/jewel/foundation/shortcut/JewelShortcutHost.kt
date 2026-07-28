@@ -2,6 +2,7 @@
 package org.jetbrains.jewel.foundation.shortcut
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusEventModifierNode
@@ -76,8 +77,51 @@ public class JewelShortcutHostState(
     /**
      * Demand-driven presentation sampling for this host. Poll on your own signals via
      * [ActionPresentationScheduler.invalidate]; keyboard dispatches invalidate automatically.
+     *
+     * This is the sampling path the IJPL bridge rides (its `TimerListener` calls
+     * [ActionPresentationScheduler.invalidate] on the platform's action-update cadence). Standalone hosts default to
+     * [reactivePresentation] instead — a Compose-snapshot-reactive derivation with no polling — and use this only
+     * through the documented [invalidate] escape hatch for genuinely non-snapshot data sources.
      */
     public val presentations: ActionPresentationScheduler = ActionPresentationScheduler(::samplePresentation)
+
+    /**
+     * Whether action-bound controls derive their presentation reactively from Compose snapshot state (the standalone
+     * default) or observe the demand-driven [presentations] scheduler (the IJPL bridge).
+     *
+     * Standalone, presentation is a `derivedStateOf` over the focused bindings and the live `Modifier.provideData`
+     * values, so a control recomputes exactly when the snapshot state its `update` block reads changes — no manual
+     * invalidation, and only the affected controls recompute. The IJPL bridge sets this `false`: it wraps the platform
+     * `DataContext`, which cannot be observed as snapshot state, so it keeps sampling on the platform's update cadence.
+     */
+    @Suppress("MemberVisibilityCanBePrivate") public var reactivePresentation: Boolean = true
+
+    /**
+     * A snapshot-state generation counter the reactive presentation derivation reads to depend on structural changes it
+     * cannot otherwise observe: the focused binding set (registrations on focus), a binding's static parameters, and
+     * focus moving between provider subtrees. Datum changes are observed directly through the live context, so they do
+     * NOT bump this — that is what keeps a hot provided datum from recomputing unrelated controls. Bumped on the UI
+     * thread; ignored entirely when [reactivePresentation] is off (the bridge never reads it).
+     */
+    private val presentationRevision = mutableIntStateOf(0)
+
+    init {
+        // Every place that already invalidates the demand-driven scheduler (registration, binding-parameter changes,
+        // dispatch) is exactly where the reactive derivation's structural dependencies change too, so route the
+        // revision
+        // bump through the same signal instead of duplicating call sites. The bridge's off-thread invalidations are
+        // gated out inside the bump.
+        presentations.onInvalidated = ::bumpPresentationRevision
+    }
+
+    /**
+     * Bumps [presentationRevision] on the reactive path; a no-op for the bridge, keeping its off-thread invalidations
+     * clear of snapshot state.
+     */
+    internal fun bumpPresentationRevision() {
+        if (!reactivePresentation) return
+        presentationRevision.intValue++
+    }
 
     /**
      * Normal host action execution. The standalone default resolves the nearest focused enabled Jewel binding and emits
@@ -150,26 +194,75 @@ public class JewelShortcutHostState(
     public fun presentationFor(actionId: JewelActionId): ActionPresentation = samplePresentation(actionId)
 
     private fun samplePresentation(actionId: JewelActionId): ActionPresentation {
-        // Every branch below starts from the action's template presentation, so the icon, description and
-        // authored flags survive regardless of how the action resolved — the template is the shared base, and
-        // resolution only decides enablement and which overrides apply on top.
-        val definition = registry?.definition(actionId)
-        val template = definition?.action?.template
-
-        // A host-computed sample (the platform's update() in the bridge) replaces the template as the base:
-        // it is the same layer, only recomputed, so a binding override still applies on top of it.
-        val live = registry?.sampledPresentation(actionId)
-
+        // The scheduler path resolves through the engine, whose bindings evaluate their update block against the
+        // materialized context; the reactive path (reactivePresentationOf) resolves the same bindings against the live
+        // context. Both then hand off to the shared presentation builders so the two can never diverge on how a
+        // resolved override or a failure row is rendered.
         val binding = engine.resolveFocusedBinding(actionId)
-        if (binding != null) {
-            val base =
-                live?.copy(enabled = true, resolution = ActionResolution.Resolved)
-                    ?: template?.sampled(enabled = true, resolution = ActionResolution.Resolved)
-                    // No registry: the binding itself is the only source of authored text.
-                    ?: ActionPresentation(text = binding.origin, enabled = true, resolution = ActionResolution.Resolved)
-            return binding.presentationOverride.mergeOver(base)
+        return if (binding != null) {
+            resolvedPresentation(actionId, binding.origin, binding.presentationOverride)
+        } else {
+            unresolvedPresentation(actionId)
         }
+    }
 
+    /**
+     * The Compose-snapshot-reactive presentation for [actionId], the standalone counterpart of [samplePresentation].
+     * Evaluated inside a `derivedStateOf` (see [collectPresentationAsState]); its reads decide the recompute set:
+     * - [presentationRevision] establishes a dependency on the focused binding set and each binding's static
+     *   parameters, so a registration or focus change recomputes;
+     * - the [LiveActionContext] each candidate binding's `update` block reads reaches the snapshot state behind the
+     *   focused `Modifier.provideData` values per key, so only the controls whose read data changed recompute.
+     *
+     * It resolves only bindings for [actionId], innermost-first, evaluating each `update` block against the live
+     * context until one is enabled — the same nearest-enabled-wins / fall-through-outward contract
+     * [ShortcutDispatchEngine] uses, but evaluated where the derivation can track the reads.
+     */
+    internal fun reactivePresentationOf(actionId: JewelActionId): ActionPresentation {
+        // Read the revision first so the derivation depends on structural changes even before touching any binding.
+        @Suppress("UNUSED_EXPRESSION") presentationRevision.intValue
+        val root = rootNode
+        if (root != null) {
+            val liveContext = LiveActionContext(root)
+            // Innermost bindings come LAST in the snapshot, so reversed() is nearest-first.
+            for (node in root.bindingNodesSnapshot().asReversed()) {
+                if (node.action.id != actionId) continue
+                val evaluated = evaluateBindingUpdate(node, liveContext)
+                if (evaluated.enabled) {
+                    return resolvedPresentation(actionId, node.action.title, evaluated.override)
+                }
+                // A disabled binding falls through outward unless it blocks; a blocking one ends the search here.
+                if (node.blocksOuterBindings) break
+            }
+        }
+        return unresolvedPresentation(actionId)
+    }
+
+    /**
+     * Builds the presentation for a resolved binding: the action's live/template base with the binding's effective
+     * [override] merged on top. Shared by both the scheduler and reactive paths.
+     */
+    private fun resolvedPresentation(
+        actionId: JewelActionId,
+        origin: String,
+        override: ActionPresentationOverride,
+    ): ActionPresentation {
+        // The template is the shared base, so the icon, description and authored flags survive regardless of how the
+        // action resolved; a host-computed sample (the platform's update() in the bridge) replaces it when present.
+        val template = registry?.definition(actionId)?.action?.template
+        val live = registry?.sampledPresentation(actionId)
+        val base =
+            live?.copy(enabled = true, resolution = ActionResolution.Resolved)
+                ?: template?.sampled(enabled = true, resolution = ActionResolution.Resolved)
+                // No registry: the binding itself is the only source of authored text.
+                ?: ActionPresentation(text = origin, enabled = true, resolution = ActionResolution.Resolved)
+        return override.mergeOver(base)
+    }
+
+    /** Builds the failure/unfocused presentation (Unregistered or NoFocusedBinding). Shared by both paths. */
+    private fun unresolvedPresentation(actionId: JewelActionId): ActionPresentation {
+        val definition = registry?.definition(actionId)
+        val live = registry?.sampledPresentation(actionId)
         if (registry != null && definition == null) {
             if (reportedUnregistered.add(actionId)) {
                 logger.warn(
@@ -183,9 +276,8 @@ public class JewelShortcutHostState(
                 resolution = ActionResolution.Unregistered,
             )
         }
-
         return live?.copy(resolution = ActionResolution.NoFocusedBinding)
-            ?: template?.sampled(enabled = false, resolution = ActionResolution.NoFocusedBinding)
+            ?: definition?.action?.template?.sampled(enabled = false, resolution = ActionResolution.NoFocusedBinding)
             ?: ActionPresentation(
                 text = actionId.value,
                 enabled = false,
@@ -445,45 +537,53 @@ public class ShortcutResolverRootNode(public var state: JewelShortcutHostState) 
         // and both the standalone tree traversal and the bridge data-context lookup that back it cost something.
         val context = if (snapshot.any { it.update != null }) state.currentActionContext() else ActionContext.Empty
         return snapshot.map { node ->
-            val update = node.update
-            if (update == null) {
-                EngineBinding(
-                    actionId = node.action.id,
-                    enabled = node.enabled,
-                    blocksOuterBindings = node.blocksOuterBindings,
-                    origin = node.action.title,
-                    repeatPolicy = node.repeatPolicy,
-                    presentationOverride = node.presentationOverride,
-                    onInvoke = node.onInvoke,
-                )
-            } else {
-                // Evaluate the AnAction.update()-equivalent block against the context, seeded from the static
-                // binding config so a block need only change what depends on the context. Its result supersedes
-                // both the static enablement (which gates dispatch) and the presentation override (rendering).
-                val base = node.presentationOverride
-                val scope =
-                    ActionUpdateScope(
-                        context = context,
-                        enabled = node.enabled,
-                        visible = (base.visible as? PresentationValue.Set)?.value ?: true,
-                        selected = (base.selected as? PresentationValue.Set)?.value,
-                    )
-                scope.update()
-                EngineBinding(
-                    actionId = node.action.id,
-                    enabled = scope.enabled,
-                    blocksOuterBindings = node.blocksOuterBindings,
-                    origin = node.action.title,
-                    repeatPolicy = node.repeatPolicy,
-                    presentationOverride =
-                        base.copy(
-                            visible = PresentationValue.Set(scope.visible),
-                            selected = scope.selected?.let { PresentationValue.Set(it) } ?: base.selected,
-                        ),
-                    onInvoke = node.onInvoke,
-                )
-            }
+            // Evaluate the AnAction.update()-equivalent block against the imperative context (the same shared
+            // evaluation the reactive presentation runs against the live context), so dispatch enablement and
+            // reactive presentation can never diverge on what a block decides.
+            val evaluated = evaluateBindingUpdate(node, context)
+            EngineBinding(
+                actionId = node.action.id,
+                enabled = evaluated.enabled,
+                blocksOuterBindings = node.blocksOuterBindings,
+                origin = node.action.title,
+                repeatPolicy = node.repeatPolicy,
+                presentationOverride = evaluated.override,
+                onInvoke = node.onInvoke,
+            )
         }
+    }
+
+    /** The current focused-binding snapshot (outermost-first), for the reactive presentation resolve. */
+    internal fun bindingNodesSnapshot(): List<ShortcutBindingNode> = bindingSnapshot
+
+    /**
+     * The live value contributed for [name] by the focused `Modifier.provideData` nodes, resolved nearest-first with
+     * short-circuit: the innermost focused provider that supplies [name] wins (the same nearest-provider-wins
+     * precedence [collectActionContext] materializes), and the walk stops there so a control never subscribes to
+     * providers farther out than its resolver. Run inside the reactive presentation derivation, the provider lambdas'
+     * snapshot reads become that control's per-key dependencies.
+     *
+     * **Threading:** walks the Compose node tree, so it runs on the surface's UI thread, like dispatch.
+     */
+    internal fun liveDataFor(name: String): Any? {
+        val focused = ArrayList<DataProviderNode>()
+        @Suppress("DEPRECATION")
+        traverseDescendants(DataProviderNode) { node ->
+            // Filter by focus per node rather than skipping unfocused subtrees: a focused inner provider under an outer
+            // one that is momentarily not reporting focus (a transient during focus propagation, seen when this runs in
+            // a recomposition rather than the settled tree) must still be visited, or its datum would vanish for a
+            // frame.
+            if (node is DataProviderNode && node.hasFocus) focused.add(node)
+            TraversableNode.Companion.TraverseDescendantsAction.ContinueTraversal
+        }
+        // Pre-order collects outermost-first; walk reversed so the nearest provider that supplies the key wins and the
+        // search short-circuits before reaching providers farther out.
+        for (index in focused.indices.reversed()) {
+            val probe = SingleKeyDataProbe(name)
+            focused[index].dataProvider(probe)
+            if (probe.found) return probe.value
+        }
+        return null
     }
 
     internal fun engineClaims(): List<EngineClaim> =
@@ -533,6 +633,10 @@ public class ShortcutResolverRootNode(public var state: JewelShortcutHostState) 
         val hasFocus = focusState.hasFocus
         if (subtreeHadFocus && !hasFocus) state.reset()
         subtreeHadFocus = hasFocus
+        // Focus moving between provider subtrees changes which `provideData` values are live without any binding
+        // registering or deregistering (the bindings may sit on a shared ancestor). The reactive presentation cannot
+        // observe the tree walk, so signal it here; binding-driven focus changes already bump through registration.
+        state.bumpPresentationRevision()
     }
 
     override fun onAttach() {
@@ -576,6 +680,75 @@ private class RecordingDataProviderContext : DataProviderContext {
     override fun <TValue : Any> lazy(key: String, initializer: () -> TValue?) {
         values[key] = initializer()
     }
+}
+
+/**
+ * A [DataProviderContext] that captures only the value for a single [name], for the nearest-first short-circuit walk in
+ * [ShortcutResolverRootNode.liveDataFor]. Running the provider lambda still reads whatever snapshot state it touches
+ * (that is what establishes the reactive dependency); this only avoids materializing the keys the caller did not ask
+ * for. [found] distinguishes "provided null" from "not provided", so an explicit null value stops the walk.
+ */
+private class SingleKeyDataProbe(private val name: String) : DataProviderContext {
+    var found: Boolean = false
+        private set
+
+    var value: Any? = null
+        private set
+
+    override fun <TValue : Any> set(key: String, value: TValue?) {
+        if (key == name) {
+            found = true
+            this.value = value
+        }
+    }
+
+    override fun <TValue : Any> lazy(key: String, initializer: () -> TValue?) {
+        if (key == name) {
+            found = true
+            value = initializer()
+        }
+    }
+}
+
+/**
+ * The standalone reactive [ActionContext]: each `get` reads live through the focused `Modifier.provideData` values via
+ * [ShortcutResolverRootNode.liveDataFor], per key. Unlike [ActionContext.of], nothing is materialized up front — that
+ * is what lets a `derivedStateOf` evaluating an `update` block against this context establish a per-key dependency on
+ * the snapshot state behind the providers, rather than depending on the whole context at once.
+ */
+internal class LiveActionContext(private val root: ShortcutResolverRootNode) : ActionContext {
+    @Suppress("UNCHECKED_CAST") override fun <T> get(key: ActionContextKey<T>): T? = root.liveDataFor(key.name) as T?
+}
+
+/** The result of evaluating a binding's `update` block: the effective enablement and presentation override. */
+internal class EvaluatedBinding(val enabled: Boolean, val override: ActionPresentationOverride)
+
+/**
+ * Evaluates a binding's `update` block against [context], seeded from the binding's static configuration so a block
+ * need only change what depends on the context — the single evaluation shared by the imperative dispatch resolve
+ * ([JewelShortcutHostState.engineBindings]) and the reactive presentation resolve
+ * ([JewelShortcutHostState.reactivePresentationOf]). A binding with no block keeps its static enablement and override
+ * verbatim.
+ */
+internal fun evaluateBindingUpdate(node: ShortcutBindingNode, context: ActionContext): EvaluatedBinding {
+    val update = node.update ?: return EvaluatedBinding(node.enabled, node.presentationOverride)
+    val base = node.presentationOverride
+    val scope =
+        ActionUpdateScope(
+            context = context,
+            enabled = node.enabled,
+            visible = (base.visible as? PresentationValue.Set)?.value ?: true,
+            selected = (base.selected as? PresentationValue.Set)?.value,
+        )
+    scope.update()
+    return EvaluatedBinding(
+        enabled = scope.enabled,
+        override =
+            base.copy(
+                visible = PresentationValue.Set(scope.visible),
+                selected = scope.selected?.let { PresentationValue.Set(it) } ?: base.selected,
+            ),
+    )
 }
 
 private class ShortcutResolverRootElement(private val state: JewelShortcutHostState) :

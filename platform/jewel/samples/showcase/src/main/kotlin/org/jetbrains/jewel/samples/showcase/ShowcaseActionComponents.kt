@@ -44,6 +44,14 @@ public object ShowcaseActionComponents {
     public val HasSelection: ActionContextKey<Boolean> =
         ActionContextKey.create("org.jetbrains.jewel.showcase.hasSelection")
 
+    /**
+     * Whether the demo is "online". Contributed into the action context from a `Flow` collected with `collectAsState`,
+     * and read by [Sync]'s enablement — the async-source-into-context pattern: a value that is not itself Compose
+     * snapshot state (a connectivity flow, a websocket, a poll) enters the reactive presentation at the edge, and no
+     * manual presentation invalidation is ever needed.
+     */
+    public val IsOnline: ActionContextKey<Boolean> = ActionContextKey.create("org.jetbrains.jewel.showcase.isOnline")
+
     public val Save: JewelAction by lazy {
         JewelAction(
             JewelActionId("org.jetbrains.jewel.showcase.components.save"),
@@ -64,6 +72,19 @@ public object ShowcaseActionComponents {
             JewelActionId("org.jetbrains.jewel.showcase.components.delete"),
             "Delete",
             icon = actionIcon(AllIconsKeys.Actions.GC),
+        )
+    }
+
+    /**
+     * Its enablement is derived from [IsOnline], a datum sourced from a `Flow` rather than a `mutableStateOf`, to
+     * demonstrate feeding an asynchronous source into the reactive action context.
+     */
+    public val Sync: JewelAction by lazy {
+        JewelAction(
+            JewelActionId("org.jetbrains.jewel.showcase.components.sync"),
+            "Sync",
+            icon = actionIcon(AllIconsKeys.Actions.Refresh),
+            description = "Sync with the server (enabled only while online)",
         )
     }
 
@@ -175,6 +196,7 @@ public object ShowcaseActionComponents {
         return listOf(
             JewelActionDefinition(Save, listOf(JewelKeySequence(primary(Key.S)))),
             JewelActionDefinition(Refresh, listOf(JewelKeySequence(primary(Key.R)))),
+            JewelActionDefinition(Sync, listOf(JewelKeySequence(primary(Key.Y)))),
             JewelActionDefinition(Delete, listOf(JewelKeySequence(JewelKeyStroke(Key.Delete)))),
             JewelActionDefinition(Archive, emptyList()),
             JewelActionDefinition(Unavailable, emptyList()),

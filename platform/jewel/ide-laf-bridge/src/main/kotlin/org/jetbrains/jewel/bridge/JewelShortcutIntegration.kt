@@ -56,6 +56,11 @@ internal fun ShortcutHostBridge(wrapper: JewelComposePanelWrapper, content: @Com
         // Idempotent and non-clobbering; running it per panel keeps the bridge free of startup hooks
         // while guaranteeing the standard edit actions route to the platform before any invocation.
         JewelActionMappings.installStandardMappings()
+        // The bridge samples presentation on the platform's action-update cadence (the TimerListener below), not from
+        // Compose snapshot state: its context wraps the platform DataContext, which cannot be observed reactively. So
+        // it
+        // opts out of the standalone snapshot-reactive derivation and keeps the demand-driven scheduler.
+        state.reactivePresentation = false
         // Route programmatic invocations (ActionButton and friends) through the platform action system,
         // so ActionManager update, enablement, listeners, and dumb-mode handling stay authoritative.
         state.invoker = JewelBridgeActionInvoker(wrapper)

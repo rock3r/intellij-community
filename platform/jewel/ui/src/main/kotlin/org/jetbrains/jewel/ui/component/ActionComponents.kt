@@ -122,7 +122,7 @@ public fun ActionButton(
         }
         return
     }
-    val presentation by action.collectPresentationAsState(host.presentations)
+    val presentation by action.collectPresentationAsState(host)
     if (respectVisibility && !presentation.visible) return
 
     val showsText = presentation.showsTextInToolbar
@@ -214,8 +214,7 @@ public fun ToggleActionButton(
     }
     val host = LocalJewelShortcutHost.current
     val presentation =
-        if (host == null) ActionPresentation.hostUnavailable(action)
-        else action.collectPresentationAsState(host.presentations).value
+        if (host == null) ActionPresentation.hostUnavailable(action) else action.collectPresentationAsState(host).value
     if (respectVisibility && !presentation.visible) return
 
     val showsText = presentation.showsTextInToolbar

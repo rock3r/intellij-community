@@ -96,7 +96,7 @@ private fun collectLeafPresentations(
     val leafActions = remember(entries) { flattenLeafActions(entries, context) }
     val result = mutableMapOf<JewelActionId, ActionPresentation>()
     for (action in leafActions) {
-        val presentation by action.collectPresentationAsState(host.presentations)
+        val presentation by action.collectPresentationAsState(host)
         result[action.id] = presentation
     }
     return result
@@ -209,7 +209,7 @@ public fun SplitActionButton(
     val host = LocalJewelShortcutHost.current
     val presentation =
         if (host == null) ActionPresentation.hostUnavailable(primary)
-        else primary.collectPresentationAsState(host.presentations).value
+        else primary.collectPresentationAsState(host).value
     if (!presentation.visible) return
 
     var expanded by remember { mutableStateOf(false) }
