@@ -24,6 +24,7 @@ import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.test.withKeyDown
 import kotlinx.coroutines.runBlocking
 import org.jetbrains.jewel.foundation.JewelFlags
+import org.jetbrains.jewel.foundation.actionSystem.provideData
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertThrows
@@ -298,5 +299,46 @@ internal class ShortcutUiTest {
         rule.runOnIdle { enabled.value = false }
         rule.waitForIdle()
         rule.runOnIdle { assertEquals(ActionResolution.NoFocusedBinding, sampled.value.resolution) }
+    }
+
+    @Test
+    fun `binding enablement derives from the action context, gating both dispatch and presentation`() {
+        val hasSelection = mutableStateOf(true)
+        val selectionKey = ActionContextKey.create<Boolean>("test.ui.hasSelection")
+        rule.setContent {
+            Box(host.resolverRootModifier) {
+                Box(
+                    // The datum the update reads is contributed by provideData on the same focused node; the update
+                    // block derives enablement from it rather than fixing it on the binding.
+                    Modifier.testTag("ctx-bound")
+                        .provideData { set(selectionKey.name, hasSelection.value) }
+                        .shortcut(selectAll, update = { enabled = context[selectionKey] == true }) {
+                            bindingInvocations++
+                        }
+                        .focusRequester(boundFocus)
+                        .focusable()
+                )
+            }
+        }
+        focus(boundFocus)
+        val sampled = host.presentations.acquire(selectAll.id)
+        rule.runOnIdle { assertEquals(ActionResolution.Resolved, sampled.value.resolution) }
+
+        rule.onNodeWithTag("ctx-bound").performKeyInput { withKeyDown(Key.CtrlLeft) { pressKey(Key.S) } }
+        rule.waitForIdle()
+        assertEquals("enabled by context, so it dispatches", 1, bindingInvocations)
+
+        // Flip the provided datum. Sampling is demand-driven, so nudge it as an app would when its data changes;
+        // the provider reads the live value, so no recomposition of the binding is needed.
+        rule.runOnIdle {
+            hasSelection.value = false
+            host.presentations.invalidate()
+        }
+        rule.waitForIdle()
+        rule.runOnIdle { assertEquals(ActionResolution.NoFocusedBinding, sampled.value.resolution) }
+
+        rule.onNodeWithTag("ctx-bound").performKeyInput { withKeyDown(Key.CtrlLeft) { pressKey(Key.S) } }
+        rule.waitForIdle()
+        assertEquals("disabled by context, so the key falls through", 1, bindingInvocations)
     }
 }

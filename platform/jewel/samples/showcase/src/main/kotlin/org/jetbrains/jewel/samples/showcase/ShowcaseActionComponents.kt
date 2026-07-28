@@ -5,6 +5,7 @@ package org.jetbrains.jewel.samples.showcase
 import androidx.compose.ui.input.key.Key
 import com.intellij.platform.icons.Icon
 import com.intellij.platform.icons.icon
+import org.jetbrains.jewel.foundation.shortcut.ActionContextKey
 import org.jetbrains.jewel.foundation.shortcut.ActionGroupPresentation
 import org.jetbrains.jewel.foundation.shortcut.ActionPropertyNames
 import org.jetbrains.jewel.foundation.shortcut.ActionTemplatePresentation
@@ -34,6 +35,14 @@ public object ShowcaseActionComponents {
      * which the theme installs, so building them at object-initialisation time would run before there is one.
      */
     private fun actionIcon(key: org.jetbrains.jewel.ui.icon.IconKey): Icon = icon { iconKey(key) }
+
+    /**
+     * Whether the demo surface currently has a selection. Provided into the action context with `Modifier.provideData`
+     * and read by [Delete]'s context-driven enablement, so the button (and its shortcut) enable exactly when a real
+     * datum says they should — the same shape a platform action reads from its `DataContext`.
+     */
+    public val HasSelection: ActionContextKey<Boolean> =
+        ActionContextKey.create("org.jetbrains.jewel.showcase.hasSelection")
 
     public val Save: JewelAction by lazy {
         JewelAction(

@@ -30,6 +30,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
+import org.jetbrains.jewel.foundation.actionSystem.provideData
 import org.jetbrains.jewel.foundation.shortcut.ActionInvocation
 import org.jetbrains.jewel.foundation.shortcut.ActionPresentationOverride
 import org.jetbrains.jewel.foundation.shortcut.LocalJewelShortcutHost
@@ -39,6 +40,7 @@ import org.jetbrains.jewel.samples.showcase.LocalShowcaseActionRegistry
 import org.jetbrains.jewel.samples.showcase.LocalShowcaseKeymap
 import org.jetbrains.jewel.samples.showcase.ShowcaseActionComponents.Archive
 import org.jetbrains.jewel.samples.showcase.ShowcaseActionComponents.Delete
+import org.jetbrains.jewel.samples.showcase.ShowcaseActionComponents.HasSelection
 import org.jetbrains.jewel.samples.showcase.ShowcaseActionComponents.MainGroup
 import org.jetbrains.jewel.samples.showcase.ShowcaseActionComponents.NoIcon
 import org.jetbrains.jewel.samples.showcase.ShowcaseActionComponents.Refresh
@@ -103,11 +105,15 @@ public fun ActionComponentsView(modifier: Modifier = Modifier) {
     var archives by remember { mutableIntStateOf(0) }
     var wordWrap by remember { mutableStateOf(false) }
     var showWhitespace by remember { mutableStateOf(false) }
-    var deleteEnabled by remember { mutableStateOf(true) }
+    var hasSelection by remember { mutableStateOf(true) }
     var showKeybindings by remember { mutableStateOf(false) }
 
     val surfaceFocus = remember { FocusRequester() }
     LaunchedEffect(Unit) { surfaceFocus.requestFocus() }
+    // Presentation sampling is demand-driven, so when a context datum the actions read changes the host must be told
+    // to re-sample. In the IDE the platform's action-update timer does this automatically; a standalone app invalidates
+    // on its own signals — here, whenever the provided selection state flips.
+    LaunchedEffect(hasSelection) { host.presentations.invalidate() }
 
     Row(
         modifier
@@ -117,7 +123,10 @@ public fun ActionComponentsView(modifier: Modifier = Modifier) {
             .shortcut(Refresh) { refreshes++ }
             .shortcut(NoIcon) { noIcons++ }
             .shortcut(TextAction) { commits++ }
-            .shortcut(Delete, enabled = deleteEnabled) { deletes++ }
+            // Delete's enablement is derived from the action context, not fixed on the binding: it enables exactly when
+            // a `HasSelection` datum is present and true — the standalone shape of an AnAction.update() reading its
+            // DataContext. The datum is contributed by `provideData` below.
+            .shortcut(Delete, update = { enabled = context[HasSelection] == true }) { deletes++ }
             .shortcut(Archive, presentation = ActionPresentationOverride(visible = PresentationValue.Set(false))) {
                 archives++
             }
@@ -130,6 +139,10 @@ public fun ActionComponentsView(modifier: Modifier = Modifier) {
             ) {
                 showWhitespace = !showWhitespace
             }
+            // Contribute the selection state into the action context. Placed before `focusable()` so the provider
+            // observes the surface's focus, exactly like the shortcut bindings above; the IJPL bridge sinks the very
+            // same data into the platform data context, so this one line works identically in the IDE.
+            .provideData { set(HasSelection.name, hasSelection) }
             .focusRequester(surfaceFocus)
             // A plain focusable is not focused by a pointer click, and the initial request below only fires once; wire
             // a press that no child consumed back to the surface so a click on empty space re-focuses it (otherwise the
@@ -204,9 +217,11 @@ public fun ActionComponentsView(modifier: Modifier = Modifier) {
                                     "unknown-action placeholder."
                             )
                             CheckboxRow(
-                                text = "Delete binding enabled (uncheck: the button disables with the shortcut)",
-                                checked = deleteEnabled,
-                                onCheckedChange = { deleteEnabled = it },
+                                text =
+                                    "Has selection (Delete reads this from the action context; uncheck and the " +
+                                        "button and its shortcut both disable)",
+                                checked = hasSelection,
+                                onCheckedChange = { hasSelection = it },
                                 modifier = Modifier.testTag("ActionComponents.DeleteToggle"),
                             )
                             FlowRow(

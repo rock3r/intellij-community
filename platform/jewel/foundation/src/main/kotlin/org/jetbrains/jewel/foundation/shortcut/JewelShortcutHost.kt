@@ -438,18 +438,53 @@ public class ShortcutResolverRootNode(public var state: JewelShortcutHostState) 
     private fun <T : ShortcutRegistrarNode> sortedSnapshot(nodes: List<T>): List<T> =
         nodes.sortedBy(ShortcutRegistrarNode::nestingDepth)
 
-    internal fun engineBindings(): List<EngineBinding> =
-        bindingSnapshot.map { node ->
-            EngineBinding(
-                actionId = node.action.id,
-                enabled = node.enabled,
-                blocksOuterBindings = node.blocksOuterBindings,
-                origin = node.action.title,
-                repeatPolicy = node.repeatPolicy,
-                presentationOverride = node.presentationOverride,
-                onInvoke = node.onInvoke,
-            )
+    internal fun engineBindings(): List<EngineBinding> {
+        val snapshot = bindingSnapshot
+        // The context is needed only by bindings that derive their state from it, so build it at most once, and
+        // never when no binding has an update block: this runs on every dispatch and every presentation sample,
+        // and both the standalone tree traversal and the bridge data-context lookup that back it cost something.
+        val context = if (snapshot.any { it.update != null }) state.currentActionContext() else ActionContext.Empty
+        return snapshot.map { node ->
+            val update = node.update
+            if (update == null) {
+                EngineBinding(
+                    actionId = node.action.id,
+                    enabled = node.enabled,
+                    blocksOuterBindings = node.blocksOuterBindings,
+                    origin = node.action.title,
+                    repeatPolicy = node.repeatPolicy,
+                    presentationOverride = node.presentationOverride,
+                    onInvoke = node.onInvoke,
+                )
+            } else {
+                // Evaluate the AnAction.update()-equivalent block against the context, seeded from the static
+                // binding config so a block need only change what depends on the context. Its result supersedes
+                // both the static enablement (which gates dispatch) and the presentation override (rendering).
+                val base = node.presentationOverride
+                val scope =
+                    ActionUpdateScope(
+                        context = context,
+                        enabled = node.enabled,
+                        visible = (base.visible as? PresentationValue.Set)?.value ?: true,
+                        selected = (base.selected as? PresentationValue.Set)?.value,
+                    )
+                scope.update()
+                EngineBinding(
+                    actionId = node.action.id,
+                    enabled = scope.enabled,
+                    blocksOuterBindings = node.blocksOuterBindings,
+                    origin = node.action.title,
+                    repeatPolicy = node.repeatPolicy,
+                    presentationOverride =
+                        base.copy(
+                            visible = PresentationValue.Set(scope.visible),
+                            selected = scope.selected?.let { PresentationValue.Set(it) } ?: base.selected,
+                        ),
+                    onInvoke = node.onInvoke,
+                )
+            }
         }
+    }
 
     internal fun engineClaims(): List<EngineClaim> =
         claimSnapshot.map { node ->

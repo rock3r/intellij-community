@@ -21,12 +21,19 @@ import org.jetbrains.jewel.foundation.InternalJewelApi
  * subtree has focus; the nearest focused enabled binding for an action wins, disabled bindings fall through outward,
  * and `blocksOuterBindings = true` stops that fall-through.
  *
+ * Pass [update] to derive the binding's state from the focused [ActionContext] instead of fixing it up front — the
+ * standalone counterpart of an IJPL `AnAction.update()`. The block runs each time dispatch resolves or a presentation
+ * is sampled, seeded from [enabled]/[presentation], and its result supersedes them: a context-disabled binding falls
+ * through outward exactly as a statically disabled one does, and a context-hidden binding stops rendering while staying
+ * keymap-invocable. Without it the binding keeps the static [enabled] and [presentation].
+ *
  * Like `Modifier.provideData`, the node observes focus of nodes attached AFTER it in the modifier chain (and of
  * descendants), so it must come before `focusable()` in the chain.
  *
- * **Threading:** [onInvoke] is called synchronously on the surface's UI thread (the AWT event dispatch thread in
- * production) while a key event is being processed. Keep it fast and non-blocking — launch a coroutine for real work; a
- * slow handler delays every subsequent keystroke.
+ * **Threading:** [onInvoke] and [update] are called synchronously on the surface's UI thread (the AWT event dispatch
+ * thread in production) while a key event is being processed or a presentation sampled. Keep them fast and non-blocking
+ * — launch a coroutine for real work; a slow handler delays every subsequent keystroke, and [update] must be a pure
+ * function of the context.
  */
 @ApiStatus.Experimental
 @ExperimentalJewelApi
@@ -36,9 +43,10 @@ public fun Modifier.shortcut(
     blocksOuterBindings: Boolean = false,
     repeatPolicy: ShortcutRepeatPolicy = ShortcutRepeatPolicy.RepeatWhileHeld,
     presentation: ActionPresentationOverride = ActionPresentationOverride.Empty,
+    update: (ActionUpdateScope.() -> Unit)? = null,
     onInvoke: () -> Unit,
 ): Modifier =
-    this then ShortcutBindingElement(action, enabled, blocksOuterBindings, repeatPolicy, presentation, onInvoke)
+    this then ShortcutBindingElement(action, enabled, blocksOuterBindings, repeatPolicy, presentation, update, onInvoke)
 
 /**
  * Claims a one-stroke physical shortcut before host keymap lookup while this node's subtree has focus. The deliberate,
@@ -151,6 +159,7 @@ public class ShortcutBindingNode(
     public var blocksOuterBindings: Boolean,
     public var repeatPolicy: ShortcutRepeatPolicy,
     public var presentationOverride: ActionPresentationOverride,
+    public var update: (ActionUpdateScope.() -> Unit)?,
     public var onInvoke: () -> Unit,
 ) : ShortcutRegistrarNode(), SemanticsModifierNode {
     override fun SemanticsPropertyReceiver.applySemantics() {
@@ -176,10 +185,11 @@ private class ShortcutBindingElement(
     private val blocksOuterBindings: Boolean,
     private val repeatPolicy: ShortcutRepeatPolicy,
     private val presentationOverride: ActionPresentationOverride,
+    private val update: (ActionUpdateScope.() -> Unit)?,
     private val onInvoke: () -> Unit,
 ) : ModifierNodeElement<ShortcutBindingNode>() {
     override fun create() =
-        ShortcutBindingNode(action, enabled, blocksOuterBindings, repeatPolicy, presentationOverride, onInvoke)
+        ShortcutBindingNode(action, enabled, blocksOuterBindings, repeatPolicy, presentationOverride, update, onInvoke)
 
     override fun update(node: ShortcutBindingNode) {
         val actionChanged = node.action != action
@@ -188,10 +198,11 @@ private class ShortcutBindingElement(
         node.blocksOuterBindings = blocksOuterBindings
         node.repeatPolicy = repeatPolicy
         node.presentationOverride = presentationOverride
+        node.update = update
         node.onInvoke = onInvoke
         if (actionChanged) node.onActionChanged()
-        // enabled / blocksOuterBindings / presentation feed the sampled presentation of every control bound to
-        // this action, and none of them change the focused set — invalidate explicitly.
+        // enabled / blocksOuterBindings / presentation / update feed the sampled presentation of every control
+        // bound to this action, and none of them change the focused set — invalidate explicitly.
         node.onBindingChanged()
     }
 
@@ -207,6 +218,7 @@ private class ShortcutBindingElement(
             other.enabled == enabled &&
             other.blocksOuterBindings == blocksOuterBindings &&
             other.presentationOverride == presentationOverride &&
+            other.update === update &&
             other.onInvoke === onInvoke
 
     override fun hashCode(): Int = 31 * action.hashCode() + enabled.hashCode()

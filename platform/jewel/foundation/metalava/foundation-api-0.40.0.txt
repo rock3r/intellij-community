@@ -1110,6 +1110,20 @@ package org.jetbrains.jewel.foundation.shortcut {
     field public static final org.jetbrains.jewel.foundation.shortcut.ActionTrigger.Programmatic INSTANCE;
   }
 
+  @SuppressCompatibility @org.jetbrains.annotations.ApiStatus.Experimental @org.jetbrains.jewel.foundation.ExperimentalJewelApi public final class ActionUpdateScope {
+    method public org.jetbrains.jewel.foundation.shortcut.ActionContext getContext();
+    method public boolean getEnabled();
+    method public Boolean? getSelected();
+    method public boolean getVisible();
+    method public void setEnabled(boolean);
+    method public void setSelected(Boolean?);
+    method public void setVisible(boolean);
+    property public org.jetbrains.jewel.foundation.shortcut.ActionContext context;
+    property public boolean enabled;
+    property public Boolean? selected;
+    property public boolean visible;
+  }
+
   @SuppressCompatibility @org.jetbrains.annotations.ApiStatus.Experimental @org.jetbrains.jewel.foundation.ExperimentalJewelApi public final class DefaultJewelActionRegistry implements org.jetbrains.jewel.foundation.shortcut.JewelActionRegistry {
     ctor public DefaultJewelActionRegistry();
     method public org.jetbrains.jewel.foundation.shortcut.JewelActionDefinition? definition(String id);
@@ -1476,7 +1490,7 @@ package org.jetbrains.jewel.foundation.shortcut {
   public final class ShortcutModifiersKt {
     method @SuppressCompatibility @org.jetbrains.annotations.ApiStatus.Experimental @org.jetbrains.jewel.foundation.ExperimentalJewelApi public static androidx.compose.ui.Modifier claimKeyEvent(androidx.compose.ui.Modifier, kotlin.jvm.functions.Function1<? super androidx.compose.ui.input.key.KeyEvent,java.lang.Boolean> matcher, optional boolean enabled, kotlin.jvm.functions.Function1<? super androidx.compose.ui.input.key.KeyEvent,kotlin.Unit> onKeyEvent);
     method @SuppressCompatibility @org.jetbrains.annotations.ApiStatus.Experimental @org.jetbrains.jewel.foundation.ExperimentalJewelApi public static androidx.compose.ui.Modifier claimShortcut(androidx.compose.ui.Modifier, org.jetbrains.jewel.foundation.shortcut.JewelKeySequence sequence, optional boolean enabled, optional boolean blocksOuterClaims, optional org.jetbrains.jewel.foundation.shortcut.ShortcutRepeatPolicy repeatPolicy, kotlin.jvm.functions.Function0<kotlin.Unit> onInvoke);
-    method @SuppressCompatibility @org.jetbrains.annotations.ApiStatus.Experimental @org.jetbrains.jewel.foundation.ExperimentalJewelApi public static androidx.compose.ui.Modifier shortcut(androidx.compose.ui.Modifier, org.jetbrains.jewel.foundation.shortcut.JewelAction action, optional boolean enabled, optional boolean blocksOuterBindings, optional org.jetbrains.jewel.foundation.shortcut.ShortcutRepeatPolicy repeatPolicy, optional org.jetbrains.jewel.foundation.shortcut.ActionPresentationOverride presentation, kotlin.jvm.functions.Function0<kotlin.Unit> onInvoke);
+    method @SuppressCompatibility @org.jetbrains.annotations.ApiStatus.Experimental @org.jetbrains.jewel.foundation.ExperimentalJewelApi public static androidx.compose.ui.Modifier shortcut(androidx.compose.ui.Modifier, org.jetbrains.jewel.foundation.shortcut.JewelAction action, optional boolean enabled, optional boolean blocksOuterBindings, optional org.jetbrains.jewel.foundation.shortcut.ShortcutRepeatPolicy repeatPolicy, optional org.jetbrains.jewel.foundation.shortcut.ActionPresentationOverride presentation, optional kotlin.jvm.functions.Function1<? super org.jetbrains.jewel.foundation.shortcut.ActionUpdateScope,kotlin.Unit>? update, kotlin.jvm.functions.Function0<kotlin.Unit> onInvoke);
   }
 
   @SuppressCompatibility @org.jetbrains.annotations.ApiStatus.Experimental @org.jetbrains.jewel.foundation.ExperimentalJewelApi public enum ShortcutRepeatPolicy {
