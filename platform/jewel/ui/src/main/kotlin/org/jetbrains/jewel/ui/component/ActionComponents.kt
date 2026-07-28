@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import com.intellij.platform.icons.Icon as IconDescriptor
 import org.jetbrains.annotations.ApiStatus
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
+import org.jetbrains.jewel.foundation.shortcut.ActionContext
 import org.jetbrains.jewel.foundation.shortcut.ActionPresentation
 import org.jetbrains.jewel.foundation.shortcut.ActionTrigger
 import org.jetbrains.jewel.foundation.shortcut.JewelAction
@@ -249,7 +250,10 @@ public fun ActionToolbar(
     modifier: Modifier = Modifier,
     style: IconButtonStyle = JewelTheme.iconButtonStyle,
 ) {
-    val items = remember(group) { flattenToolbarEntries(group) }
+    // The group expands against the focused surface's context, exactly as the leaf controls resolve their presentation
+    // against it; a static group ignores the context, so this is a no-op for the common case.
+    val context = LocalJewelShortcutHost.current?.currentActionContext() ?: ActionContext.Empty
+    val items = flattenToolbarEntries(group, context)
     Row(
         modifier = modifier,
         verticalAlignment = Alignment.CenterVertically,
@@ -260,8 +264,11 @@ public fun ActionToolbar(
 }
 
 /** Pre-expands inline subgroups into a flat list of item composables the toolbar row emits in order. */
-private fun flattenToolbarEntries(group: JewelActionGroup): List<@Composable (IconButtonStyle) -> Unit> = buildList {
-    for (entry in group.children()) {
+private fun flattenToolbarEntries(
+    group: JewelActionGroup,
+    context: ActionContext,
+): List<@Composable (IconButtonStyle) -> Unit> = buildList {
+    for (entry in group.children(context)) {
         when (entry) {
             is JewelMenuEntry.Action ->
                 if (entry.action.kind == JewelActionKind.Toggle) {
@@ -276,7 +283,7 @@ private fun flattenToolbarEntries(group: JewelActionGroup): List<@Composable (Ic
                     if (entry.group.presentation.popup) {
                         add { style -> ActionGroupButton(entry.group, style = style) }
                     } else {
-                        addAll(flattenToolbarEntries(entry.group))
+                        addAll(flattenToolbarEntries(entry.group, context))
                     }
                 }
         }

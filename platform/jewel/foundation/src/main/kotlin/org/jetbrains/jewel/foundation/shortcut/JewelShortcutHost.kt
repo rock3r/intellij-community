@@ -12,12 +12,15 @@ import androidx.compose.ui.input.key.KeyInputModifierNode
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.node.ModifierNodeElement
 import androidx.compose.ui.node.TraversableNode
+import androidx.compose.ui.node.traverseDescendants
 import androidx.compose.ui.platform.InspectorInfo
 import java.util.concurrent.ConcurrentHashMap
 import org.jetbrains.annotations.ApiStatus
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import org.jetbrains.jewel.foundation.InternalJewelApi
 import org.jetbrains.jewel.foundation.JewelFlags
+import org.jetbrains.jewel.foundation.actionSystem.DataProviderContext
+import org.jetbrains.jewel.foundation.actionSystem.DataProviderNode
 import org.jetbrains.jewel.foundation.util.myLogger
 
 /**
@@ -114,6 +117,24 @@ public class JewelShortcutHostState(
 
     /** The active keymap's shortcuts for [actionId]; empty in hosts whose keymap lives elsewhere (bridge). */
     public fun shortcutsFor(actionId: JewelActionId): List<JewelKeySequence> = keymapProvider().shortcutsFor(actionId)
+
+    /**
+     * Produces the [ActionContext] actions read for enablement and dynamic content. The standalone default collects the
+     * focused surface's `Modifier.provideData` values (the same providers the IJPL bridge sinks into the platform data
+     * context); the bridge replaces this to wrap the platform `DataContext` directly, so the whole IDE's data —
+     * project, editor, selection — is visible with the platform's nearest-provider-wins precedence.
+     *
+     * Reassign to change the backing (the bridge does, once per panel). Evaluated on demand: keep it cheap.
+     */
+    public var contextProvider: () -> ActionContext = { rootNode?.collectActionContext() ?: ActionContext.Empty }
+
+    /**
+     * The current [ActionContext] for this host — a stable-for-the-moment snapshot of the data actions resolve against.
+     *
+     * **Threading:** the standalone backing walks the focused Compose tree, so call it on the surface's UI thread; the
+     * bridge backing is safe wherever the platform allows its data context to be read.
+     */
+    public fun currentActionContext(): ActionContext = contextProvider()
 
     /**
      * The action's current presentation for this host: the failure states (Unregistered when a [registry] is installed
@@ -446,6 +467,30 @@ public class ShortcutResolverRootNode(public var state: JewelShortcutHostState) 
         rawClaimSnapshot.lastOrNull { it.enabled && it.matcher(event) }
 
     /**
+     * Collects the focused subtree's `Modifier.provideData` values into an [ActionContext], generalizing the same
+     * focused-provider traversal the IJPL bridge feeds into `UiDataProvider.uiDataSnapshot`: it visits provider nodes
+     * pre-order, skips subtrees that do not have focus, and lets a nearer (later-visited, inner) provider overwrite an
+     * outer one for the same key — the standalone reading of the platform's nearest-provider-wins precedence.
+     *
+     * **Threading:** walks the Compose node tree, so it must run on the surface's UI thread, like dispatch.
+     */
+    internal fun collectActionContext(): ActionContext {
+        val recording = RecordingDataProviderContext()
+        @Suppress("DEPRECATION")
+        traverseDescendants(DataProviderNode) { node ->
+            if (node is DataProviderNode) {
+                if (!node.hasFocus) {
+                    return@traverseDescendants TraversableNode.Companion.TraverseDescendantsAction
+                        .SkipSubtreeAndContinueTraversal
+                }
+                node.dataProvider(recording)
+            }
+            TraversableNode.Companion.TraverseDescendantsAction.ContinueTraversal
+        }
+        return ActionContext.of(recording.values)
+    }
+
+    /**
      * The host-state contract's focus-loss reset: an armed chord or pending typed suppression must not survive focus
      * leaving the surface, or returning focus would encounter stale pending state.
      */
@@ -479,6 +524,23 @@ public class ShortcutResolverRootNode(public var state: JewelShortcutHostState) 
     override fun onKeyEvent(event: KeyEvent): Boolean = false
 
     public companion object TraverseKey
+}
+
+/**
+ * A [DataProviderContext] that records provided values into [values] instead of sinking them into a platform data
+ * context. Lazy values are resolved eagerly: the collected context is a point-in-time snapshot, so there is nothing to
+ * defer. Later writes win, so an inner focused provider overrides an outer one for the same key.
+ */
+private class RecordingDataProviderContext : DataProviderContext {
+    val values: MutableMap<String, Any?> = LinkedHashMap()
+
+    override fun <TValue : Any> set(key: String, value: TValue?) {
+        values[key] = value
+    }
+
+    override fun <TValue : Any> lazy(key: String, initializer: () -> TValue?) {
+        values[key] = initializer()
+    }
 }
 
 private class ShortcutResolverRootElement(private val state: JewelShortcutHostState) :

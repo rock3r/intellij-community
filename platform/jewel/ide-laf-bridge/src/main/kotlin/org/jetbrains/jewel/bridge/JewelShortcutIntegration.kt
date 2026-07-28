@@ -6,6 +6,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
 import com.intellij.ide.ActivityTracker
+import com.intellij.ide.DataManager
 import com.intellij.openapi.actionSystem.ActionManager
 import com.intellij.openapi.actionSystem.TimerListener
 import com.intellij.openapi.application.ModalityState
@@ -13,6 +14,7 @@ import java.awt.KeyEventDispatcher
 import java.awt.KeyboardFocusManager
 import java.awt.event.KeyEvent as AwtKeyEvent
 import javax.swing.SwingUtilities
+import org.jetbrains.jewel.bridge.actionSystem.IjActionContext
 import org.jetbrains.jewel.bridge.actionSystem.JewelActionMappings
 import org.jetbrains.jewel.bridge.actionSystem.JewelBridgeActionInvoker
 import org.jetbrains.jewel.bridge.actionSystem.JewelBridgeActionRegistry
@@ -57,6 +59,10 @@ internal fun ShortcutHostBridge(wrapper: JewelComposePanelWrapper, content: @Com
         // Route programmatic invocations (ActionButton and friends) through the platform action system,
         // so ActionManager update, enablement, listeners, and dumb-mode handling stay authoritative.
         state.invoker = JewelBridgeActionInvoker(wrapper)
+        // Read enablement and dynamic content from the platform data context of the very panel the actions run
+        // against — the same context tryToExecute and the registry's update() derive — so a Jewel control sees the
+        // whole IDE's data (project, editor, selection) with the platform's nearest-provider-wins precedence.
+        state.contextProvider = { IjActionContext(DataManager.getInstance().getDataContext(wrapper)) }
 
         wrapper.shortcutHostState = state
         wrapper.shortcutClaimEvaluator = { awtEvent ->

@@ -5,6 +5,7 @@ import androidx.compose.ui.input.key.Key
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -153,9 +154,52 @@ internal class ActionModelTest {
                     ),
                 ),
             )
-        val children = group.children()
+        val children = group.children(ActionContext.Empty)
         assertEquals(3, children.size)
         assertTrue(children[1] is JewelMenuEntry.Separator)
         assertTrue((children[2] as JewelMenuEntry.Group).group.presentation.popup)
+    }
+
+    @Test
+    fun `action context resolves values by key name and returns null for absent keys`() {
+        val selection = ActionContextKey.create<Int>("test.selectionSize")
+        val label = ActionContextKey.create<String>("test.label")
+        val context = ActionContext.of(mapOf(selection.name to 3))
+
+        assertEquals(3, context[selection])
+        assertNull(context[label])
+        assertNull(ActionContext.Empty[selection])
+    }
+
+    @Test
+    fun `action context keys are interned and equal by name`() {
+        assertSame(ActionContextKey.create<String>("test.k"), ActionContextKey.create<String>("test.k"))
+        assertEquals(ActionContextKey.create<String>("test.k"), ActionContextKey.create<Int>("test.k"))
+        assertEquals("test.k", ActionContextKey.create<String>("test.k").name)
+    }
+
+    @Test
+    fun `action context of identical snapshots compares equal so recollection is stable`() {
+        val key = ActionContextKey.create<Boolean>("test.flag")
+        assertEquals(ActionContext.of(mapOf(key.name to true)), ActionContext.of(mapOf(key.name to true)))
+        // An empty snapshot collapses to the shared Empty instance.
+        assertSame(ActionContext.Empty, ActionContext.of(emptyMap()))
+    }
+
+    @Test
+    fun `dynamic group expands against the action context`() {
+        val visible = ActionContextKey.create<Boolean>("test.showAdvanced")
+        val advanced = JewelMenuEntry.Action(JewelActions.Copy)
+        val group =
+            object : JewelActionGroup {
+                override val id = JewelActionGroupId("dyn")
+                override val presentation = ActionGroupPresentation("Dynamic")
+
+                override fun children(context: ActionContext): List<JewelMenuEntry> =
+                    if (context[visible] == true) listOf(advanced) else emptyList()
+            }
+
+        assertTrue(group.children(ActionContext.Empty).isEmpty())
+        assertEquals(listOf(advanced), group.children(ActionContext.of(mapOf(visible.name to true))))
     }
 }

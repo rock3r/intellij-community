@@ -872,6 +872,27 @@ package org.jetbrains.jewel.foundation.search {
 
 package org.jetbrains.jewel.foundation.shortcut {
 
+  @SuppressCompatibility @org.jetbrains.annotations.ApiStatus.Experimental @org.jetbrains.jewel.foundation.ExperimentalJewelApi public interface ActionContext {
+    method public operator <T> T? get(org.jetbrains.jewel.foundation.shortcut.ActionContextKey<T> key);
+    field public static final org.jetbrains.jewel.foundation.shortcut.ActionContext.Companion Companion;
+  }
+
+  public static final class ActionContext.Companion {
+    method public org.jetbrains.jewel.foundation.shortcut.ActionContext getEmpty();
+    method public org.jetbrains.jewel.foundation.shortcut.ActionContext of(java.util.Map<java.lang.String,? extends java.lang.Object?> values);
+    property public org.jetbrains.jewel.foundation.shortcut.ActionContext Empty;
+  }
+
+  @SuppressCompatibility @org.jetbrains.annotations.ApiStatus.Experimental @org.jetbrains.jewel.foundation.ExperimentalJewelApi public final class ActionContextKey<T> {
+    method public String getName();
+    property public String name;
+    field public static final org.jetbrains.jewel.foundation.shortcut.ActionContextKey.Companion Companion;
+  }
+
+  public static final class ActionContextKey.Companion {
+    method public <T> org.jetbrains.jewel.foundation.shortcut.ActionContextKey<T> create(String name);
+  }
+
   @SuppressCompatibility @org.jetbrains.annotations.ApiStatus.Experimental @org.jetbrains.jewel.foundation.ExperimentalJewelApi public enum ActionDispatchRejection {
     enum_constant public static final org.jetbrains.jewel.foundation.shortcut.ActionDispatchRejection Disabled;
     enum_constant public static final org.jetbrains.jewel.foundation.shortcut.ActionDispatchRejection HostUnavailable;
@@ -1220,7 +1241,7 @@ package org.jetbrains.jewel.foundation.shortcut {
   }
 
   @SuppressCompatibility @org.jetbrains.annotations.ApiStatus.Experimental @org.jetbrains.jewel.foundation.ExperimentalJewelApi public interface JewelActionGroup {
-    method public java.util.List<org.jetbrains.jewel.foundation.shortcut.JewelMenuEntry> children();
+    method public java.util.List<org.jetbrains.jewel.foundation.shortcut.JewelMenuEntry> children(org.jetbrains.jewel.foundation.shortcut.ActionContext context);
     method public org.jetbrains.jewel.foundation.shortcut.ActionGroupPresentation getPresentation();
     property public abstract org.jetbrains.jewel.foundation.shortcut.JewelActionGroupId id;
     property public abstract org.jetbrains.jewel.foundation.shortcut.ActionGroupPresentation presentation;
@@ -1363,6 +1384,8 @@ package org.jetbrains.jewel.foundation.shortcut {
   @SuppressCompatibility @org.jetbrains.annotations.ApiStatus.Experimental @org.jetbrains.jewel.foundation.ExperimentalJewelApi public final class JewelShortcutHostState {
     ctor public JewelShortcutHostState(optional org.jetbrains.jewel.foundation.shortcut.JewelActionRegistry? registry, kotlin.jvm.functions.Function0<? extends org.jetbrains.jewel.foundation.shortcut.JewelKeymap> keymapProvider);
     method public boolean claimsKeyDown(Object event);
+    method public org.jetbrains.jewel.foundation.shortcut.ActionContext currentActionContext();
+    method public kotlin.jvm.functions.Function0<org.jetbrains.jewel.foundation.shortcut.ActionContext> getContextProvider();
     method public org.jetbrains.jewel.foundation.shortcut.ActionEventSource getEvents();
     method public org.jetbrains.jewel.foundation.shortcut.ActionInvoker getInvoker();
     method public kotlin.jvm.functions.Function1<org.jetbrains.jewel.foundation.shortcut.DispatchDecision.Consumed,kotlin.Unit>? getOnDispatch();
@@ -1375,9 +1398,11 @@ package org.jetbrains.jewel.foundation.shortcut {
     method public void reset();
     method public kotlin.jvm.functions.Function0<kotlin.Unit>? resolveFocusedHandler(String actionId);
     method public void runResolvedInvocation(String actionId, org.jetbrains.jewel.foundation.shortcut.ActionTrigger trigger, kotlin.jvm.functions.Function0<kotlin.Unit> handler);
+    method public void setContextProvider(kotlin.jvm.functions.Function0<? extends org.jetbrains.jewel.foundation.shortcut.ActionContext>);
     method public void setInvoker(org.jetbrains.jewel.foundation.shortcut.ActionInvoker);
     method public void setOnDispatch(kotlin.jvm.functions.Function1<? super org.jetbrains.jewel.foundation.shortcut.DispatchDecision.Consumed,kotlin.Unit>?);
     method public java.util.List<org.jetbrains.jewel.foundation.shortcut.JewelKeySequence> shortcutsFor(String actionId);
+    property public kotlin.jvm.functions.Function0<org.jetbrains.jewel.foundation.shortcut.ActionContext> contextProvider;
     property public org.jetbrains.jewel.foundation.shortcut.ActionEventSource events;
     property public org.jetbrains.jewel.foundation.shortcut.ActionInvoker invoker;
     property public boolean isAwaitingSecondStroke;
@@ -1470,7 +1495,7 @@ package org.jetbrains.jewel.foundation.shortcut {
 
   @SuppressCompatibility @org.jetbrains.annotations.ApiStatus.Experimental @org.jetbrains.jewel.foundation.ExperimentalJewelApi public final class StaticJewelActionGroup implements org.jetbrains.jewel.foundation.shortcut.JewelActionGroup {
     ctor @KotlinOnly public StaticJewelActionGroup(org.jetbrains.jewel.foundation.shortcut.JewelActionGroupId id, org.jetbrains.jewel.foundation.shortcut.ActionGroupPresentation presentation, java.util.List<org.jetbrains.jewel.foundation.shortcut.JewelMenuEntry> entries);
-    method public java.util.List<org.jetbrains.jewel.foundation.shortcut.JewelMenuEntry> children();
+    method public java.util.List<org.jetbrains.jewel.foundation.shortcut.JewelMenuEntry> children(org.jetbrains.jewel.foundation.shortcut.ActionContext context);
     method public org.jetbrains.jewel.foundation.shortcut.ActionGroupPresentation getPresentation();
     property public org.jetbrains.jewel.foundation.shortcut.JewelActionGroupId id;
     property public org.jetbrains.jewel.foundation.shortcut.ActionGroupPresentation presentation;
