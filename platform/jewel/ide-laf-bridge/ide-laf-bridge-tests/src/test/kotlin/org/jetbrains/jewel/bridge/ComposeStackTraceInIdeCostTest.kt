@@ -7,6 +7,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Composer
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.tooling.ComposeStackTraceMode
+import androidx.compose.ui.test.junit4.ComposeContentTestRule
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import com.intellij.testFramework.TestApplicationManager
 import java.nio.file.Files
@@ -27,7 +28,7 @@ import org.junit.Test
  */
 @OptIn(ExperimentalJewelApi::class)
 public class ComposeStackTraceInIdeCostTest {
-    @JvmField @Rule public val rule = createComposeRule()
+    @JvmField @Rule public val rule: ComposeContentTestRule = createComposeRule()
 
     @Before
     public fun startIdeApplication() {
@@ -77,10 +78,19 @@ public class ComposeStackTraceInIdeCostTest {
                 appendLine("}")
             }
 
-        val workspace = System.getenv("BUILD_WORKSPACE_DIRECTORY") ?: System.getProperty("user.dir")
-        val dir = Path.of(workspace, "out", "compose-stacktraces")
-        Files.createDirectories(dir)
-        Files.writeString(dir.resolve("inide-runtime.json"), report)
+        val dirs =
+            listOfNotNull(
+                System.getenv("BUILD_WORKSPACE_DIRECTORY")?.let { Path.of(it, "out", "compose-stacktraces") },
+                System.getenv("TEST_UNDECLARED_OUTPUTS_DIR")?.let { Path.of(it) },
+                Path.of(System.getProperty("user.dir"), "out", "compose-stacktraces"),
+                Path.of("/workspace/out/compose-stacktraces"),
+            )
+        for (dir in dirs.distinct()) {
+            runCatching {
+                Files.createDirectories(dir)
+                Files.writeString(dir.resolve("inide-runtime.json"), report)
+            }
+        }
         println(report)
 
         check(firstNone.medianMs > 0 && firstSource.medianMs > 0) { "composition timings must be positive" }

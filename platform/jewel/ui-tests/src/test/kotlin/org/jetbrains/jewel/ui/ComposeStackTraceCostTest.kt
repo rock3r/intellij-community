@@ -268,10 +268,19 @@ internal data class TraceInspection(
 }
 
 internal fun writeReport(fileName: String, contents: String) {
-    val workspace = System.getenv("BUILD_WORKSPACE_DIRECTORY") ?: System.getProperty("user.dir")
-    val dir = Path.of(workspace, "out", "compose-stacktraces")
-    Files.createDirectories(dir)
-    Files.writeString(dir.resolve(fileName), contents)
+    val dirs =
+        listOfNotNull(
+            System.getenv("BUILD_WORKSPACE_DIRECTORY")?.let { Path.of(it, "out", "compose-stacktraces") },
+            System.getenv("TEST_UNDECLARED_OUTPUTS_DIR")?.let { Path.of(it) },
+            Path.of(System.getProperty("user.dir"), "out", "compose-stacktraces"),
+            Path.of("/workspace/out/compose-stacktraces"),
+        )
+    for (dir in dirs.distinct()) {
+        runCatching {
+            Files.createDirectories(dir)
+            Files.writeString(dir.resolve(fileName), contents)
+        }
+    }
 }
 
 internal fun Double.f(): String = "%.3f".format(this)

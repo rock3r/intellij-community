@@ -79,10 +79,19 @@ class ComposeStackTraceIdeStarterTest {
       }
       """.trimIndent()
 
-    val workspace = System.getenv("BUILD_WORKSPACE_DIRECTORY") ?: System.getProperty("user.dir")
-    val dir = Path.of(workspace, "out", "compose-stacktraces")
-    Files.createDirectories(dir)
-    Files.writeString(dir.resolve("ide-starter-runtime.json"), report)
+    val dirs =
+      listOfNotNull(
+        System.getenv("BUILD_WORKSPACE_DIRECTORY")?.let { Path.of(it, "out", "compose-stacktraces") },
+        System.getenv("TEST_UNDECLARED_OUTPUTS_DIR")?.let { Path.of(it) },
+        Path.of(System.getProperty("user.dir"), "out", "compose-stacktraces"),
+        Path.of("/workspace/out/compose-stacktraces"),
+      )
+    for (dir in dirs.distinct()) {
+      runCatching {
+        Files.createDirectories(dir)
+        Files.writeString(dir.resolve("ide-starter-runtime.json"), report)
+      }
+    }
     println(report)
   }
 
