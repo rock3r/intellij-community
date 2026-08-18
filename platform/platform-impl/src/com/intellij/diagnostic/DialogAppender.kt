@@ -5,6 +5,7 @@ import com.intellij.featureStatistics.fusCollectors.LifecycleUsageTriggerCollect
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.diagnostic.ExceptionWithAttachments
 import com.intellij.openapi.diagnostic.RuntimeExceptionWithAttachments
+import com.intellij.openapi.diagnostic.ThrowableDecorator
 import com.intellij.util.ExceptionUtil
 import com.intellij.util.io.pagecache.impl.Throttler
 import kotlinx.coroutines.CoroutineName
@@ -88,11 +89,14 @@ class DialogAppender : Handler() {
         }
       }
       else {
-        val withAttachments = ExceptionUtil.causeAndSuppressed(throwable, ExceptionWithAttachments::class.java).toList()
+        // Decorate before anything reads the throwable: the pool stores it live, and both the error
+        // dialog text and the submitted report are rendered from it later.
+        val decorated = ThrowableDecorator.decorateSafely(throwable)
+        val withAttachments = ExceptionUtil.causeAndSuppressed(decorated, ExceptionWithAttachments::class.java).toList()
         val message = withAttachments.asSequence().filterIsInstance<RuntimeExceptionWithAttachments>().firstOrNull()?.userMessage ?: message
         val attachments = withAttachments.asSequence().flatMap { it.attachments.asSequence() }.toList()
         // always add to MessagePool, dialog notification will decide if it shows or not in IdeMessagePanel
-        MessagePool.getInstance().addErrorMessage(LogMessage(throwable, message, attachments))
+        MessagePool.getInstance().addErrorMessage(LogMessage(decorated, message, attachments))
       }
     }
     catch (e: Throwable) {

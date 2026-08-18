@@ -30,6 +30,7 @@
     <extensionPoint qualifiedName="com.intellij.focusedComponentProvider" interface="com.intellij.ide.FocusedComponentProvider" dynamic="true"/>
     <extensionPoint qualifiedName="com.intellij.proxySettingsListener" interface="com.intellij.util.net.ProxySettingsListener" dynamic="true"/>
     <extensionPoint qualifiedName="com.intellij.errorHandler" interface="com.intellij.openapi.diagnostic.ErrorReportSubmitter" dynamic="true"/>
+    <extensionPoint qualifiedName="com.intellij.throwableDecorator" interface="com.intellij.openapi.diagnostic.ThrowableDecorator" dynamic="true"/>
     <extensionPoint qualifiedName="com.intellij.errorReportSink" beanClass="com.intellij.openapi.diagnostic.ErrorReportSinkBean" dynamic="true">
       <with attribute="implementation" implements="com.intellij.openapi.diagnostic.ErrorReportSink"/>
     </extensionPoint>
