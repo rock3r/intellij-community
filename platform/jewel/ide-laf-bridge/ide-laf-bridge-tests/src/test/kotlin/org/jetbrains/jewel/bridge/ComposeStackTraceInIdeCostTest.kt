@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Composer
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.tooling.ComposeStackTraceMode
 import androidx.compose.ui.test.junit4.ComposeContentTestRule
@@ -12,6 +13,7 @@ import androidx.compose.ui.test.junit4.v2.createComposeRule
 import com.intellij.testFramework.TestApplicationManager
 import java.nio.file.Files
 import java.nio.file.Path
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.math.roundToLong
 import org.jetbrains.jewel.bridge.theme.SwingBridgeTheme
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
@@ -29,6 +31,8 @@ import org.junit.Test
 @OptIn(ExperimentalJewelApi::class)
 public class ComposeStackTraceInIdeCostTest {
     @JvmField @Rule public val rule: ComposeContentTestRule = createComposeRule()
+
+    private val composedToken: AtomicInteger = AtomicInteger(Int.MIN_VALUE)
 
     @Before
     public fun startIdeApplication() {
@@ -100,10 +104,8 @@ public class ComposeStackTraceInIdeCostTest {
         val samples = LongArray(FIRST_SAMPLES)
         repeat(FIRST_SAMPLES) { i ->
             Composer.setDiagnosticStackTraceMode(mode)
-            val token = mutableStateOf(i)
             val start = System.nanoTime()
-            rule.setContent { SwingBridgeTheme { InIdeBenchmarkTree(token.value) } }
-            rule.waitForIdle()
+            setThemeContent(i) { InIdeBenchmarkTree(i, composedToken) }
             samples[i] = System.nanoTime() - start
         }
         return InIdeTiming.fromNanos(samples)
@@ -112,14 +114,14 @@ public class ComposeStackTraceInIdeCostTest {
     private fun measureRecomposition(mode: ComposeStackTraceMode): InIdeTiming {
         Composer.setDiagnosticStackTraceMode(mode)
         val token = mutableStateOf(0)
-        rule.setContent { SwingBridgeTheme { InIdeBenchmarkTree(token.value) } }
-        rule.waitForIdle()
+        setThemeContent(0) { InIdeBenchmarkTree(token.value, composedToken) }
 
         val samples = LongArray(RECOMPOSE_SAMPLES)
         repeat(RECOMPOSE_SAMPLES) { i ->
+            val next = i + 1
             val start = System.nanoTime()
-            rule.runOnIdle { token.value = i + 1 }
-            rule.waitForIdle()
+            rule.runOnUiThread { token.value = next }
+            waitUntilComposed(next)
             samples[i] = System.nanoTime() - start
         }
         return InIdeTiming.fromNanos(samples)
@@ -128,21 +130,19 @@ public class ComposeStackTraceInIdeCostTest {
     private fun measureEnableAfterFirstComposition(): InIdeToggle {
         Composer.setDiagnosticStackTraceMode(ComposeStackTraceMode.None)
         val token = mutableStateOf(0)
-        rule.setContent { SwingBridgeTheme { InIdeBenchmarkTree(token.value) } }
-        rule.waitForIdle()
+        setThemeContent(0) { InIdeBenchmarkTree(token.value, composedToken) }
 
         val enableStart = System.nanoTime()
         Composer.setDiagnosticStackTraceMode(ComposeStackTraceMode.SourceInformation)
         val enableNs = System.nanoTime() - enableStart
 
         val recomposeStart = System.nanoTime()
-        rule.runOnIdle { token.value = 1 }
-        rule.waitForIdle()
+        rule.runOnUiThread { token.value = 1 }
+        waitUntilComposed(1)
         val recomposeAfterEnableNs = System.nanoTime() - recomposeStart
 
         val recreateStart = System.nanoTime()
-        rule.setContent { SwingBridgeTheme { InIdeBenchmarkTree(2) } }
-        rule.waitForIdle()
+        setThemeContent(2) { InIdeBenchmarkTree(2, composedToken) }
         val recreateNs = System.nanoTime() - recreateStart
 
         return InIdeToggle(
@@ -157,30 +157,38 @@ public class ComposeStackTraceInIdeCostTest {
         val thrown =
             try {
                 rule.setContent { SwingBridgeTheme { InIdeThrowingTree() } }
-                rule.waitForIdle()
+                rule.waitUntil(timeoutMillis = THROW_TIMEOUT_MS) { false }
                 null
             } catch (t: Throwable) {
-                t
+                unwrap(t)
             }
         return InIdeTrace.from(thrown)
     }
 
     private fun inspectFailureAfterToggle(): InIdeTrace {
         Composer.setDiagnosticStackTraceMode(ComposeStackTraceMode.None)
-        val token = mutableStateOf(0)
-        rule.setContent { SwingBridgeTheme { InIdeBenchmarkTree(token.value) } }
-        rule.waitForIdle()
+        setThemeContent(0) { InIdeBenchmarkTree(0, composedToken) }
 
         Composer.setDiagnosticStackTraceMode(ComposeStackTraceMode.SourceInformation)
         val thrown =
             try {
                 rule.setContent { SwingBridgeTheme { InIdeThrowingTree() } }
-                rule.waitForIdle()
+                rule.waitUntil(timeoutMillis = THROW_TIMEOUT_MS) { false }
                 null
             } catch (t: Throwable) {
-                t
+                unwrap(t)
             }
         return InIdeTrace.from(thrown)
+    }
+
+    private fun setThemeContent(token: Int, content: @Composable () -> Unit) {
+        composedToken.set(Int.MIN_VALUE)
+        rule.setContent { SwingBridgeTheme { content() } }
+        waitUntilComposed(token)
+    }
+
+    private fun waitUntilComposed(token: Int) {
+        rule.waitUntil(timeoutMillis = COMPOSE_TIMEOUT_MS) { composedToken.get() == token }
     }
 
     private companion object {
@@ -188,11 +196,27 @@ public class ComposeStackTraceInIdeCostTest {
         private const val COLS = 8
         private const val FIRST_SAMPLES = 8
         private const val RECOMPOSE_SAMPLES = 20
+        private const val COMPOSE_TIMEOUT_MS = 30_000L
+        private const val THROW_TIMEOUT_MS = 5_000L
     }
 }
 
+private fun unwrap(t: Throwable): Throwable {
+    var current = t
+    while (current.cause != null && current.message?.contains("compose-stacktrace-probe") != true) {
+        val cause = current.cause ?: break
+        if (cause === current) break
+        current = cause
+        if (current.message?.contains("compose-stacktrace-probe") == true) {
+            return current
+        }
+    }
+    return t
+}
+
 @Composable
-private fun InIdeBenchmarkTree(token: Int) {
+private fun InIdeBenchmarkTree(token: Int, composedToken: AtomicInteger) {
+    SideEffect { composedToken.set(token) }
     Column {
         repeat(12) { row ->
             Row {
