@@ -77,7 +77,8 @@ public class ComposeStackTraceInIdeCostTest {
                 appendLine("}")
             }
 
-        val dir = Path.of("out", "compose-stacktraces")
+        val workspace = System.getenv("BUILD_WORKSPACE_DIRECTORY") ?: System.getProperty("user.dir")
+        val dir = Path.of(workspace, "out", "compose-stacktraces")
         Files.createDirectories(dir)
         Files.writeString(dir.resolve("inide-runtime.json"), report)
         println(report)

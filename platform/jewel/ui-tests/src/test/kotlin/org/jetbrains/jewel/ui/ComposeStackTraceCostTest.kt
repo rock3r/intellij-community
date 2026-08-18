@@ -268,7 +268,8 @@ internal data class TraceInspection(
 }
 
 internal fun writeReport(fileName: String, contents: String) {
-    val dir = Path.of("out", "compose-stacktraces")
+    val workspace = System.getenv("BUILD_WORKSPACE_DIRECTORY") ?: System.getProperty("user.dir")
+    val dir = Path.of(workspace, "out", "compose-stacktraces")
     Files.createDirectories(dir)
     Files.writeString(dir.resolve(fileName), contents)
 }
