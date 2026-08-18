@@ -21,6 +21,7 @@ create_kotlinc_options(
         "org.jetbrains.jewel.foundation.ExperimentalJewelApi",
         "org.jetbrains.jewel.foundation.InternalJewelApi",
     ],
+    plugin_options = ["plugin:androidx.compose.compiler.plugins.kotlin:sourceInformation=true"],
     x_context_parameters = True,
     x_explicit_api_mode = "strict",
 )
