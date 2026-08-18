@@ -311,14 +311,15 @@ FQN + line is enough.
 
 ## Production shape: IJPL vs Android Studio
 
-Keep IJPL small. Studio can own mapping, retrace, and the debug toggle UX. The table is
-the split; details for the mapper and the toggle follow.
+Keep IJPL small: mapping files, GroupKeys default, compiler flags, and the debug
+toggle stay in Studio. The one IJPL sliver worth taking is a generic throwable-decorator
+EP so the error UI can show retraced Compose frames.
 
 | Piece | Where | Why |
 | --- | --- | --- |
 | `Composer.setDiagnosticStackTraceMode(GroupKeys)` at startup | **Studio** (and IU/Community only if those products want wild-crash traces too) | Process-wide Compose runtime API. A Studio `StartupActivity` is enough for Android Studio. |
 | GroupKeys mapping files | **Studio** release scan of product jars | Post-compile; no kotlinc flag. Includes IJPL + Studio + vendored jars. |
-| In-process GroupKeys → FQN mapper | **Studio** | See below. No IJPL extension point is required. |
+| In-process GroupKeys → FQN mapper | **Studio** retrace + a tiny **IJPL hook** | See below. Mapping files stay in Studio; IJPL only needs a place to run the decorator. |
 | `sourceInformation=true` on Jewel / platform Compose | **IJPL compile** (Bazel `plugin_options`) | Studio cannot invent markers in already-compiled IJPL jars. Needed only if the debug toggle should show Jewel file/line, not just GroupKeys. Cheap: +2.2% class bytes, kotlinc wall clock in the noise. |
 | `sourceInformation=true` on Studio Compose modules | **Studio compile** | Same flag for Studio-owned `@Composable`s. |
 | Debug “record SourceInformation” toggle | **Studio** action (optional tiny IJPL restart helper) | Must not be the production default. |
@@ -328,25 +329,89 @@ the split; details for the mapper and the toggle follow.
 ### 1. Compose exception mapper in Studio (GroupKeys → composition data)
 
 **Yes.** Studio can translate `$$compose.m$<key>` frames to composable FQN + line **inside
-the running IDE**, using mapping files it bundled for that build. IJPL does not have to
-know about the files.
-
-**Hook.** There is no platform “stack-trace mapper” EP today. `ErrorReportSubmitter`
-(`com.intellij.errorHandler`) runs only when the user submits a report, so the error
-dialog would still show integers. Two workable options:
-
-1. **Studio-only (no IJPL):** a JUL `Handler` on the root logger that, on `SEVERE` records
-   with a throwable, walks `cause` + `suppressed`, rewrites
-   `DiagnosticComposeException` / `$$compose` frames in place, then lets
-   `DialogAppender` show the already-mapped text. Mutating `stackTrace` is a bit cursed
-   but is how ProGuard retrace works conceptually, and it covers the balloon, the dialog,
-   logs, and submit.
-2. **Optional ~10-line IJPL EP** (only if we want it first-class): call
-   `DiagnosticStackTraceDecorator` from `DialogAppender.processEvent` before
-   `MessagePool.addErrorMessage`. Studio implements it. Not required.
+the running IDE**, using mapping files it bundled for that build. IJPL does not need to
+own or understand those files.
 
 Do **not** shell out to R8 retrace in the IDE. Parse the Compose ProGuard stanza into
 `Map<Int, StackTraceElement>` at plugin load.
+
+#### Where the error UI actually reads the stack
+
+```text
+Logger.error / JUL SEVERE
+        │
+        ▼
+ DialogAppender          other fatals (e.g. IdeaFreezeReporter)
+        │                         │
+        └──────────┬──────────────┘
+                   ▼
+         LogMessage(throwable)     ← interned here
+                   ▼
+         MessagePool.addErrorMessage
+                   ▼
+     balloon + IdeErrorsDialog     ← user sees getThrowableText()
+                   ▼
+     ErrorReportSubmitter.submit   ← only if the user clicks Report
+```
+
+`com.intellij.errorHandler` (`ErrorReportSubmitter`) is **too late**: it runs on submit,
+so the balloon and the dialog still show `$$compose.m$<int>` unless something earlier
+rewrote the throwable.
+
+Studio still writes the retrace in every design. The only question is **where IJPL lets
+that retrace run**.
+
+#### JUL handler (zero IJPL, stopgap)
+
+Studio installs a `java.util.logging.Handler` on the root logger. On `SEVERE` records
+that carry a throwable, it walks `cause` + `suppressed`, finds
+`DiagnosticComposeException` / `$$compose` frames, and **mutates `stackTrace` in place**.
+`DialogAppender` is itself a JUL handler; if ours runs first, it sees mapped frames and
+the balloon/dialog/submit all look human.
+
+Why this is a hack, not the product shape:
+
+- Handler order vs `DialogAppender` is not a platform contract.
+- Not every fatal goes through JUL. `MessagePool.addErrorMessage` is also called
+  directly (freeze reporter, unhandled-exception paths). Those skip the handler.
+- `LogMessage` **interns** the throwable. Mutating a live exception that Compose or
+  clustering may still hold is hostile (identity, hashes, later frames).
+- Idea logs would show mapped text only if the handler runs before the log formatter.
+
+Use this only if we cannot land an IJPL change in time.
+
+#### First-class IJPL hook (do this)
+
+Studio implements the retrace **anyway**. A first-class hook does not duplicate that
+work; it is the one-line call site so the retrace runs at the error-UI boundary
+instead of on the JUL bus.
+
+Add a small EP (name TBD; conceptually `ThrowableDecorator` /
+`DiagnosticStackTraceDecorator`):
+
+```kotlin
+fun decorate(throwable: Throwable): Throwable
+```
+
+Call it **once**, in `LogMessage`’s constructor, *before* `ThrowableInterner.intern`.
+That covers DialogAppender, freeze reports, and anything else that builds a
+`LogMessage`. Studio’s implementation looks up `$$compose.m$<key>` and returns a
+throwable whose suppressed Compose frames are rewritten (copy + `setStackTrace`, or a
+second suppressed “retraced” exception — do not mutate the interned original).
+
+Why this belongs in IJPL even though Studio owns Compose mapping:
+
+- It is ~10 lines in platform and no Compose dependency.
+- The mapper is product-specific (Studio has the files; IU might later). The *hook*
+  is generic: any product can decorate fatals before they hit the error UI.
+- IU/Community/Rider with Jewel get the same seam without a second JUL hack.
+- We keep mapping files, GroupKeys default, and compiler flags out of IJPL.
+
+`MessagePoolAdvisor` already sees messages before they enter the pool, but it is
+internal, meant for filter/observe, and runs **after** intern. Do not overload it.
+
+**What IJPL must still do for this path:** the decorator EP + the `LogMessage` call.
+Not mapping files. Enabling GroupKeys in IJPL too is only for Community/IU wild dumps.
 
 **What you get back.** GroupKeys traces are still less precise than SourceInformation:
 first line of the `@Composable` (or group), no inline / non-Unit composables, no column.
@@ -360,9 +425,6 @@ composables). Agreed this is a minor info-disclosure: it makes composition struc
 easier to read without decompiling. Mitigations if needed: ship mappings only in EAP /
 internal builds, or keep them in a non-unpacked plugin resource. For a mapper that runs
 in the user’s IDE, the file has to be on disk in the install.
-
-**What IJPL must still do for this path:** nothing, if Studio sets `GroupKeys` itself and
-scans IJPL jars. Enabling GroupKeys in IJPL too is only for Community/IU wild dumps.
 
 ### 2. Debug toggle: force active compositions to start recording SourceInformation
 
@@ -446,8 +508,9 @@ Compose-stdlib frames plus GroupKeys.
    the composable the composition already holds; no lambda reflection). Fall back to
    “close and reopen this Compose UI.” Optional IJPL `key(epoch)` only if we refuse
    `@TestOnly`.
-5. **Mapper can live 100% in Studio.** JUL handler or optional tiny IJPL decorator EP.
-   `ErrorReportSubmitter` alone is too late for the error UI. Mapping discloses
+5. **Mapper retrace lives in Studio; the hook should be first-class IJPL.** Call a tiny
+   `ThrowableDecorator` EP from `LogMessage` before intern. A JUL handler is only a
+   stopgap. `ErrorReportSubmitter` is too late for the balloon/dialog. Mapping discloses
    composable FQNs already present in unobfuscated UI jars.
 6. **DevKit is required for the Showcase playground**, not for the runtime API. The mode
    is a Compose runtime global.
