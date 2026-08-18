@@ -37,6 +37,7 @@ public class ComposeStackTraceInIdeCostTest {
     @Before
     public fun startIdeApplication() {
         TestApplicationManager.getInstance()
+        rule.mainClock.autoAdvance = false
     }
 
     @After
@@ -121,6 +122,7 @@ public class ComposeStackTraceInIdeCostTest {
             val next = i + 1
             val start = System.nanoTime()
             rule.runOnUiThread { token.value = next }
+            rule.mainClock.advanceTimeByFrame()
             waitUntilComposed(next)
             samples[i] = System.nanoTime() - start
         }
@@ -138,6 +140,7 @@ public class ComposeStackTraceInIdeCostTest {
 
         val recomposeStart = System.nanoTime()
         rule.runOnUiThread { token.value = 1 }
+        rule.mainClock.advanceTimeByFrame()
         waitUntilComposed(1)
         val recomposeAfterEnableNs = System.nanoTime() - recomposeStart
 
@@ -184,6 +187,7 @@ public class ComposeStackTraceInIdeCostTest {
     private fun setThemeContent(token: Int, content: @Composable () -> Unit) {
         composedToken.set(Int.MIN_VALUE)
         rule.setContent { SwingBridgeTheme { content() } }
+        rule.mainClock.advanceTimeByFrame()
         waitUntilComposed(token)
     }
 

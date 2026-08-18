@@ -17,6 +17,7 @@ import org.jetbrains.jewel.intui.standalone.theme.IntUiTheme
 import org.jetbrains.jewel.ui.component.DefaultButton
 import org.jetbrains.jewel.ui.component.Text
 import org.junit.After
+import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 
@@ -28,6 +29,11 @@ class ComposeStackTraceCostTest {
     @get:Rule val rule = createComposeRule()
 
     private val composedToken = AtomicInteger(Int.MIN_VALUE)
+
+    @Before
+    fun freezeFrameClock() {
+        rule.mainClock.autoAdvance = false
+    }
 
     @After
     fun resetMode() {
@@ -102,6 +108,7 @@ class ComposeStackTraceCostTest {
             val next = i + 1
             val start = System.nanoTime()
             rule.runOnUiThread { token.value = next }
+            rule.mainClock.advanceTimeByFrame()
             waitUntilComposed(next)
             samples[i] = System.nanoTime() - start
         }
@@ -119,6 +126,7 @@ class ComposeStackTraceCostTest {
 
         val recomposeStart = System.nanoTime()
         rule.runOnUiThread { token.value = 1 }
+        rule.mainClock.advanceTimeByFrame()
         waitUntilComposed(1)
         val recomposeAfterEnableNs = System.nanoTime() - recomposeStart
 
@@ -165,6 +173,7 @@ class ComposeStackTraceCostTest {
     private fun setThemeContent(token: Int, content: @Composable () -> Unit) {
         composedToken.set(Int.MIN_VALUE)
         rule.setContent { IntUiTheme { content() } }
+        rule.mainClock.advanceTimeByFrame()
         waitUntilComposed(token)
     }
 
