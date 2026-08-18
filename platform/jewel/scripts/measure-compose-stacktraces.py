@@ -82,6 +82,7 @@ def bazel_build(nocache: bool) -> float:
         cmd.extend(
             [
                 "--nouse_action_cache",
+                "--disk_cache=",
                 "--noremote_accept_cached",
                 "--noremote_upload_local_results",
             ]
