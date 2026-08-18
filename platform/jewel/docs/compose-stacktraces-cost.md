@@ -128,7 +128,7 @@ retroactively annotate UI that is already in the slot table. If the product requ
 “turn it on when a user hits a Jewel crash,” `SourceInformation` is the wrong mode unless
 you also force a **re-insert** (not a skip-path recompose). `GroupKeys` is the mode designed
 for “no overhead until crash.” Recipes for forcing insert from a debug toggle are in
-[Debug toggle: force active `ComposePanel`s](#2-debug-toggle-force-active-composepanels-to-start-recording-sourceinformation).
+[Debug toggle: force active compositions](#2-debug-toggle-force-active-compositions-to-start-recording-sourceinformation).
 
 ## How to collect the numbers
 
@@ -322,7 +322,7 @@ the split; details for the mapper and the toggle follow.
 | `sourceInformation=true` on Jewel / platform Compose | **IJPL compile** (Bazel `plugin_options`) | Studio cannot invent markers in already-compiled IJPL jars. Needed only if the debug toggle should show Jewel file/line, not just GroupKeys. Cheap: +2.2% class bytes, kotlinc wall clock in the noise. |
 | `sourceInformation=true` on Studio Compose modules | **Studio compile** | Same flag for Studio-owned `@Composable`s. |
 | Debug “record SourceInformation” toggle | **Studio** action (optional tiny IJPL restart helper) | Must not be the production default. |
-| Force existing surfaces to start recording | **Studio** best-effort (optional 10-line IJPL `key(epoch)` in `JewelComposePanel`) | Skip/recompose does **not** record. See below. |
+| Force existing surfaces to start recording | **Studio** `simulateHotReload` (optional IJPL `key(epoch)`) | `Recomposer` invalidate is not enough. See below. |
 | DevKit `ComposeVerboseStackTrace` | leave as playground | Not bundled in Community; not a product hook. |
 
 ### 1. Compose exception mapper in Studio (GroupKeys → composition data)
@@ -364,62 +364,70 @@ in the user’s IDE, the file has to be on disk in the install.
 **What IJPL must still do for this path:** nothing, if Studio sets `GroupKeys` itself and
 scans IJPL jars. Enabling GroupKeys in IJPL too is only for Community/IU wild dumps.
 
-### 2. Debug toggle: force active `ComposePanel`s to start recording SourceInformation
+### 2. Debug toggle: force active compositions to start recording SourceInformation
 
 Flipping `Composer.setDiagnosticStackTraceMode(SourceInformation)` is ~0.001 ms and **does
-not backfill** the slot table. Recording happens only when `inserting`. A normal
-recompose / `invalidate` of an already-inserted tree will **not** start collecting.
+not backfill** the slot table. Recording is literally:
 
-So the toggle must **dispose and re-insert** (or equivalent), not merely recompose.
-Close/reopen remains the correct fallback copy.
-
-**Finding hosts.** Best-effort from Studio on the EDT:
-
-```text
-Window.getWindows() → walk Component trees
-  JewelComposePanelWrapper.composePanel
-  androidx.compose.ui.awt.ComposePanel
-  ComposeWindow / ComposeDialog if any
+```kotlin
+if (inserting && sourceMarkersEnabled) {
+    writer.recordGroupSourceInformation(sourceInformation)
+}
 ```
 
-Misses: Compose scene layers / popups whose window container is not a `ComposePanel`
-in that walk; surfaces created after the toggle (those are fine — they compose with
-the new mode). Tell the user which panels were restarted and to close/reopen anything
-that still looks stale.
+The compiled `sourceInformation(...)` calls still run on a skip/recompose; the **write**
+does not. `Recomposer.runningRecomposers` is a **read-only** monitor (`RecomposerInfo`
+has `state` / `hasPendingWork` / `changeCount`, no invalidate). `invalidateAll`,
+`invalidateGroupsWithKey`, and `forceRecomposeScopes` mark scopes dirty so the next
+frame recomposes them. Existing groups stay in the slot table, so `inserting` is false
+and source info is still missing. That is why injecting `key(token)` was on the table:
+changing a `key` forces leave + re-enter (insert) without needing Composer to grow a
+new API.
 
-**Restart that actually inserts** (current Compose Desktop `ComposePanel`):
+**Do not reflect composable lambdas.** The runtime already holds each root
+`composition.composable`. The way to use that without touching AWT is the hot-reload
+path.
 
-`dispose()` **does** tear down `_composeContainer` even while attached (the KDoc saying
-“otherwise nothing will happen” is stale relative to the implementation). After that the
-panel stays in the hierarchy with a null container; `addNotify` will not run again, so
-the UI goes blank unless something recreates the container.
+**Preferred: `simulateHotReload`.** Public in `androidx.compose.runtime`, annotated
+`@TestOnly`, documented “not for use in production.” For an **internal debug toggle**
+that is the right shape:
 
-Reliable recipes:
+1. `Composer.setDiagnosticStackTraceMode(SourceInformation)`
+2. `simulateHotReload(Unit)` — for every running recomposer, `setContent {}` then
+   `setContent(savedComposable)`. That is a real insert, process-wide (Jewel panels,
+   raw `ComposePanel`, `ComposeWindow`, scene layers). No AWT walk, no lambda
+   reflection.
+3. `remember { }` / scroll / text state is reset, same as any dispose+restart. Warn
+   the user.
+4. Side effect: it sets `_hotReloadEnabled`, which makes
+   `collectingCallByInformation` true (Layout Inspector–like). Call
+   `disableHotReloadMode()` afterwards if we do not want that left on. Source-info
+   recording itself is gated on `ComposeStackTraceMode.SourceInformation`, not on
+   hot-reload mode; the re-insert is what fills the slot table.
 
-1. **Reflect `_composeContent` and `setContent { key(token) { previous() } }`.**
-   `setContent` keeps the lambda; wrapping in a new `key` forces the keyed subtree to
-   leave and re-enter (insert). Swing parent, focus cycle, and `isDisposeOnRemove` stay
-   put. `remember { }` state **under that key is reset** (scroll, text, animations).
-   This is the preferred best-effort path and does not need IJPL.
-2. **Detach/reattach:** set `isDisposeOnRemove = true`, `parent.remove(panel)`,
-   `parent.add(panel, constraints)`, restore the flag. Heavier: layout, focus, tool
-   windows that keep state across detach (`isDisposeOnRemove = false` is common in
-   IntelliJ toolwindows). Use only if (1) fails.
-3. **Do not** call `dispose()` alone while attached, and **do not** rely on
-   `Recomposer` invalidate / skip-path recompose.
+`@TestOnly` is a lint, not an ABI wall; the function is in the Compose runtime jar
+we already ship. Treat it as tooling, same family as Live Edit. If Compose ever
+hides it, fall back to close/reopen copy.
 
-**Optional IJPL nicety (minimal):** wrap `JewelComposePanel` / `compose { }` content in
-`key(ComposeDiagnosticRestart.epoch)` and expose an internal `restartJewelCompositions()`.
-Studio then increments the epoch instead of reflecting. Covers Jewel-hosted surfaces
-only; still walk AWT for raw `ComposePanel`. Nice, not required.
+**What not to do**
 
-**Tell the user** on failure or partial success: recording starts on insert; if a
-surface looks unchanged, close and reopen that Compose UI. State loss after a successful
-restart is expected.
+- `Composer` / `Recomposer` invalidate, `Recomposer.cancel()`, or
+  `RecomposerInfo.observe` — no insert.
+- `ComposePanel.dispose()` while attached — tears down `_composeContainer` (the KDoc
+  “otherwise nothing will happen” is stale) and leaves a blank panel until recreate.
+- Reflect `_composeContent` + wrap in `key(token)` — works, but the hot-reload path
+  already does the equivalent with the lambda the composition owns.
+- Detach/reattach (`isDisposeOnRemove`) — fights IntelliJ toolwindows that keep
+  composition state across `removeNotify`.
 
-The toggle still needs **`sourceInformation=true` in the jars that should appear in the
-trace.** If IJPL Jewel is compiled without it, Studio can restart every panel and still
-only see inlined Compose-stdlib frames plus GroupKeys.
+**Optional IJPL nicety:** `key(epoch)` in `JewelComposePanel` if we want a
+non-`@TestOnly` Jewel-only restart. Not needed if Studio is willing to call
+`simulateHotReload` from the debug action.
+
+**Tell the user** if a surface still looks stale: close and reopen that Compose UI.
+The toggle still needs **`sourceInformation=true` in the jars that should appear in
+the trace.** Without that, a full hot-reload restart still only shows inlined
+Compose-stdlib frames plus GroupKeys.
 
 ## Recommendations
 
@@ -433,10 +441,11 @@ only see inlined Compose-stdlib frames plus GroupKeys.
    `sourceInformation=true` on Jewel (+ platform Compose that Studio cannot rebuild).
    +2.2% class bytes; kotlinc wall clock in the noise. Residual cost with mode `None`
    is extra JVM calls that do not write the slot table.
-4. **Late SourceInformation toggle is cheap to flip and useless until insert.** Studio can
-   best-effort restart `ComposePanel`s (prefer `setContent` + `key(token)` via reflection).
-   Fall back to “close and reopen this Compose UI.” Optional IJPL `key(epoch)` in
-   `JewelComposePanel` if we want a non-reflective Jewel path.
+4. **Late SourceInformation toggle is cheap to flip and useless until insert.** Do not
+   use `Recomposer` invalidate. Prefer `simulateHotReload` after flipping the mode (uses
+   the composable the composition already holds; no lambda reflection). Fall back to
+   “close and reopen this Compose UI.” Optional IJPL `key(epoch)` only if we refuse
+   `@TestOnly`.
 5. **Mapper can live 100% in Studio.** JUL handler or optional tiny IJPL decorator EP.
    `ErrorReportSubmitter` alone is too late for the error UI. Mapping discloses
    composable FQNs already present in unobfuscated UI jars.
