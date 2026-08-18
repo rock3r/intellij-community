@@ -30,6 +30,10 @@ TARGETS = [
     "//platform/jewel/samples/standalone:standalone",
     "//plugins/devkit/intellij.devkit.compose:compose",
 ]
+SOURCE_ROOTS = [
+    ROOT / "platform/jewel",
+    ROOT / "plugins/devkit/intellij.devkit.compose",
+]
 BAZEL = ROOT / "bazel.cmd"
 COMPOSE_LIBRARY_KT = frozenset(
     {
@@ -74,6 +78,17 @@ def bazel_info(key: str) -> str:
         if line and not line.startswith("INFO:") and not line.startswith("WARNING:"):
             return line
     raise SystemExit(f"bazel info {key} produced no value")
+
+
+def dirty_kotlin_sources() -> None:
+    """Force KotlinCompile to re-run. --nouse_action_cache does not rebuild when bazel-out is current."""
+    now = time.time()
+    touched = 0
+    for root in SOURCE_ROOTS:
+        for path in root.rglob("*.kt"):
+            os.utime(path, (now, now))
+            touched += 1
+    print(f"Touched {touched} Kotlin sources to dirty compile actions", flush=True)
 
 
 def bazel_build(nocache: bool) -> float:
@@ -291,6 +306,7 @@ def main() -> None:
         bazel_build(nocache=False)
         for i in range(repeats):
             print(f"Timed build {i + 1}/{repeats} (action cache disabled)...", flush=True)
+            dirty_kotlin_sources()
             elapsed = bazel_build(nocache=True)
             times.append(elapsed)
             print(f"  {elapsed:.2f}s", flush=True)
