@@ -131,111 +131,156 @@ until crash.”
 
 ## How to collect the numbers
 
-Compile (from repo root):
+This checkout needs the Android tree (`./getPlugins.sh --shallow`) so the JPS/Bazel
+model can load. Compile (from repo root):
 
 ```bash
-python3 platform/jewel/scripts/measure-compose-stacktraces.py off 3
+python3 platform/jewel/scripts/measure-compose-stacktraces.py off 2
 python3 platform/jewel/scripts/enable-compose-source-information.py
-python3 platform/jewel/scripts/measure-compose-stacktraces.py on 3
+python3 platform/jewel/scripts/measure-compose-stacktraces.py on 2
 ```
 
-Standalone runtime (Jewel `IntUiTheme`, no IDE):
+The enable script patches Jewel + `intellij.devkit.compose` `BUILD.bazel` files only.
+Do not commit those patches unless the product decision is to ship the compiler flag.
+
+Standalone / in-IDE runtime (targeted `jps_test`, needs `DISPLAY`):
 
 ```bash
-./tests.cmd --module intellij.platform.jewel.uiTests \
-  --test org.jetbrains.jewel.ui.ComposeStackTraceCostTest
+bash bazel.cmd test //platform/jewel/ui-tests:ui-tests_test \
+  --test_filter=org.jetbrains.jewel.ui.ComposeStackTraceCostTest \
+  --test_env=DISPLAY=:1 --test_output=all
+
+bash bazel.cmd test //platform/jewel/ide-laf-bridge:ideLafBridge-tests_test \
+  --test_filter=org.jetbrains.jewel.bridge.ComposeStackTraceInIdeCostTest \
+  --test_env=DISPLAY=:1 --test_output=all
 ```
 
-In-IDE composition (real `SwingBridgeTheme` / `compose {}` path, Test Application — same
-bridge the Showcase dialog uses):
+`./tests.cmd --module …` also works but builds the full Ultimate test runner.
 
-```bash
-./tests.cmd --module intellij.platform.jewel.ideLafBridge.tests \
-  --test org.jetbrains.jewel.bridge.ComposeStackTraceInIdeCostTest
-```
-
-Starter / full IDE (released Community + marketplace Plugin DevKit, **stock binaries**):
-
-```bash
-./tests.cmd --module intellij.tools.ide.starter.driver.tests \
-  --test com.intellij.ide.starter.driver.ComposeStackTraceIdeStarterTest
-```
-
-JSON lands in `out/compose-stacktraces/`.
+JSON lands in `out/compose-stacktraces/`. DefaultButton trees never go idle (infinite
+animations), so the tests freeze `mainClock.autoAdvance` and wait on a `SideEffect`
+token instead of `waitForIdle`.
 
 ## Numbers
 
-Filled in after the measurement runs on this machine.
+Collected on this agent (Linux, Bazel `jvm-fastbuild` / `k8-fastbuild`, Compose runtime
+1.12.x). Compile timings are a full local kotlinc of the seven targets with
+`--nouse_action_cache --disk_cache=` (the JetBrains disk cache otherwise finishes in ~2s
+without rerunning kotlinc).
 
-### Compile time (Bazel, action cache disabled)
+### Compile time and bytecode
 
-| Config | Median wall time | Class files with `sourceInformation` UTF-8 | UTF-8 hits | Total class bytes |
-| --- | ---: | ---: | ---: | ---: |
-| off (current Bazel) | _pending_ | _pending_ | _pending_ | _pending_ |
-| on (`sourceInformation=true`) | _pending_ | _pending_ | _pending_ | _pending_ |
+Naive UTF-8 `sourceInformation` over-counts method names and inlined Compose library
+markers. The useful metrics are exact constant-pool UTF-8 `sourceInformation` (the
+diagnostic API) and encoded `.kt#` strings whose file matches the class’s own source.
 
-Targets: `foundation`, `ui`, `int-ui-standalone`, `ide-laf-bridge`, `showcase`, `standalone`,
-`intellij.devkit.compose`.
+| Config | Full local kotlinc (s) | Class files | Class bytes | `sourceInformation` methods | Own-file `.kt#` | Library `.kt#` |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| off (current Bazel) | 85.7 | 1657 | 12,732,980 | 3 | 0 | 573 |
+| on (`sourceInformation=true`) | 83.7 | 1657 | 13,017,597 | 226 | 1343 | 573 |
 
-### Standalone runtime (Jewel IntUi)
+Delta: **class bytes +2.2%**. Own-file source-info strings go from **none to 1343**.
+Library `.kt#` strings (Row, Layout, CompositionLocal, …) stay at 573 — those come from
+inlined Compose stdlib that was already compiled with markers.
+
+Wall-clock kotlinc of these modules did **not** move outside noise (~85s either way).
+The compile-time cost of the flag, at this granularity, is bytecode size / extra IR
+calls, not a multi-second build regression.
+
+`ui.jar` is most of the delta: 5.74MB → 5.88MB, 0 → 636 own-file `.kt#`, 0 → 105
+`sourceInformation` methods.
+
+### Are traces actually collected?
+
+**Only when both sides are on.** Evidence from Compose’s “Error was captured in composition”
+log (the test JVM catch does not keep `DiagnosticComposeException` as a suppressed on the
+rethrown `IllegalStateException`; the log is the reliable signal).
+
+| Compile flag | Runtime mode | Jewel file/line in diagnostic stack? |
+| --- | --- | --- |
+| off | None | No |
+| off | SourceInformation | **No Jewel frames.** At most library groups (`Column`, `Layout`, `ReusableComposeNode`) from inlined stdlib markers |
+| on | None | No (markers exist in bytecode, runtime does not record/attach) |
+| on | SourceInformation | **Yes.** Standalone: `ThrowingTree(ComposeStackTraceCostTest.kt:213)` plus `IntUiTheme`. In-IDE: `InIdeThrowingTree(ComposeStackTraceInIdeCostTest.kt:226)` plus `SwingBridgeTheme` |
+
+Today’s Bazel Jewel **cannot** produce useful SourceInformation traces without the
+compiler option. Turning the DevKit action on against current binaries only reconstructs
+Compose-library groups.
+
+### Standalone runtime (Jewel `IntUiTheme`, 12×8 DefaultButton tree)
+
+First-composition medians in one process are still warmup-ordered (None is measured first,
+then SourceInformation, then GroupKeys) even after a discarded warmup frame. Treat them as
+noisy. **Recomposition** (no slot-table insert) is the comparable number.
+
+**Compile flag off**
 
 | Metric | None | SourceInformation | GroupKeys |
 | --- | ---: | ---: | ---: |
-| First composition median (ms) | _pending_ | _pending_ | _pending_ |
-| Recomposition median (ms) | _pending_ | _pending_ | — |
-| Diagnostic trace attached on throw? | _pending_ | _pending_ | — |
+| First composition median (ms) | 35.5 | 18.8 | 15.9 |
+| Recomposition median (ms) | 9.0 | 8.3 | — |
+| Jewel diagnostic frames on throw? | no | no | — |
 
-Toggle-after-compose:
+Toggle: `setDiagnosticStackTraceMode` **0.001 ms**; recompose existing tree 8.0 ms;
+recreate composition 45.4 ms (one noisy sample).
 
-| Step | ms / result |
-| --- | --- |
-| `setDiagnosticStackTraceMode(SourceInformation)` | _pending_ |
-| Recompose existing tree | _pending_ |
-| Recreate composition | _pending_ |
-| Throw after toggle (new composition) | _pending_ |
+**Compile flag on**
 
-### In-IDE runtime (`SwingBridgeTheme`)
+| Metric | None | SourceInformation | GroupKeys |
+| --- | ---: | ---: | ---: |
+| First composition median (ms) | 36.1 | 18.3 | 16.4 |
+| Recomposition median (ms) | 9.3 | 8.5 | — |
+| Jewel diagnostic frames on throw? | no | **yes** (`ThrowingTree.kt`) | — |
 
-Same table, `_pending_` until `ComposeStackTraceInIdeCostTest` runs.
+Toggle: enable call **0.001 ms**; recompose existing tree 15.3 ms; recreate 16.0 ms.
+
+Recomposition with SourceInformation is not slower than None in either compile config.
+That matches the runtime: recording is paid on **insert**, not on skip/recompose.
+
+### In-IDE runtime (`SwingBridgeTheme` / Test Application)
+
+Same 12×8 tree. Same warmup caveat on first composition.
+
+**Compile flag off:** recompose None 9.6 ms vs SourceInformation 8.1 ms. No Jewel frames.
+
+**Compile flag on:** recompose None 9.9 ms vs SourceInformation 9.1 ms. Jewel frames
+present (`InIdeThrowingTree` + `SwingBridgeTheme`). Enable call 0.001 ms; recreate 17.7 ms.
+
+In-IDE and standalone agree: **mode None vs SourceInformation is lost in the noise for
+this tree when not inserting**; collection quality is entirely a compile-flag question.
 
 ### Starter / released Community + DevKit
 
-Dialog-open time is **not** a pure composition microbenchmark (IDE startup, plugin load,
-Swing dialog). It answers “does a user-visible toggle change Showcase open time on stock
-bits?”
-
-| Showcase open | ms |
-| --- | ---: |
-| runtime off | _pending_ |
-| runtime on after toggle | _pending_ |
+Not rerun here. Released Community binaries do **not** include this checkout’s
+`sourceInformation=true` flag, so Showcase-open time would only measure the runtime toggle
+against stock markers (library groups, not Jewel file/line). Use the in-IDE test above for
+the `compose {}` / `SwingBridgeTheme` path on this tree.
 
 ## Recommendations
 
 1. **Do not leave `SourceInformation` on in production Community/IU processes.** Official
-   guidance plus the insert-path recording cost. Treat it as a debug/internal tool.
-2. **If the product want is “better Jewel crashes in the wild,” prefer `GroupKeys`.** It is
-   designed for zero composition-time overhead; cost is paid only when attaching a trace
-   after a throw. Precision is worse (no file/line from source info).
-3. **A late IDE toggle of `SourceInformation` is cheap to flip and expensive to make useful.**
-   Existing Jewel surfaces will not gain source-info traces until they are recomposed with
-   insert (typically close/reopen). Tell users that, or recreate the composition when the
-   toggle turns on.
-4. **Compile-time markers are the Bazel gap vs Gradle.** Enabling
-   `sourceInformation=true` on Jewel + `intellij.devkit.compose` is what makes
-   `SourceInformation` traces possible at all. That compile cost is paid by everyone who
-   builds those modules, even if the runtime mode stays `None`. Measure the table above
-   before turning it on for all Bazel builds.
+   guidance plus insert-path recording. Treat it as a debug/internal tool.
+2. **If the product want is “better Jewel crashes in the wild,” prefer `GroupKeys`.** Zero
+   composition-time overhead by design; cost is paid only when attaching a trace after a
+   throw. Precision is worse (no file/line from source info).
+3. **A late IDE toggle of `SourceInformation` is cheap to flip (0.001 ms) and useless
+   until insert.** Existing Jewel surfaces need close/reopen (new composition) after the
+   toggle. `GroupKeys` is the mode designed for “no overhead until crash.”
+4. **Compile-time markers are the Bazel gap vs Gradle, and they are cheap enough to
+   consider.** Enabling `sourceInformation=true` on Jewel + `intellij.devkit.compose`
+   is what makes SourceInformation traces possible. Wall-clock kotlinc did not regress
+   beyond noise; class files grew ~2%. Residual runtime cost with mode still `None` is
+   extra JVM calls that do not write the slot table.
 5. **DevKit is required for the Showcase playground**, not for the runtime API. The mode is
-   a Compose runtime global; any in-process code can call it. The Showcase is just a dense
-   Jewel tree to exercise.
+   a Compose runtime global.
 
 ## Implementation notes for this experiment
 
-- `platform/jewel/scripts/measure-compose-stacktraces.py` — compile timing + bytecode scan.
+- `platform/jewel/scripts/measure-compose-stacktraces.py` — compile timing + constant-pool
+  scan (`sourceInformation` vs `sourceInformationMarkerStart` vs own-file `.kt#`).
 - `platform/jewel/scripts/enable-compose-source-information.py` — patches Jewel/DevKit
-  `BUILD.bazel` `plugin_options`.
-- Tests write JSON under `out/compose-stacktraces/`.
-- Spectre was not used for the cost numbers: it drives and records a desktop UI, it does not
-  isolate composition. Compose UI Test `waitForIdle` + `nanoTime` is the right tool for
-  first-composition / recomposition. Starter + remote driver is used for the full-IDE
-  Showcase path.
+  `BUILD.bazel` `plugin_options`. Left uncommitted; run it to reproduce the “on” column.
+- Tests: `ComposeStackTraceCostTest`, `ComposeStackTraceInIdeCostTest`.
+- Spectre was not used: it drives a desktop UI, it does not isolate composition.
+- Android modules were cloned with `./getPlugins.sh --shallow` so Bazel analysis could load
+  the JPS model (`android/` is gitignored).
