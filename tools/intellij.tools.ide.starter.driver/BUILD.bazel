@@ -178,6 +178,8 @@ jvm_library(
         "@lib//:mockito-junit-jupiter",
         "//tools/intellij.tools.ide.starter.product.idea.ultimate:ide-starter-product-idea-ultimate",
         "//tools/intellij.tools.ide.starter.product.idea.ultimate:ide-starter-product-idea-ultimate_test_lib",
+        "//tools/intellij.tools.ide.starter.product.idea.community:ide-starter-product-idea-community",
+        "//tools/intellij.tools.ide.starter.product.idea.community:ide-starter-product-idea-community_test_lib",
         "//libraries/kotlin/test-assertions-core-jvm:libraries-kotlinTestAssertionsCoreJvm",
         "//libraries/kotlin/test-assertions-core-jvm:libraries-kotlinTestAssertionsCoreJvm_test_lib",
     ],
