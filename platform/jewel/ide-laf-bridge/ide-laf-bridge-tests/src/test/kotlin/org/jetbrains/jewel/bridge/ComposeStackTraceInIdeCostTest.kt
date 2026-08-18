@@ -47,6 +47,8 @@ public class ComposeStackTraceInIdeCostTest {
 
     @Test
     public fun `measure in-IDE composition cost and stacktrace collection`() {
+        setThemeContent(-1) { InIdeBenchmarkTree(-1, composedToken) }
+
         val firstNone = measureFirstComposition(ComposeStackTraceMode.None)
         val firstSource = measureFirstComposition(ComposeStackTraceMode.SourceInformation)
         val firstGroupKeys = measureFirstComposition(ComposeStackTraceMode.GroupKeys)
@@ -163,7 +165,7 @@ public class ComposeStackTraceInIdeCostTest {
                 rule.waitUntil(timeoutMillis = THROW_TIMEOUT_MS) { false }
                 null
             } catch (t: Throwable) {
-                unwrap(t)
+                t
             }
         return InIdeTrace.from(thrown)
     }
@@ -179,7 +181,7 @@ public class ComposeStackTraceInIdeCostTest {
                 rule.waitUntil(timeoutMillis = THROW_TIMEOUT_MS) { false }
                 null
             } catch (t: Throwable) {
-                unwrap(t)
+                t
             }
         return InIdeTrace.from(thrown)
     }
@@ -203,19 +205,6 @@ public class ComposeStackTraceInIdeCostTest {
         private const val COMPOSE_TIMEOUT_MS = 30_000L
         private const val THROW_TIMEOUT_MS = 5_000L
     }
-}
-
-private fun unwrap(t: Throwable): Throwable {
-    var current = t
-    while (current.cause != null && current.message?.contains("compose-stacktrace-probe") != true) {
-        val cause = current.cause ?: break
-        if (cause === current) break
-        current = cause
-        if (current.message?.contains("compose-stacktrace-probe") == true) {
-            return current
-        }
-    }
-    return t
 }
 
 @Composable
@@ -297,18 +286,20 @@ private data class InIdeTrace(
             if (thrown == null) {
                 return InIdeTrace(false, null, emptyList(), false, false, null)
             }
-            val suppressed =
-                thrown.suppressedExceptions + generateSequence(thrown.cause) { it.cause }.flatMap { it.suppressedExceptions }
+            val chain = generateSequence(thrown) { it.cause }.toList()
+            val suppressed = chain.flatMap { it.suppressedExceptions }
             val names = suppressed.map { it.javaClass.name }
-            val preview = suppressed.firstOrNull()?.stackTraceToString()?.lineSequence()?.take(20)?.joinToString("\\n")
+            val fullText = thrown.stackTraceToString()
+            val preview =
+                suppressed.firstOrNull()?.stackTraceToString()?.lineSequence()?.take(20)?.joinToString("\\n")
+                    ?: if (fullText.contains("Composition stack")) fullText.lineSequence().take(20).joinToString("\\n") else null
             return InIdeTrace(
                 threw = true,
-                message = thrown.message,
+                message = chain.firstNotNullOfOrNull { it.message },
                 suppressedTypeNames = names,
-                hasDiagnosticComposeException = names.any { it.contains("DiagnosticCompose") },
-                hasCompositionStackMessage =
-                    suppressed.any { it.message?.contains("Composition stack") == true } ||
-                        thrown.stackTraceToString().contains("Composition stack"),
+                hasDiagnosticComposeException =
+                    names.any { it.contains("DiagnosticCompose") } || fullText.contains("DiagnosticComposeException"),
+                hasCompositionStackMessage = fullText.contains("Composition stack"),
                 suppressedPreview = preview,
             )
         }
