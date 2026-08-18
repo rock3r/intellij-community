@@ -120,14 +120,15 @@ Practical consequence for an IDE toggle:
 | When you flip it on | Cost | Will the next crash have SourceInformation traces? |
 | --- | --- | --- |
 | Before the Jewel surface is first composed | Subsequent **first compositions** pay the recording cost | Yes, for surfaces composed after the flip |
-| After Showcase is already open | Toggle call ≈ 0; next recomposition of existing groups does **not** record | **No** for already-inserted groups. Close and reopen the dialog (new composition / insert) to start recording |
+| After Showcase is already open | Toggle call ≈ 0; next recomposition of existing groups does **not** record | **No** for already-inserted groups unless the composition is **re-inserted** (see debug toggle below). Close/reopen still works. |
 | Mode `GroupKeys` instead | Essentially no composition-time cost | Yes, but group-key traces only (no file/line from source info) |
 
 So: **enabling later is not free for new or re-created compositions**, and it does **not**
 retroactively annotate UI that is already in the slot table. If the product requirement is
 “turn it on when a user hits a Jewel crash,” `SourceInformation` is the wrong mode unless
-you also force a recomposition/recreate. `GroupKeys` is the mode designed for “no overhead
-until crash.”
+you also force a **re-insert** (not a skip-path recompose). `GroupKeys` is the mode designed
+for “no overhead until crash.” Recipes for forcing insert from a debug toggle are in
+[Debug toggle: force active `ComposePanel`s](#2-debug-toggle-force-active-composepanels-to-start-recording-sourceinformation).
 
 ## How to collect the numbers
 
@@ -256,23 +257,191 @@ Not rerun here. Released Community binaries do **not** include this checkout’s
 against stock markers (library groups, not Jewel file/line). Use the in-IDE test above for
 the `compose {}` / `SwingBridgeTheme` path on this tree.
 
+## GroupKeys mapping files
+
+The opaque frames (`at $$compose.m$-696222513(SourceFile:1)`) are **not** a kotlinc output.
+Gradle’s `includeComposeMappingFile` (Kotlin 2.3.0+, default on) is a **post-compile** AGP
+task, not a Compose compiler `plugin_options` flag. It:
+
+1. Walks compiled `.class` files / jars with `org.jetbrains.kotlin:compose-group-mapping`
+   (`ComposeMapping`).
+2. Reads group-key integer literals already in bytecode (`startRestartGroup` /
+   `startReplaceGroup` / …) plus **line numbers** from the LineNumberTable.
+3. Writes ProGuard mapping of the form:
+
+   ```
+   ComposeStackTrace -> $$compose:
+       1:1:void org.jetbrains.jewel.ui.component.ButtonKt.DefaultButton(...):213:213 -> m$-696222513
+   ```
+
+4. Appends that to R8’s `mapping.txt` — **only for minified Android application variants**.
+
+There is no kotlinc option like `composeMappingFile=/path`. Desktop/IDE builds never get
+this file today because they are not R8-minified. `@FunctionKeyMeta` /
+`generateFunctionKeyMetaAnnotations` is a different tooling/hot-reload artifact; the
+official mapper does not need it.
+
+### Same compilers + same commit ⇒ same mapping?
+
+**Same shipped bytecode ⇒ same mapping.** Generate the file from the **release jars**, not
+from a second kotlinc run.
+
+Group keys are `hashCode()` of a durable path string (`fun-<signature>` plus nested path
+parts). Same Kotlin + Compose compiler and the same sources will match in practice. It is
+not whitespace-insensitive: inner group keys and mapping **line numbers** can move if
+source offsets shift. A compiler version bump or a Compose feature flag
+(`OptimizeNonSkippingGroups`, …) can change which groups exist. Pin the mapping to
+**build number**, not git SHA alone.
+
+Compose stdlib frames (`Column`, `Layout`, …) come from **those libraries’** bytecode.
+Scan the bundled Compose jars too, or those frames stay as `$$compose.m$<int>`.
+
+### Release artifact, including Studio-from-IJPL-jars
+
+Because the mapper is a bytecode scan, **Android Studio can produce the mapping entirely
+from the IJPL (and Studio) jars it already ships.** No IJPL Bazel genrule is required for
+Studio to retrace GroupKeys. Scan at Studio release cut:
+
+- IJPL Jewel + Compose runtime/foundation/ui jars for that IJPL commit
+- Studio follow-up Compose/Jewel jars (including vendored-as-jar modules)
+
+Store the result as Studio plugin resources keyed by build, and/or next to the build on
+TeamCity for offline `retrace`. The IDE does not need R8; a HashMap from `m$<key>` →
+FQN + line is enough.
+
+## Production shape: IJPL vs Android Studio
+
+Keep IJPL small. Studio can own mapping, retrace, and the debug toggle UX. The table is
+the split; details for the mapper and the toggle follow.
+
+| Piece | Where | Why |
+| --- | --- | --- |
+| `Composer.setDiagnosticStackTraceMode(GroupKeys)` at startup | **Studio** (and IU/Community only if those products want wild-crash traces too) | Process-wide Compose runtime API. A Studio `StartupActivity` is enough for Android Studio. |
+| GroupKeys mapping files | **Studio** release scan of product jars | Post-compile; no kotlinc flag. Includes IJPL + Studio + vendored jars. |
+| In-process GroupKeys → FQN mapper | **Studio** | See below. No IJPL extension point is required. |
+| `sourceInformation=true` on Jewel / platform Compose | **IJPL compile** (Bazel `plugin_options`) | Studio cannot invent markers in already-compiled IJPL jars. Needed only if the debug toggle should show Jewel file/line, not just GroupKeys. Cheap: +2.2% class bytes, kotlinc wall clock in the noise. |
+| `sourceInformation=true` on Studio Compose modules | **Studio compile** | Same flag for Studio-owned `@Composable`s. |
+| Debug “record SourceInformation” toggle | **Studio** action (optional tiny IJPL restart helper) | Must not be the production default. |
+| Force existing surfaces to start recording | **Studio** best-effort (optional 10-line IJPL `key(epoch)` in `JewelComposePanel`) | Skip/recompose does **not** record. See below. |
+| DevKit `ComposeVerboseStackTrace` | leave as playground | Not bundled in Community; not a product hook. |
+
+### 1. Compose exception mapper in Studio (GroupKeys → composition data)
+
+**Yes.** Studio can translate `$$compose.m$<key>` frames to composable FQN + line **inside
+the running IDE**, using mapping files it bundled for that build. IJPL does not have to
+know about the files.
+
+**Hook.** There is no platform “stack-trace mapper” EP today. `ErrorReportSubmitter`
+(`com.intellij.errorHandler`) runs only when the user submits a report, so the error
+dialog would still show integers. Two workable options:
+
+1. **Studio-only (no IJPL):** a JUL `Handler` on the root logger that, on `SEVERE` records
+   with a throwable, walks `cause` + `suppressed`, rewrites
+   `DiagnosticComposeException` / `$$compose` frames in place, then lets
+   `DialogAppender` show the already-mapped text. Mutating `stackTrace` is a bit cursed
+   but is how ProGuard retrace works conceptually, and it covers the balloon, the dialog,
+   logs, and submit.
+2. **Optional ~10-line IJPL EP** (only if we want it first-class): call
+   `DiagnosticStackTraceDecorator` from `DialogAppender.processEvent` before
+   `MessagePool.addErrorMessage`. Studio implements it. Not required.
+
+Do **not** shell out to R8 retrace in the IDE. Parse the Compose ProGuard stanza into
+`Map<Int, StackTraceElement>` at plugin load.
+
+**What you get back.** GroupKeys traces are still less precise than SourceInformation:
+first line of the `@Composable` (or group), no inline / non-Unit composables, no column.
+After mapping, a frame looks like a normal `at org.jetbrains.jewel…DefaultButton(Button.kt:213)`
+instead of `at $$compose.m$-696222513(SourceFile:1)`.
+
+**Vendored-as-jar Studio modules.** Same scan. Jars are not obfuscated, so the mapping is
+an index of information already in the class files (method names + LineNumberTable), not
+a new leak of product logic. It only names **composable UI** (Jewel, Compose, Studio UI
+composables). Agreed this is a minor info-disclosure: it makes composition structure
+easier to read without decompiling. Mitigations if needed: ship mappings only in EAP /
+internal builds, or keep them in a non-unpacked plugin resource. For a mapper that runs
+in the user’s IDE, the file has to be on disk in the install.
+
+**What IJPL must still do for this path:** nothing, if Studio sets `GroupKeys` itself and
+scans IJPL jars. Enabling GroupKeys in IJPL too is only for Community/IU wild dumps.
+
+### 2. Debug toggle: force active `ComposePanel`s to start recording SourceInformation
+
+Flipping `Composer.setDiagnosticStackTraceMode(SourceInformation)` is ~0.001 ms and **does
+not backfill** the slot table. Recording happens only when `inserting`. A normal
+recompose / `invalidate` of an already-inserted tree will **not** start collecting.
+
+So the toggle must **dispose and re-insert** (or equivalent), not merely recompose.
+Close/reopen remains the correct fallback copy.
+
+**Finding hosts.** Best-effort from Studio on the EDT:
+
+```text
+Window.getWindows() → walk Component trees
+  JewelComposePanelWrapper.composePanel
+  androidx.compose.ui.awt.ComposePanel
+  ComposeWindow / ComposeDialog if any
+```
+
+Misses: Compose scene layers / popups whose window container is not a `ComposePanel`
+in that walk; surfaces created after the toggle (those are fine — they compose with
+the new mode). Tell the user which panels were restarted and to close/reopen anything
+that still looks stale.
+
+**Restart that actually inserts** (current Compose Desktop `ComposePanel`):
+
+`dispose()` **does** tear down `_composeContainer` even while attached (the KDoc saying
+“otherwise nothing will happen” is stale relative to the implementation). After that the
+panel stays in the hierarchy with a null container; `addNotify` will not run again, so
+the UI goes blank unless something recreates the container.
+
+Reliable recipes:
+
+1. **Reflect `_composeContent` and `setContent { key(token) { previous() } }`.**
+   `setContent` keeps the lambda; wrapping in a new `key` forces the keyed subtree to
+   leave and re-enter (insert). Swing parent, focus cycle, and `isDisposeOnRemove` stay
+   put. `remember { }` state **under that key is reset** (scroll, text, animations).
+   This is the preferred best-effort path and does not need IJPL.
+2. **Detach/reattach:** set `isDisposeOnRemove = true`, `parent.remove(panel)`,
+   `parent.add(panel, constraints)`, restore the flag. Heavier: layout, focus, tool
+   windows that keep state across detach (`isDisposeOnRemove = false` is common in
+   IntelliJ toolwindows). Use only if (1) fails.
+3. **Do not** call `dispose()` alone while attached, and **do not** rely on
+   `Recomposer` invalidate / skip-path recompose.
+
+**Optional IJPL nicety (minimal):** wrap `JewelComposePanel` / `compose { }` content in
+`key(ComposeDiagnosticRestart.epoch)` and expose an internal `restartJewelCompositions()`.
+Studio then increments the epoch instead of reflecting. Covers Jewel-hosted surfaces
+only; still walk AWT for raw `ComposePanel`. Nice, not required.
+
+**Tell the user** on failure or partial success: recording starts on insert; if a
+surface looks unchanged, close and reopen that Compose UI. State loss after a successful
+restart is expected.
+
+The toggle still needs **`sourceInformation=true` in the jars that should appear in the
+trace.** If IJPL Jewel is compiled without it, Studio can restart every panel and still
+only see inlined Compose-stdlib frames plus GroupKeys.
+
 ## Recommendations
 
-1. **Do not leave `SourceInformation` on in production Community/IU processes.** Official
-   guidance plus insert-path recording. Treat it as a debug/internal tool.
-2. **If the product want is “better Jewel crashes in the wild,” prefer `GroupKeys`.** Zero
-   composition-time overhead by design; cost is paid only when attaching a trace after a
-   throw. Precision is worse (no file/line from source info).
-3. **A late IDE toggle of `SourceInformation` is cheap to flip (0.001 ms) and useless
-   until insert.** Existing Jewel surfaces need close/reopen (new composition) after the
-   toggle. `GroupKeys` is the mode designed for “no overhead until crash.”
-4. **Compile-time markers are the Bazel gap vs Gradle, and they are cheap enough to
-   consider.** Enabling `sourceInformation=true` on Jewel + `intellij.devkit.compose`
-   is what makes SourceInformation traces possible. Wall-clock kotlinc did not regress
-   beyond noise; class files grew ~2%. Residual runtime cost with mode still `None` is
-   extra JVM calls that do not write the slot table.
-5. **DevKit is required for the Showcase playground**, not for the runtime API. The mode is
-   a Compose runtime global.
+1. **Production default: `GroupKeys` in Studio, mapping bundled as a Studio release
+   artifact scanned from product jars.** Zero composition-time cost; dumps are integers
+   until the in-process mapper (or offline retrace) runs. Do this in Studio even if IJPL
+   never emits a mapping file of its own.
+2. **Do not leave `SourceInformation` on in production processes.** Official guidance plus
+   insert-path recording. Treat it as a debug/internal toggle.
+3. **IJPL compile flag only if the debug toggle should name Jewel file/line.**
+   `sourceInformation=true` on Jewel (+ platform Compose that Studio cannot rebuild).
+   +2.2% class bytes; kotlinc wall clock in the noise. Residual cost with mode `None`
+   is extra JVM calls that do not write the slot table.
+4. **Late SourceInformation toggle is cheap to flip and useless until insert.** Studio can
+   best-effort restart `ComposePanel`s (prefer `setContent` + `key(token)` via reflection).
+   Fall back to “close and reopen this Compose UI.” Optional IJPL `key(epoch)` in
+   `JewelComposePanel` if we want a non-reflective Jewel path.
+5. **Mapper can live 100% in Studio.** JUL handler or optional tiny IJPL decorator EP.
+   `ErrorReportSubmitter` alone is too late for the error UI. Mapping discloses
+   composable FQNs already present in unobfuscated UI jars.
+6. **DevKit is required for the Showcase playground**, not for the runtime API. The mode
+   is a Compose runtime global.
 
 ## Implementation notes for this experiment
 
@@ -284,3 +453,5 @@ the `compose {}` / `SwingBridgeTheme` path on this tree.
 - Spectre was not used: it drives a desktop UI, it does not isolate composition.
 - Android modules were cloned with `./getPlugins.sh --shallow` so Bazel analysis could load
   the JPS model (`android/` is gitignored).
+- This document is the experiment report plus the production-shape notes above. No
+  production runtime or compiler flag is enabled on this branch.
