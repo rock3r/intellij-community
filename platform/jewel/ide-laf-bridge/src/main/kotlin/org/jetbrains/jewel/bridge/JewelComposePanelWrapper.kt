@@ -62,12 +62,14 @@ public fun JewelComposePanel(
     createJewelComposePanel(focusOnClickInside) { jewelPanel ->
         config()
         setContent {
-            SwingBridgeTheme {
-                CompositionLocalProvider(
-                    LocalComponentFoundation provides this@createJewelComposePanel,
-                    LocalPopupRenderer provides JBPopupRenderer,
-                ) {
-                    ComponentDataProviderBridge(jewelPanel, content = content)
+            JewelComposeDiagnostics.RetrofittingSourceInformation {
+                SwingBridgeTheme {
+                    CompositionLocalProvider(
+                        LocalComponentFoundation provides this@createJewelComposePanel,
+                        LocalPopupRenderer provides JBPopupRenderer,
+                    ) {
+                        ComponentDataProviderBridge(jewelPanel, content = content)
+                    }
                 }
             }
         }
@@ -118,12 +120,14 @@ public fun JewelComposeNoThemePanel(
     createJewelComposePanel(focusOnClickInside) { jewelPanel ->
         config()
         setContent {
-            CompositionLocalProvider(
-                LocalComponentFoundation provides this@createJewelComposePanel,
-                LocalPopupRenderer provides JBPopupRenderer,
-                LocalMessageResourceResolverProvider provides BridgeMessageResourceResolver(),
-            ) {
-                ComponentDataProviderBridge(jewelPanel, content = content)
+            JewelComposeDiagnostics.RetrofittingSourceInformation {
+                CompositionLocalProvider(
+                    LocalComponentFoundation provides this@createJewelComposePanel,
+                    LocalPopupRenderer provides JBPopupRenderer,
+                    LocalMessageResourceResolverProvider provides BridgeMessageResourceResolver(),
+                ) {
+                    ComponentDataProviderBridge(jewelPanel, content = content)
+                }
             }
         }
     }
