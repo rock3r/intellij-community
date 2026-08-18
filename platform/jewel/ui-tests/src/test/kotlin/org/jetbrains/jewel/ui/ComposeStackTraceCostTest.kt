@@ -56,6 +56,7 @@ class ComposeStackTraceCostTest {
 
         val tracesNone = inspectFailure(ComposeStackTraceMode.None)
         val tracesSource = inspectFailure(ComposeStackTraceMode.SourceInformation)
+        val tracesGroupKeys = inspectFailure(ComposeStackTraceMode.GroupKeys)
         val tracesAfterToggle = inspectFailureAfterToggle()
 
         val report =
@@ -76,6 +77,7 @@ class ComposeStackTraceCostTest {
                 appendLine("  \"stackTraces\": {")
                 appendLine("    \"none\": ${tracesNone.toJson()},")
                 appendLine("    \"sourceInformation\": ${tracesSource.toJson()},")
+                appendLine("    \"groupKeys\": ${tracesGroupKeys.toJson()},")
                 appendLine("    \"enableAfterExistingComposition\": ${tracesAfterToggle.toJson()}")
                 appendLine("  }")
                 appendLine("}")
