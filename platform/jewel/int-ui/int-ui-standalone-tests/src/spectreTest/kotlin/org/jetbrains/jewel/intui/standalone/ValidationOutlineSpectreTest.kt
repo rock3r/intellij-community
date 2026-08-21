@@ -27,10 +27,8 @@ import java.util.concurrent.atomic.AtomicReference
 import javax.imageio.ImageIO
 import kotlin.concurrent.thread
 import kotlin.test.assertTrue
-import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.TimeoutCancellationException
-import kotlinx.coroutines.delay
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.intui.standalone.theme.IntUiTheme
@@ -146,15 +144,7 @@ private class ValidationOutlineApplication(private val isDark: Boolean) {
         exitApplication.get()?.invoke()
     }
 
-    suspend fun awaitWindow(): ComposeWindow {
-        repeat(100) {
-            window.get()?.let {
-                return it
-            }
-            delay(100.milliseconds)
-        }
-        error("The Compose test window was not created")
-    }
+    suspend fun awaitWindow(): ComposeWindow = window.awaitWindow()
 }
 
 private suspend fun waitForTaggedNode(automator: ComposeAutomator, tag: String) =
