@@ -59,6 +59,15 @@ http_file(
     url = "https://cache-redirector.jetbrains.com/repo1.maven.org/maven2/dev/sebastiano/spectre/spectre-agent/0.5.0/spectre-agent-0.5.0.jar",
 )
 
+# The loadable Java agent, supplied by the attaching test JVM and injected into the IDE under test.
+# Keeping it here rather than in `lib/` is what stops Spectre reaching the IDE or a published artifact.
+http_file(
+    name = "jewel_deps_spectre_agent_runtime",
+    downloaded_file_path = "spectre-agent-runtime-0.5.0.jar",
+    sha256 = "fe23e05e9c221ef2f7e7d7b58a7992a309d0c6171ff325afcb05eac37a290adb",
+    url = "https://cache-redirector.jetbrains.com/repo1.maven.org/maven2/dev/sebastiano/spectre/spectre-agent-runtime/0.5.0/spectre-agent-runtime-0.5.0.jar",
+)
+
 http_file(
     name = "jewel_deps_spectre_agent_sources",
     downloaded_file_path = "spectre-agent-0.5.0-sources.jar",

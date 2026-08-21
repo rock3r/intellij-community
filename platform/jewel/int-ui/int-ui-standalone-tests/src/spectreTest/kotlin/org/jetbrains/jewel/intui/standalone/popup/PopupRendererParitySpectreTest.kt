@@ -198,19 +198,26 @@ private val CASES =
 class PopupRendererParitySpectreTest {
     @Test
     fun `the custom renderer matches Compose's own popup for every component`(): Unit = runSpectreTest {
-        val divergences = mutableListOf<String>()
-        for (case in CASES) {
-            val withCompose = measure(custom = false, case = case)
-            val withJDialog = measure(custom = true, case = case)
-            if (withCompose != withJDialog) {
-                divergences += "${case.name}: defaultCompose[$withCompose] != JDialogRenderer[$withJDialog]"
+        // This test flips the renderer flag per measurement, so it has to put it back: the rest of the suite
+        // asserts it is on, and a leaked value makes those tests depend on execution order.
+        val previousFlag = JewelFlags.useCustomPopupRenderer
+        try {
+            val divergences = mutableListOf<String>()
+            for (case in CASES) {
+                val withCompose = measure(custom = false, case = case)
+                val withJDialog = measure(custom = true, case = case)
+                if (withCompose != withJDialog) {
+                    divergences += "${case.name}: defaultCompose[$withCompose] != JDialogRenderer[$withJDialog]"
+                }
             }
+            assertEquals(
+                emptyList(),
+                divergences,
+                "JDialogRenderer must be indistinguishable from Compose's own popup for these components",
+            )
+        } finally {
+            JewelFlags.useCustomPopupRenderer = previousFlag
         }
-        assertEquals(
-            emptyList(),
-            divergences,
-            "JDialogRenderer must be indistinguishable from Compose's own popup for these components",
-        )
     }
 
     private suspend fun measure(custom: Boolean, case: Case): String {

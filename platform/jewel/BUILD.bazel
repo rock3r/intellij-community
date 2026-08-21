@@ -38,6 +38,13 @@ kt_jvm_import(
 )
 
 kt_jvm_import(
+    name = "spectre-agent-runtime",
+    testonly = True,
+    jar = "@jewel_deps_spectre_agent_runtime//file",
+    visibility = ["//visibility:private"],
+)
+
+kt_jvm_import(
     name = "spectre-recording",
     testonly = True,
     jar = "@jewel_deps_spectre_recording//file",
@@ -103,4 +110,15 @@ java_library(
         "//libraries/junit5-jupiter",
         "//libraries/junit5-launcher",
     ],
+)
+
+# Everything an out-of-process test needs to attach to a running Compose JVM. Deliberately separate
+# from `:spectre`, which is the in-process bundle: an attacher must not pull `spectre-core` in, or the
+# target would be driven in-process instead of over the agent's IPC.
+java_library(
+    name = "spectre-attach",
+    testonly = True,
+    visibility = ["//visibility:public"],
+    exports = [":spectre-agent"],
+    runtime_deps = [":spectre-agent-runtime"],
 )
