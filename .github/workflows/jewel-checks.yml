@@ -196,7 +196,7 @@ jobs:
         with:
           repository: JetBrains/android
           path: android
-          ref: master
+          ref: 170ed68f093b38d32c0cd1cc9c3262d9ff8f36cc
 
       # The API check compiles every community module, which does not fit a hosted runner's stock
       # resources. Same preparation as .github/actions/build_ide, which builds the IDE on ubuntu-latest.
@@ -278,7 +278,7 @@ jobs:
         with:
           repository: JetBrains/android
           path: android
-          ref: master
+          ref: 170ed68f093b38d32c0cd1cc9c3262d9ff8f36cc
 
       - name: Set up JBR 21
         uses: actions/setup-java@v5.6.0
@@ -332,7 +332,7 @@ jobs:
         with:
           repository: JetBrains/android
           path: android
-          ref: master
+          ref: 170ed68f093b38d32c0cd1cc9c3262d9ff8f36cc
 
       - name: Install Xvfb
         # libxrandr2 and libxinerama1 are dlopened, so nothing reports them missing.
@@ -389,7 +389,7 @@ jobs:
         with:
           repository: JetBrains/android
           path: android
-          ref: master
+          ref: 170ed68f093b38d32c0cd1cc9c3262d9ff8f36cc
 
       - name: Run the Spectre headful UI tests
         # Not redundant: JDialogRenderer uses RenderSettings.SwingGraphics on Windows.
@@ -427,7 +427,7 @@ jobs:
         with:
           repository: JetBrains/android
           path: android
-          ref: master
+          ref: 170ed68f093b38d32c0cd1cc9c3262d9ff8f36cc
 
       # The IDE end-to-end test builds a dev IDE from every community module. Same preparation as the API check.
       - name: Free disk space
@@ -529,7 +529,7 @@ jobs:
         with:
           repository: JetBrains/android
           path: android
-          ref: master
+          ref: 170ed68f093b38d32c0cd1cc9c3262d9ff8f36cc
 
       # The IDE end-to-end test copies every community module into its runfiles, which does not fit on C:.
       - name: Put Bazel's output on the larger drive
