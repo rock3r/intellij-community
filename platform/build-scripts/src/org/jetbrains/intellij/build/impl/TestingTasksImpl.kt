@@ -1089,28 +1089,28 @@ internal class TestingTasksImpl(context: CompilationContext, private val options
         failedClassesListFile?.let { additionalProperties["intellij.build.test.retries.failedClasses.file"] = it.absolutePathString() }
         var failedClasses: List<String>? = null
 
-        // use separate config, system, and log directories per test process
-        val ideaLogPath = let {
-          val old = Path.of(systemProperties[PathManager.PROPERTY_LOG_PATH] ?: error("'${PathManager.PROPERTY_LOG_PATH}' is not set"))
-
-          old.createDirectories()
-          val testProcessName = systemProperties["intellij.build.test.process.name"] ?: error("'intellij.build.test.process.name' is not set")
-          FileUtil.createTempDirectory(old.toFile(), "junit-$testProcessName-", null, false).toPath()
-        }
-        val ideaConfigPath = Path.of(systemProperties[PathManager.PROPERTY_CONFIG_PATH] ?: error("'${PathManager.PROPERTY_CONFIG_PATH}' is not set")).resolve(ideaLogPath.fileName)  // reuse the same junit-* name
-        ideaConfigPath.deleteRecursively()
-        val ideaSystemPath = Path.of(systemProperties[PathManager.PROPERTY_SYSTEM_PATH] ?: error("'${PathManager.PROPERTY_SYSTEM_PATH}' is not set")).resolve(ideaLogPath.fileName)
-        ideaSystemPath.deleteRecursively()
-        additionalProperties.putAll(listOf(
-          PathManager.PROPERTY_CONFIG_PATH to ideaConfigPath.absolutePathString(),
-          PathManager.PROPERTY_SYSTEM_PATH to ideaSystemPath.absolutePathString(),
-          PathManager.PROPERTY_LOG_PATH to ideaLogPath.absolutePathString(),
-        ))
-        context.messages.info("Test process log directory: $ideaLogPath")
-
         var exitCode = 0
 
         for (attempt in 1..options.attemptCount) {
+          // use separate config, system, and log directories per test process
+          val ideaLogPath = let {
+            val old = Path.of(systemProperties[PathManager.PROPERTY_LOG_PATH] ?: error("'${PathManager.PROPERTY_LOG_PATH}' is not set"))
+
+            old.createDirectories()
+            val testProcessName = systemProperties["intellij.build.test.process.name"] ?: error("'intellij.build.test.process.name' is not set")
+            FileUtil.createTempDirectory(old.toFile(), "junit-$testProcessName-", null, false).toPath()
+          }
+          val ideaConfigPath = Path.of(systemProperties[PathManager.PROPERTY_CONFIG_PATH] ?: error("'${PathManager.PROPERTY_CONFIG_PATH}' is not set")).resolve(ideaLogPath.fileName)  // reuse the same junit-* name
+          ideaConfigPath.deleteRecursively()
+          val ideaSystemPath = Path.of(systemProperties[PathManager.PROPERTY_SYSTEM_PATH] ?: error("'${PathManager.PROPERTY_SYSTEM_PATH}' is not set")).resolve(ideaLogPath.fileName)
+          ideaSystemPath.deleteRecursively()
+          additionalProperties.putAll(listOf(
+            PathManager.PROPERTY_CONFIG_PATH to ideaConfigPath.absolutePathString(),
+            PathManager.PROPERTY_SYSTEM_PATH to ideaSystemPath.absolutePathString(),
+            PathManager.PROPERTY_LOG_PATH to ideaLogPath.absolutePathString(),
+          ))
+          context.messages.info("Test process log directory: $ideaLogPath")
+
           val spanNameSuffix = buildString {
             if (options.repeatCount > 1) {
               append(" (run $runNumber/${options.repeatCount})")
@@ -1166,14 +1166,14 @@ internal class TestingTasksImpl(context: CompilationContext, private val options
               break // All tests passed or no tests were found; no further attempts needed.
             }
           }
-        }
 
-        // clean up, don't remove the test process logs
-        try {
-          ideaConfigPath.deleteRecursively()
-          ideaSystemPath.deleteRecursively()
-        } catch (e: java.nio.file.FileSystemException) {
-          messages.warning("Can't delete config or system path: ${e.stackTraceToString()}")
+          // clean up, don't remove the test process logs
+          try {
+            ideaConfigPath.deleteRecursively()
+            ideaSystemPath.deleteRecursively()
+          } catch (e: java.nio.file.FileSystemException) {
+            messages.warning("Can't delete config or system path: ${e.stackTraceToString()}")
+          }
         }
 
         val hadRunFailures = exitCode == EXIT_FAILURE
