@@ -945,11 +945,12 @@ shard that failed to download is a root with its error. For the server of `--tea
 uses the login of `teamcity auth login`. A server is `https`, or `http` on a loopback host. `--teamcity` does not go
 with `--detach`, so pick a free `--port` when a detached server runs.
 
-**On TeamCity.** `bazel run @community//tools/vm:air-trace -- teamcity-publish` is the step after `bazel test`. It
-writes one archive and publishes it as the artifact `air-traces.zip`. The archive holds `runs.json`, then one zip for
-each bundle at `<lane>/<runId>/<TestClass>/<scenario>.zip`. TeamCity serves an entry of an archive artifact itself, with
-byte ranges. A loose artifact would not work: TeamCity redirects it to a signed address, where its siblings are refused.
-Each test of the Tests tab gets its trace and a `trace viewer` link to the CI page of the hosted site,
+**On TeamCity.** `air-trace teamcity-publish` is the step after `bazel test`. A lane test holds `air-trace` in its
+runfiles, so the step runs the binary from the output tree of the test, with no Bazel command. It writes one archive and
+publishes it as the artifact `air-traces.zip`. The archive holds `runs.json`, then one zip for each bundle at
+`<lane>/<runId>/<TestClass>/<scenario>.zip`. TeamCity serves an entry of an archive artifact itself, with byte ranges. A
+loose artifact would not work: TeamCity redirects it to a signed address, where its siblings are refused. Each test of
+the Tests tab gets its trace and a `trace viewer` link to the CI page of the hosted site,
 `https://ij-void-docs.labs.jb.gg/air/ci/<buildId>/trace?zip=<zip>`. A portal proxy of the site reads `runs.json` and the
 zip of that build from TeamCity. The build log names the CI page of the build, `…/air/ci/<buildId>`, with all its runs.
 `--site URL` or `AIR_TRACE_SITE` names another site, such as a staging portal. A failed scenario also gets its last
@@ -961,6 +962,8 @@ step before the Bazel step streams one file into the build log and gives its pat
 `ui 12/46: <scenario> failed (3.2 s)`. For a failed or aborted scenario it also publishes the video and the last
 picture into `air-traces-failed/` as soon as the bundle is there. The paths are the ones of `teamcity-publish`, which
 publishes the same files again after the test. Off TeamCity, or without the variable, `lane-run` writes no such file.
+The Bazel runner of an Air UI build does not stream the `.log` outputs of a test into the build log, because each
+bundle holds an `idea.log`. The publish step prints the `test.log` of each lane instead.
 
 The step builds no viewer and never starts a Bazel, so it needs no node and no pnpm.
 
