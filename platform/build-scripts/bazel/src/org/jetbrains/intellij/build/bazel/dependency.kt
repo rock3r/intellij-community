@@ -527,7 +527,9 @@ private fun addDep(
       }
     }
     JpsJavaDependencyScope.RUNTIME -> {
-      // TODO: require !isExported
+      require(!isExported) {
+        "module must not have exported RUNTIME-scope dependencies, please unexport them: ${dependentModule.imlFile}"
+      }
       runtimeDeps.add(dependencyLabel)
     }
     JpsJavaDependencyScope.PROVIDED -> {
