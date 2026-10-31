@@ -132,16 +132,15 @@ fn the_jcp_routes_answer_the_organization_and_the_record_counts_the_discoveries(
         ),
         ("gateways", r#"{"gateways":[]}"#),
         ("agents", r#"{"items":[]}"#),
+        ("acp", r#"{"registry":"","allowAcpAgentManagement":true}"#),
     ] {
         assert_eq!(
             testing::get(address, &format!("/jcp/ai-management/api/provisioning/v1/{path}")).text(),
             body
         );
     }
-    for path in ["acp", "mcp"] {
-        let answer = testing::get(address, &format!("/jcp/ai-management/api/provisioning/v1/{path}"));
-        assert_eq!((answer.status, answer.raw_body.len()), (404, 0), "{path}");
-    }
+    let mcp = testing::get(address, "/jcp/ai-management/api/provisioning/v1/mcp");
+    assert_eq!((mcp.status, mcp.raw_body.len()), (404, 0));
     let access = testing::get(
         address,
         "/jcp/repo-connections/tokens/state/meta?repositoryUrl=https%3A%2F%2Fgithub.com%2Fo%2Fr.git",

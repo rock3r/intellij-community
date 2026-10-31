@@ -228,7 +228,7 @@ The emulator serves one account user with the id `air-lane-user`. A path with a 
 | `/jcp/ai-management/api/provisioning/v1/tools` | Air allowed with cloud runs |
 | `/jcp/ai-management/api/provisioning/v1/gateways` | no gateway |
 | `/jcp/ai-management/api/provisioning/v1/agents` | no agent |
-| `/jcp/ai-management/api/provisioning/v1/acp` | 404 |
+| `/jcp/ai-management/api/provisioning/v1/acp` | the built-in registry, and custom ACP agents allowed |
 | `/jcp/ai-management/api/provisioning/v1/mcp` | 404 |
 | `/jcp/repo-connections/tokens/state/meta` | the JetBrains VCS App can read and write every repository |
 | `/jcp/agent-spawner/hosts/v0/remote-control/availability` | `{"available":false}`: no mobile control grant |
@@ -256,7 +256,11 @@ The emulator serves one account user with the id `air-lane-user`. A path with a 
 - The AI access discovery answers one cloud workspace or no option, as the lane states the organization.
   [@test] ../crates/avl-guest/src/lane/services/cloud/tests.rs
 
-- The ACP and the MCP provisioning answer 404 with an empty body. The record lists them as served requests.
+- The ACP provisioning answers a blank registry and `allowAcpAgentManagement` true. A lane agent is a custom ACP
+  agent, so its session keeps running after the sign-in to the workspace.
+  [@test] ../crates/avl-guest/src/lane/services/cloud/tests.rs
+
+- The MCP provisioning answers 404 with an empty body. The record lists it as a served request.
   [@test] ../crates/avl-guest/src/lane/services/cloud/tests.rs
 
 - The mobile control grant answers no grant, so a lane IDE keeps mobile control off. The record lists the

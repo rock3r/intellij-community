@@ -72,6 +72,9 @@ const ORG_FEATURE_FLAGS_BODY: &str = concat!(
 const TOOLS_PROVISIONING_BODY: &str = r#"{"air":{"status":"allowed","allowCloudAgentsRun":true},"aiAssistant":{"status":"disallowed"}}"#;
 const GATEWAYS_PROVISIONING_BODY: &str = r#"{"gateways":[]}"#;
 const AGENTS_PROVISIONING_BODY: &str = r#"{"items":[]}"#;
+/// The built-in ACP registry, and custom ACP agents allowed. A lane agent is a custom agent, so a session of it keeps
+/// running after the sign-in to the workspace.
+const ACP_PROVISIONING_BODY: &str = r#"{"registry":"","allowAcpAgentManagement":true}"#;
 /// The JetBrains VCS App of the emulated user can read every repository, so no launch stops at the access check.
 const REPOSITORY_ACCESS_BODY: &str =
     r#"{"type":"VALID","provider":"github","username":"air-lane","repositoryPermissions":{"read":true,"write":true}}"#;
@@ -292,10 +295,11 @@ impl Cloud {
             TOOLS_PROVISIONING_PATH => Some(TOOLS_PROVISIONING_BODY),
             GATEWAYS_PROVISIONING_PATH => Some(GATEWAYS_PROVISIONING_BODY),
             AGENTS_PROVISIONING_PATH => Some(AGENTS_PROVISIONING_BODY),
+            ACP_PROVISIONING_PATH => Some(ACP_PROVISIONING_BODY),
             REPOSITORY_ACCESS_PATH => Some(REPOSITORY_ACCESS_BODY),
             MOBILE_CONTROL_GRANT_PATH => Some(MOBILE_CONTROL_GRANT_BODY),
-            // The organization has no ACP registry and provisions no MCP server. Air reads 404 as "not configured".
-            ACP_PROVISIONING_PATH | MCP_PROVISIONING_PATH => None,
+            // The organization provisions no MCP server. Air reads 404 as "not configured".
+            MCP_PROVISIONING_PATH => None,
             _ => return None,
         };
         let mut record = self.lock();
