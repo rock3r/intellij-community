@@ -14,4 +14,7 @@ dependencies {
     testImplementation(project(":foundation"))
     testImplementation(project(":ui"))
     testImplementation(project(":int-ui:int-ui-standalone"))
+    // Platform icon resources, so tests render the same AllIcons the app does — including their stroke
+    // variants, which is what makes a selected toggle's icon tint correctly.
+    testImplementation(libs.intellijPlatform.icons)
 }

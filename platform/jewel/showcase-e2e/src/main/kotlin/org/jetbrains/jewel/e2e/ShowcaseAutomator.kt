@@ -24,6 +24,9 @@ public interface ShowcaseAutomator {
     /** Whether anything with [tag] is on screen right now, across every surface the host knows about. */
     public suspend fun isPresent(tag: String): Boolean
 
+    /** Whether a node with [tag] has non-empty visible bounds on screen (not clipped outside a scroll viewport). */
+    public suspend fun hasVisibleBounds(tag: String): Boolean
+
     /** Every test tag currently on screen, for failure messages. */
     public suspend fun visibleTags(): List<String>
 
@@ -34,6 +37,9 @@ public interface ShowcaseAutomator {
      * the pointer away between actions would quietly change what is being tested.
      */
     public suspend fun click(tag: String)
+
+    /** Clicks a node whose primary text equals [text]. */
+    public suspend fun clickByText(text: String)
 
     /** Clicks a node by its accessibility description, which is how the showcase's view switcher is addressable. */
     public suspend fun clickByContentDescription(description: String)
@@ -58,6 +64,9 @@ public interface ShowcaseAutomator {
 
     /** Returns whether a node with [tag] is present and selected. */
     public suspend fun isSelected(tag: String): Boolean
+
+    /** Asserts that the toggleable node with [tag] reports toggled/selected state [expected]. */
+    public suspend fun assertToggled(tag: String, expected: Boolean)
 
     /** Waits for the UI to settle, so a check does not race a recomposition or an animation. */
     public suspend fun waitForIdle()

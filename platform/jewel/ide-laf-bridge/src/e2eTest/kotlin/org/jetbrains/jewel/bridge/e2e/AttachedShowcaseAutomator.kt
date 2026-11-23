@@ -5,6 +5,7 @@ package org.jetbrains.jewel.bridge.e2e
 
 import dev.sebastiano.spectre.agent.AttachedAutomator
 import dev.sebastiano.spectre.agent.ExperimentalSpectreAgentApi
+import dev.sebastiano.spectre.agent.transport.RectDto
 import org.jetbrains.jewel.e2e.ShowcaseAutomator
 
 /**
@@ -23,10 +24,20 @@ internal class AttachedShowcaseAutomator(
 ) : ShowcaseAutomator {
     override suspend fun isPresent(tag: String): Boolean = attached.findByTestTag(tag).isNotEmpty()
 
+    override suspend fun hasVisibleBounds(tag: String): Boolean {
+        val bounds = attached.findByTestTag(tag).firstOrNull()?.bounds ?: return false
+        return bounds.width > MIN_CLIPPED_BOUNDS_PX && bounds.height > MIN_CLIPPED_BOUNDS_PX
+    }
+
     override suspend fun visibleTags(): List<String> = attached.allNodes().mapNotNull { it.testTag }.distinct().sorted()
 
     override suspend fun click(tag: String) {
         val node = attached.findByTestTag(tag).firstOrNull() ?: error("Nothing tagged '$tag' to click")
+        attached.click(node)
+    }
+
+    override suspend fun clickByText(text: String) {
+        val node = attached.allNodes().lastOrNull { text in it.texts } ?: error("Nothing with text '$text' to click")
         attached.click(node)
     }
 
@@ -53,11 +64,25 @@ internal class AttachedShowcaseAutomator(
 
     override suspend fun isEnabled(tag: String): Boolean {
         val node = attached.findByTestTag(tag).firstOrNull() ?: return false
-        return !node.isDisabled
+        if (node.isDisabled) return false
+        if (node.role != null) return true
+        val ownerPrefix = node.key.substringBeforeLast(':')
+        val descendantDisabled =
+            attached.allNodes().any { other ->
+                other.key != node.key &&
+                    other.key.startsWith("$ownerPrefix:") &&
+                    other.isDisabled &&
+                    other.bounds.isInside(node.bounds)
+            }
+        return !descendantDisabled
     }
 
     override suspend fun isSelected(tag: String): Boolean =
         attached.findByTestTag(tag).firstOrNull()?.isSelected == true
+
+    override suspend fun assertToggled(tag: String, expected: Boolean) {
+        waitUntil("'$tag' toggled state to be $expected") { isSelected(tag) == expected }
+    }
 
     override suspend fun waitForIdle() {
         attached.waitForIdle()
@@ -97,3 +122,11 @@ internal class AttachedShowcaseAutomator(
 // Spectre clamps empty clipped bounds to 1x1 px in composeBoundsToAwtRectangle; require more than that
 // so partially or fully clipped nodes are scrolled into view before clicking.
 private const val MIN_CLIPPED_BOUNDS_PX = 4
+
+private fun RectDto.isInside(container: RectDto): Boolean =
+    width > 0 &&
+        height > 0 &&
+        x >= container.x &&
+        y >= container.y &&
+        x + width <= container.x + container.width &&
+        y + height <= container.y + container.height

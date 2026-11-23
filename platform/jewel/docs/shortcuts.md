@@ -142,13 +142,22 @@ The engine (`ShortcutDispatchEngine`) is free of Compose and AWT types; its unit
 Provide the host to the composition (`ProvideJewelShortcutHost(state) { … }`; the bridge does this
 automatically inside `JewelComposePanel`) to observe presentation state and invocation events:
 
+```kotlin
+ActionButton(SelectAllRows)          // renders sampled presentation (icon, text); invokes through the host
+ToggleActionButton(WordWrap)         // Toggle actions; checked state = presentation.selected
+ActionToolbar(mainToolbarGroup)      // leaf actions, separators, inline subgroups, popup subgroups
+ActionGroupButton(viewOptionsGroup)  // opens an ActionMenu; submenus, toggle items, dismiss policies
+SplitActionButton(Run, runConfigsGroup)
+```
+
 - A binding contributes dynamic presentation through `Modifier.shortcut(action, presentation = …)`
   (`ActionPresentationOverride`: text, description, visibility, `selected` for toggles, a
   host-interpreted icon slot, and `MenuDismissPolicy` — the four-state mirror of IJPL's
   `KeepPopupOnPerform`, carried as presentation state).
 - `collectPresentationAsState(selector)` observes one projection gated by that projection's own
-  equality, with demand-driven sampling (`ActionPresentationScheduler`) and explicit failure rows
-  (`ActionResolution.Unregistered`, `NoFocusedBinding`).
+  equality, with demand-driven sampling (`ActionPresentationScheduler`), explicit failure rows
+  (`ActionResolution.Unregistered`, `NoFocusedBinding`, `HostUnavailable`), and re-resolved
+  invocation so a stale presentation can never trigger a gone binding.
 - `JewelShortcutHostState.events` emits one `ActionInvocation` per completed Jewel-owned invocation, and
   `ShortcutRepeatPolicy` (`OnceUntilRelease` vs `RepeatWhileHeld`) controls auto-repeat delivery per
   binding or claim.
@@ -212,15 +221,23 @@ showcase module shows the same pattern against real application UI.
 
 The standalone sample is the living demo: it installs one host at the window root (see
 `ShowcaseShortcutHost` and `Main.kt`), binds ambient page-navigation commands
-(<kbd>Alt</kbd>+<kbd>W</kbd>/<kbd>C</kbd>/<kbd>M</kbd>/<kbd>S</kbd>), switches component sections with
-<kbd>⌘</kbd>/<kbd>Ctrl</kbd>+<kbd>↑</kbd>/<kbd>↓</kbd>, and ships a **Shortcuts** page
-(<kbd>Alt</kbd>+<kbd>S</kbd>) — an interactive tester covering nested overrides, claims vetoing
-commands, typed suppression, and two-stroke chords.
+(<kbd>Alt</kbd>+<kbd>W</kbd>/<kbd>C</kbd>/<kbd>M</kbd>/<kbd>S</kbd>/<kbd>A</kbd>), switches
+component sections with <kbd>⌘</kbd>/<kbd>Ctrl</kbd>+<kbd>↑</kbd>/<kbd>↓</kbd>, and splits the
+showcase into two focused views:
+
+- **Shortcuts** (<kbd>Alt</kbd>+<kbd>S</kbd>): an interactive tester covering nested overrides,
+  claims vetoing commands, typed suppression, and two-stroke chords against an invocation log.
+- **Components → Action Components** (<kbd>Alt</kbd>+<kbd>A</kbd>): `ActionButton`,
+  `ToggleActionButton`, `ActionToolbar`, `ActionGroupButton`, `SplitActionButton`, and the
+  `KeymapSettingsPanel` behind the *Keybindings* tab.
 
 ## Status
 
-Implemented and tested: dispatch core (repeat policies and menu scopes), standalone resolver, in-memory
-keymap model, presentation model and demand-driven scheduler, action lifecycle events, popup/menu shortcut
-propagation, the bridge claim lane, and the bridge action registry/invoker (attach-or-register, standard
-edit mappings, platform-routed invocation, platform-cadence presentation updates) with platform-level
-integration tests. Action-bound UI components and live keymap settings follow in separate layers.
+Implemented and tested: dispatch core (repeat policies and menu scopes), standalone resolver,
+keymap model + settings surface, presentation model (overrides, icons, failure rows, selector
+projections) + scheduler, action events, group model, `ActionButton`/`ToggleActionButton`/
+`ActionToolbar`/`ActionMenu`/`ActionGroupButton`/`SplitActionButton`, popup/menu shortcut
+propagation, the bridge claim lane, and the bridge action registry/invoker (attach-or-register,
+standard edit mappings, platform-routed invocation, platform-cadence presentation updates) with
+platform-level integration tests. Context-driven enablement and reactive standalone presentation
+follow in downstream layers.

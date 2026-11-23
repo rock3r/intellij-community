@@ -129,6 +129,8 @@ f:org.jetbrains.jewel.ui.TypographyKt
 f:org.jetbrains.jewel.ui.component.ActionButtonKt
 - sf:ActionButton(kotlin.jvm.functions.Function0,androidx.compose.ui.Modifier,Z,Z,org.jetbrains.jewel.ui.component.styling.IconButtonStyle,androidx.compose.foundation.layout.PaddingValues,androidx.compose.foundation.interaction.MutableInteractionSource,kotlin.jvm.functions.Function2,androidx.compose.runtime.Composer,I,I):V
 - sf:ActionButton(kotlin.jvm.functions.Function0,kotlin.jvm.functions.Function2,androidx.compose.ui.Modifier,Z,Z,org.jetbrains.jewel.ui.component.styling.IconButtonStyle,androidx.compose.foundation.layout.PaddingValues,org.jetbrains.jewel.ui.component.styling.TooltipStyle,androidx.compose.foundation.TooltipPlacement,androidx.compose.foundation.interaction.MutableInteractionSource,kotlin.jvm.functions.Function2,androidx.compose.runtime.Composer,I,I,I):V
+f:org.jetbrains.jewel.ui.component.ActionComponentsKt
+f:org.jetbrains.jewel.ui.component.ActionMenuComponentsKt
 f:org.jetbrains.jewel.ui.component.BadgeKt
 - sf:Badge(androidx.compose.ui.Modifier,kotlin.jvm.functions.Function0,Z,androidx.compose.foundation.interaction.MutableInteractionSource,org.jetbrains.jewel.ui.component.styling.BadgeStyle,androidx.compose.ui.text.TextStyle,kotlin.jvm.functions.Function3,androidx.compose.runtime.Composer,I,I):V
 f:org.jetbrains.jewel.ui.component.BadgeState
@@ -472,6 +474,7 @@ f:org.jetbrains.jewel.ui.component.InputFieldState
 f:org.jetbrains.jewel.ui.component.InputFieldState$Companion
 - f:of-raUdB0Y(Z,Z,Z,Z,Z):J
 - bs:of-raUdB0Y$default(org.jetbrains.jewel.ui.component.InputFieldState$Companion,Z,Z,Z,Z,Z,I,java.lang.Object):J
+f:org.jetbrains.jewel.ui.component.KeymapSettingsPanelKt
 f:org.jetbrains.jewel.ui.component.LazyTreeKt
 f:org.jetbrains.jewel.ui.component.LinearProgressBarKt
 - sf:HorizontalProgressBar(F,androidx.compose.ui.Modifier,org.jetbrains.jewel.ui.component.styling.HorizontalProgressBarStyle,androidx.compose.runtime.Composer,I,I):V

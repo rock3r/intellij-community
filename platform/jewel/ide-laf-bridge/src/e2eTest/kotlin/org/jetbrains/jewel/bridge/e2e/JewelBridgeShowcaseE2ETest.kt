@@ -28,6 +28,7 @@ import kotlin.test.assertEquals
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.runBlocking
+import org.jetbrains.jewel.e2e.ActionComponentScenarios
 import org.jetbrains.jewel.e2e.PopupScenarios
 import org.jetbrains.jewel.e2e.ScrollbarScenarios
 import org.jetbrains.jewel.e2e.ShortcutScenarios
@@ -109,6 +110,7 @@ class JewelBridgeShowcaseE2ETest {
                     PopupScenarios.runAll(automator, failures)
                     ScrollbarScenarios.runAll(automator, failures)
                     ShortcutScenarios.runAll(automator, failures)
+                    ActionComponentScenarios.runAll(automator, failures)
                 }
             }
         }

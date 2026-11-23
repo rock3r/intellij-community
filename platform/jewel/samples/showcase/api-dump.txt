@@ -1,3 +1,20 @@
+f:org.jetbrains.jewel.samples.showcase.ShowcaseActionComponents
+- sf:$stable:I
+- sf:INSTANCE:org.jetbrains.jewel.samples.showcase.ShowcaseActionComponents
+- f:definitions(Z):java.util.List
+- f:getArchive():org.jetbrains.jewel.foundation.shortcut.JewelAction
+- f:getDelete():org.jetbrains.jewel.foundation.shortcut.JewelAction
+- f:getEditingGroup():org.jetbrains.jewel.foundation.shortcut.StaticJewelActionGroup
+- f:getMainGroup():org.jetbrains.jewel.foundation.shortcut.StaticJewelActionGroup
+- f:getMoreGroup():org.jetbrains.jewel.foundation.shortcut.StaticJewelActionGroup
+- f:getNoIcon():org.jetbrains.jewel.foundation.shortcut.JewelAction
+- f:getRefresh():org.jetbrains.jewel.foundation.shortcut.JewelAction
+- f:getRunOptionsGroup():org.jetbrains.jewel.foundation.shortcut.StaticJewelActionGroup
+- f:getSave():org.jetbrains.jewel.foundation.shortcut.JewelAction
+- f:getShowWhitespace():org.jetbrains.jewel.foundation.shortcut.JewelAction
+- f:getTextAction():org.jetbrains.jewel.foundation.shortcut.JewelAction
+- f:getUnavailable():org.jetbrains.jewel.foundation.shortcut.JewelAction
+- f:getWordWrap():org.jetbrains.jewel.foundation.shortcut.JewelAction
 f:org.jetbrains.jewel.samples.showcase.ShowcaseIcons
 - sf:$stable:I
 - sf:INSTANCE:org.jetbrains.jewel.samples.showcase.ShowcaseIcons
@@ -44,6 +61,9 @@ f:org.jetbrains.jewel.samples.showcase.ShowcaseIcons$ProgrammingLanguages
 - sf:$stable:I
 - sf:INSTANCE:org.jetbrains.jewel.samples.showcase.ShowcaseIcons$ProgrammingLanguages
 - f:getKotlin():org.jetbrains.jewel.ui.icon.PathIconKey
+f:org.jetbrains.jewel.samples.showcase.ShowcaseShortcutLocalsKt
+- sf:getLocalShowcaseActionRegistry():androidx.compose.runtime.ProvidableCompositionLocal
+- sf:getLocalShowcaseKeymap():androidx.compose.runtime.ProvidableCompositionLocal
 f:org.jetbrains.jewel.samples.showcase.ShowcaseShortcuts
 - sf:$stable:I
 - sf:INSTANCE:org.jetbrains.jewel.samples.showcase.ShowcaseShortcuts
@@ -51,6 +71,7 @@ f:org.jetbrains.jewel.samples.showcase.ShowcaseShortcuts
 - f:getDemoPing():org.jetbrains.jewel.foundation.shortcut.JewelAction
 - f:getDemoReformat():org.jetbrains.jewel.foundation.shortcut.JewelAction
 - f:getDemoSelectAll():org.jetbrains.jewel.foundation.shortcut.JewelAction
+- f:getNavigateActionComponents():org.jetbrains.jewel.foundation.shortcut.JewelAction
 - f:getNavigateComponents():org.jetbrains.jewel.foundation.shortcut.JewelAction
 - f:getNavigateMarkdown():org.jetbrains.jewel.foundation.shortcut.JewelAction
 - f:getNavigateShortcuts():org.jetbrains.jewel.foundation.shortcut.JewelAction
@@ -104,6 +125,8 @@ f:org.jetbrains.jewel.samples.showcase.components.TooltipsKt
 - sf:Tooltips(androidx.compose.ui.Modifier,androidx.compose.runtime.Composer,I,I):V
 f:org.jetbrains.jewel.samples.showcase.components.TypographyKt
 - sf:TypographyShowcase(androidx.compose.ui.Modifier,androidx.compose.runtime.Composer,I,I):V
+f:org.jetbrains.jewel.samples.showcase.views.ActionComponentsViewKt
+- sf:ActionComponentsView(androidx.compose.ui.Modifier,androidx.compose.runtime.Composer,I,I):V
 f:org.jetbrains.jewel.samples.showcase.views.ComponentsViewKt
 - sf:ComponentsToolBar(org.jetbrains.jewel.ui.component.styling.IconButtonMetrics,java.util.List,org.jetbrains.jewel.samples.showcase.views.ViewInfo,kotlin.jvm.functions.Function1,androidx.compose.ui.Modifier,androidx.compose.runtime.Composer,I,I):V
 - sf:ComponentsView(org.jetbrains.jewel.samples.showcase.views.ComponentsViewModel,org.jetbrains.jewel.ui.component.styling.IconButtonMetrics,androidx.compose.ui.Modifier,androidx.compose.runtime.Composer,I,I):V

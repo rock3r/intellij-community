@@ -35,6 +35,10 @@ public object ShowcaseShortcuts {
     public val NavigateShortcuts: JewelAction =
         JewelAction(JewelActionId("org.jetbrains.jewel.showcase.navigate.shortcuts"), "Go to Shortcuts")
 
+    /** Navigates to the Action Components showcase section. */
+    public val NavigateActionComponents: JewelAction =
+        JewelAction(JewelActionId("org.jetbrains.jewel.showcase.navigate.actionComponents"), "Go to Action Components")
+
     /** Selects the next component showcase section. */
     public val NextSection: JewelAction =
         JewelAction(JewelActionId("org.jetbrains.jewel.showcase.section.next"), "Next Section")
@@ -71,6 +75,7 @@ public object ShowcaseShortcuts {
             JewelActionDefinition(NavigateComponents, listOf(alt(Key.C))),
             JewelActionDefinition(NavigateMarkdown, listOf(alt(Key.M))),
             JewelActionDefinition(NavigateShortcuts, listOf(alt(Key.S))),
+            JewelActionDefinition(NavigateActionComponents, listOf(alt(Key.A))),
             JewelActionDefinition(NextSection, listOf(JewelKeySequence(primary(Key.DirectionDown)))),
             JewelActionDefinition(PreviousSection, listOf(JewelKeySequence(primary(Key.DirectionUp)))),
             JewelActionDefinition(DemoSelectAll, listOf(JewelKeySequence(primary(Key.A)))),

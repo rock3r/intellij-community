@@ -58,4 +58,18 @@ internal object ShowcaseTestTags {
     const val SHORTCUT_TESTER_MACRO_COUNTER: String = "ShortcutTester.MacroCounter"
     const val SHORTCUT_TESTER_REFORMAT: String = "ShortcutTester.Reformat"
     const val SHORTCUT_TESTER_REFORMAT_STATUS: String = "ShortcutTester.ReformatStatus"
+
+    const val ACTION_COMPONENTS_SURFACE: String = "ActionComponents.Surface"
+    const val ACTION_COMPONENTS_SCROLL_AREA: String = "ActionComponents.ScrollArea"
+    const val ACTION_COMPONENTS_LOG: String = "ActionComponents.Log"
+    const val ACTION_COMPONENTS_SAVE: String = "ActionComponents.Save"
+    const val ACTION_COMPONENTS_DELETE: String = "ActionComponents.Delete"
+    const val ACTION_COMPONENTS_UNAVAILABLE: String = "ActionComponents.Unavailable"
+    const val ACTION_COMPONENTS_DELETE_TOGGLE: String = "ActionComponents.DeleteToggle"
+    const val ACTION_COMPONENTS_WORD_WRAP: String = "ActionComponents.WordWrap"
+    const val ACTION_COMPONENTS_MENU_BUTTON: String = "ActionComponents.MenuButton"
+    const val ACTION_COMPONENTS_MENU_BUTTON_KEEP_OPEN: String = "ActionComponents.MenuButtonKeepOpen"
+    const val ACTION_COMPONENTS_SPLIT_BUTTON: String = "ActionComponents.SplitButton"
+    const val ACTION_COMPONENTS_COUNTERS: String = "ActionComponents.Counters"
+    const val ACTION_COMPONENTS_TOGGLE_SUMMARY: String = "ActionComponents.ToggleSummary"
 }

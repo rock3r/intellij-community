@@ -132,6 +132,8 @@ internal class SwingComparisonTabPanel : BorderLayoutPanel() {
       separator()
       onOffButtonRow()
       separator()
+      actionComponentsRow()
+      separator()
     }
       .apply {
         border = JBUI.Borders.empty(0, 10)
@@ -948,6 +950,40 @@ internal class SwingComparisonTabPanel : BorderLayoutPanel() {
 
   private fun PaddingValues.horizontal(layoutDirection: LayoutDirection): Dp =
     calculateStartPadding(layoutDirection) + calculateEndPadding(layoutDirection)
+
+  /**
+   * Compares an IntelliJ [ActionToolbarImpl] against Jewel's action-bound components driven by the same kind of
+   * action model. Both sides render a command, a toggle, and a popup group, so the borderless-until-hovered look,
+   * the pressed-looking background of a selected toggle, and the dropdown affordance can be checked side by side.
+   *
+   * The Jewel side binds directly to the bridge panel's `LocalJewelShortcutHost`, whose `JewelBridgeActionRegistry`
+   * adopts declared platform actions and updates their presentations on the platform cadence. It deliberately does not
+   * install a nested host so platform shortcuts and pointer clicks resolve through one host.
+   */
+  private fun Panel.actionComponentsRow() {
+    row(DevkitComposeBundle.message("jewel.section.actions.label")) {
+      cell(createSwingActionToolbar()).align(AlignY.CENTER)
+      compose { JewelActionComponentsComparison() }
+    }
+      .layout(RowLayout.PARENT_GRID)
+  }
+
+  /**
+   * The Swing half of the comparison: a real [ActionToolbarImpl] over the *declared* comparison actions, resolved by ID
+   * through [ActionManager]. The Jewel half binds the same IDs, so both toolbars render one action's `update()`.
+   */
+  private fun createSwingActionToolbar(): JComponent {
+    val actionManager = ActionManager.getInstance()
+    val group =
+      DefaultActionGroup().apply {
+        add(actionManager.getAction(JewelComparisonActionIds.SAVE))
+        add(actionManager.getAction(JewelComparisonActionIds.WORD_WRAP))
+        addSeparator()
+        add(actionManager.getAction(JewelComparisonActionIds.DELETE))
+      }
+    val toolbar = actionManager.createActionToolbar(ActionPlaces.TOOLBAR, group, true)
+    return toolbar.component.apply { isOpaque = false }
+  }
 
   private fun Row.compose(modifier: Modifier = Modifier.padding(8.dp), content: @Composable () -> Unit) =
     cell(JewelComposePanel { Box(modifier) { content() } }.apply { isOpaque = false })

@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.shape.CornerSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import androidx.compose.ui.awt.ComposeWindow
 import androidx.compose.ui.unit.DpSize
@@ -19,6 +20,7 @@ import dev.sebastiano.spectre.testing.runSpectreTest
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.concurrent.thread
 import kotlin.test.assertEquals
+import org.jetbrains.jewel.e2e.ActionComponentScenarios
 import org.jetbrains.jewel.e2e.PopupScenarios
 import org.jetbrains.jewel.e2e.ScrollbarScenarios
 import org.jetbrains.jewel.e2e.ShortcutScenarios
@@ -34,6 +36,9 @@ import org.jetbrains.jewel.intui.standalone.styling.default
 import org.jetbrains.jewel.intui.standalone.styling.macOs
 import org.jetbrains.jewel.intui.standalone.theme.IntUiTheme
 import org.jetbrains.jewel.intui.standalone.window.Window as JewelWindow
+import org.jetbrains.jewel.samples.showcase.LocalShowcaseActionRegistry
+import org.jetbrains.jewel.samples.showcase.LocalShowcaseKeymap
+import org.jetbrains.jewel.samples.showcase.ShowcaseActionComponents
 import org.jetbrains.jewel.samples.showcase.ShowcaseShortcuts
 import org.jetbrains.jewel.samples.showcase.views.ComponentsView
 import org.jetbrains.jewel.samples.showcase.views.ComponentsViewModel
@@ -63,6 +68,7 @@ class StandaloneShowcaseE2ETest {
             PopupScenarios.runAll(automator, failures)
             ScrollbarScenarios.runAll(automator, failures)
             ShortcutScenarios.runAll(automator, failures)
+            ActionComponentScenarios.runAll(automator, failures)
         } finally {
             app.stop()
         }
@@ -82,12 +88,15 @@ private class ShowcaseApplication {
             thread(name = "spectre-showcase-window", isDaemon = true) {
                 application(exitProcessOnExit = false) {
                     exitApplication.set(::exitApplication)
-                    val shortcutHost = remember {
-                        val registry = DefaultJewelActionRegistry()
-                        ShowcaseShortcuts.definitions(useMacModifiers = hostOs.isMacOS).forEach(registry::register)
-                        val keymap = InMemoryJewelKeymap.fromDefaults("showcase-e2e", registry)
-                        JewelShortcutHostState(registry) { keymap }
-                    }
+                    val (registry, keymap, shortcutHost) =
+                        remember {
+                            val reg = DefaultJewelActionRegistry()
+                            ShowcaseShortcuts.definitions(useMacModifiers = hostOs.isMacOS).forEach(reg::register)
+                            ShowcaseActionComponents.definitions(useMacModifiers = hostOs.isMacOS)
+                                .forEach(reg::register)
+                            val km = InMemoryJewelKeymap.fromDefaults("showcase-e2e", reg)
+                            Triple(reg, km, JewelShortcutHostState(reg) { km })
+                        }
                     JewelWindow(
                         onCloseRequest = ::exitApplication,
                         title = "Jewel showcase",
@@ -95,8 +104,13 @@ private class ShowcaseApplication {
                     ) {
                         this@ShowcaseApplication.window.compareAndSet(null, window)
                         IntUiTheme {
-                            ProvideJewelShortcutHost(shortcutHost) {
-                                Box(shortcutHost.resolverRootModifier.fillMaxSize()) { Showcase() }
+                            CompositionLocalProvider(
+                                LocalShowcaseKeymap provides keymap,
+                                LocalShowcaseActionRegistry provides registry,
+                            ) {
+                                ProvideJewelShortcutHost(shortcutHost) {
+                                    Box(shortcutHost.resolverRootModifier.fillMaxSize()) { Showcase() }
+                                }
                             }
                         }
                     }

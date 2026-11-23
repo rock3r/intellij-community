@@ -134,4 +134,28 @@ internal class ActionModelTest {
         assertTrue(other.first { it.action == JewelActions.Copy }.defaultShortcuts.single().first.ctrl)
         assertFalse(other.first { it.action == JewelActions.Copy }.defaultShortcuts.single().first.meta)
     }
+
+    @Test
+    fun `static group exposes entries and separator model`() {
+        val group =
+            StaticJewelActionGroup(
+                JewelActionGroupId("g"),
+                ActionGroupPresentation("Group"),
+                listOf(
+                    JewelMenuEntry.Action(JewelActions.Copy),
+                    JewelMenuEntry.Separator(),
+                    JewelMenuEntry.Group(
+                        StaticJewelActionGroup(
+                            JewelActionGroupId("g2"),
+                            ActionGroupPresentation("Sub", popup = true),
+                            emptyList(),
+                        )
+                    ),
+                ),
+            )
+        val children = group.children()
+        assertEquals(3, children.size)
+        assertTrue(children[1] is JewelMenuEntry.Separator)
+        assertTrue((children[2] as JewelMenuEntry.Group).group.presentation.popup)
+    }
 }

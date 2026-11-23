@@ -60,7 +60,8 @@ import org.jetbrains.skiko.hostOs
 @ApiStatus.Experimental
 @ExperimentalJewelApi
 public class JewelShortcutHostState(
-    private val registry: JewelActionRegistry? = null,
+    /** Optional action registry backing presentation sampling and definition lookup for this host. */
+    public val registry: JewelActionRegistry? = null,
     private val chordTimeoutMillis: Long,
     private val keymapProvider: () -> JewelKeymap,
 ) {
@@ -164,6 +165,9 @@ public class JewelShortcutHostState(
     /** Innermost focused enabled handler for [actionId]; null when none (action disabled here). */
     public fun resolveFocusedHandler(actionId: JewelActionId): (() -> Unit)? =
         engine.resolveFocusedBinding(actionId)?.onInvoke
+
+    /** The active [JewelKeymap] for observing keymap swaps or [JewelKeymap.modificationCount] changes. */
+    public fun keymap(): JewelKeymap = keymapProvider()
 
     /**
      * The active keymap's shortcuts for [actionId], delegating to [registry] when the host manages bindings externally.

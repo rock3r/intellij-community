@@ -68,6 +68,23 @@ public object ShowcaseE2eTags {
     public const val SHORTCUT_TESTER_MACRO_COUNTER: String = "ShortcutTester.MacroCounter"
     public const val SHORTCUT_TESTER_REFORMAT: String = "ShortcutTester.Reformat"
     public const val SHORTCUT_TESTER_REFORMAT_STATUS: String = "ShortcutTester.ReformatStatus"
+
+    public const val ACTION_COMPONENTS_SURFACE: String = "ActionComponents.Surface"
+    public const val ACTION_COMPONENTS_SCROLL_AREA: String = "ActionComponents.ScrollArea"
+    public const val ACTION_COMPONENTS_LOG: String = "ActionComponents.Log"
+    public const val ACTION_COMPONENTS_SAVE: String = "ActionComponents.Save"
+    public const val ACTION_COMPONENTS_DELETE: String = "ActionComponents.Delete"
+    public const val ACTION_COMPONENTS_UNAVAILABLE: String = "ActionComponents.Unavailable"
+    public const val ACTION_COMPONENTS_DELETE_TOGGLE: String = "ActionComponents.DeleteToggle"
+    public const val ACTION_COMPONENTS_WORD_WRAP: String = "ActionComponents.WordWrap"
+    public const val ACTION_COMPONENTS_MENU_BUTTON: String = "ActionComponents.MenuButton"
+    public const val ACTION_COMPONENTS_MENU_BUTTON_KEEP_OPEN: String = "ActionComponents.MenuButtonKeepOpen"
+    public const val ACTION_COMPONENTS_SPLIT_BUTTON: String = "ActionComponents.SplitButton"
+    public const val ACTION_COMPONENTS_COUNTERS: String = "ActionComponents.Counters"
+    public const val ACTION_COMPONENTS_TOGGLE_SUMMARY: String = "ActionComponents.ToggleSummary"
+    public const val ACTION_MENU_POPUP: String = "Jewel.ActionMenu.Popup"
+    public const val SPLIT_BUTTON_PRIMARY: String = "Jewel.SplitActionButton.Primary"
+    public const val SPLIT_BUTTON_CHEVRON: String = "Jewel.SplitActionButton.Chevron"
 }
 
 /**
