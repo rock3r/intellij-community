@@ -12,7 +12,8 @@ internal class DataProviderElement(val dataProvider: DataProviderContext.() -> U
         node.dataProvider = dataProvider
         if (node.hasFocus) {
             node.traverseAncestors(ShortcutResolverRootNode.TraverseKey) { ancestor ->
-                (ancestor as? ShortcutResolverRootNode)?.state?.presentations?.invalidate()
+                val root = ancestor as? ShortcutResolverRootNode ?: return@traverseAncestors true
+                if (!root.state.reactivePresentation) root.state.presentations.invalidate()
                 false
             }
         }

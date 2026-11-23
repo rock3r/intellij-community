@@ -5,11 +5,14 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.snapshots.Snapshot
+import androidx.compose.runtime.snapshots.SnapshotStateObserver
 import com.intellij.ide.ActivityTracker
 import com.intellij.ide.DataManager
 import com.intellij.openapi.actionSystem.ActionManager
 import com.intellij.openapi.actionSystem.TimerListener
 import com.intellij.openapi.application.ModalityState
+import com.intellij.util.ui.EDT
 import java.awt.KeyEventDispatcher
 import java.awt.KeyboardFocusManager
 import java.awt.event.KeyEvent as AwtKeyEvent
@@ -18,7 +21,9 @@ import org.jetbrains.jewel.bridge.actionSystem.IjActionContext
 import org.jetbrains.jewel.bridge.actionSystem.JewelActionMappings
 import org.jetbrains.jewel.bridge.actionSystem.JewelBridgeActionInvoker
 import org.jetbrains.jewel.bridge.actionSystem.JewelBridgeActionRegistry
+import org.jetbrains.jewel.foundation.shortcut.ActionPresentation
 import org.jetbrains.jewel.foundation.shortcut.InMemoryJewelKeymap
+import org.jetbrains.jewel.foundation.shortcut.JewelActionId
 import org.jetbrains.jewel.foundation.shortcut.JewelShortcutHostState
 import org.jetbrains.jewel.foundation.shortcut.ProvideJewelShortcutHost
 import org.jetbrains.jewel.foundation.shortcut.toComposeKeyEvent
@@ -57,6 +62,11 @@ internal fun ShortcutHostBridge(wrapper: JewelComposePanelWrapper, content: @Com
             JewelActionMappings.installStandardMappings()
             JewelShortcutHostState(registry) { bridgeKeymap }
                 .apply {
+                    // The bridge samples presentation on the platform's action-update cadence (and snapshot writes in
+                    // focused Compose data providers), not via standalone derivedStateOf: its context wraps the
+                    // platform DataContext, which cannot be observed reactively. Configure before Frame 1 composition
+                    // so initial controls subscribe to `presentations` from the start.
+                    reactivePresentation = false
                     // Route programmatic invocations through the platform action system, so ActionManager update,
                     // enablement, listeners, and dumb-mode handling stay authoritative.
                     invoker = JewelBridgeActionInvoker(wrapper)
@@ -69,6 +79,34 @@ internal fun ShortcutHostBridge(wrapper: JewelComposePanelWrapper, content: @Com
         }
 
     DisposableEffect(wrapper, state) {
+        var disposed = false
+        val snapshotObserver = SnapshotStateObserver { command ->
+            SwingUtilities.invokeLater { if (!disposed) command() }
+        }
+        snapshotObserver.start()
+        val invalidateAction: (JewelActionId) -> Unit = { actionId ->
+            if (!disposed && state.presentations.activeDemandCount() > 0) {
+                state.presentations.invalidate(actionId)
+            }
+        }
+        state.presentations.sampleWrapper = { actionId, sample ->
+            if (EDT.isCurrentThreadEdt() || state.isOnUiThread()) {
+                var result: ActionPresentation? = null
+                Snapshot.withoutReadObservation {
+                    snapshotObserver.observeReads(actionId, invalidateAction) { result = sample() }
+                }
+                checkNotNull(result)
+            } else {
+                sample()
+            }
+        }
+        state.presentations.onReleased = { actionId -> snapshotObserver.clear(actionId) }
+        // Re-sample any Frame-1 demanded actions once the observer is installed so their Compose snapshot reads
+        // (such as Flow.collectAsState() fed into Modifier.provideData) are tracked without waiting for AWT input.
+        if (state.presentations.activeDemandCount() > 0) {
+            state.presentations.invalidate()
+        }
+
         val removeClaimLane = installBridgeClaimLane(wrapper, state)
 
         // Presentation sampling rides the platform's action-update cadence: the same timer that refreshes
@@ -92,6 +130,11 @@ internal fun ShortcutHostBridge(wrapper: JewelComposePanelWrapper, content: @Com
         actionManager.addTimerListener(presentationTimerListener)
 
         onDispose {
+            disposed = true
+            state.presentations.sampleWrapper = null
+            state.presentations.onReleased = null
+            snapshotObserver.stop()
+            snapshotObserver.clear()
             actionManager.removeTimerListener(presentationTimerListener)
             removeClaimLane()
             state.reset()

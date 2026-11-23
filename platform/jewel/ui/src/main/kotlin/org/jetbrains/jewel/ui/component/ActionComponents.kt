@@ -134,7 +134,7 @@ public fun ActionButton(
         }
         return
     }
-    val presentation by action.collectPresentationAsState(host.presentations)
+    val presentation by action.collectPresentationAsState(host)
     if (respectVisibility && !presentation.visible) return
 
     val showsText = presentation.showsTextInToolbar
@@ -242,7 +242,7 @@ public fun ToggleActionButton(
         }
         return
     }
-    val presentation by action.collectPresentationAsState(host.presentations)
+    val presentation by action.collectPresentationAsState(host)
     if (respectVisibility && !presentation.visible) return
 
     val showsText = presentation.showsTextInToolbar

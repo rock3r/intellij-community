@@ -165,8 +165,6 @@ f:org.jetbrains.jewel.foundation.shortcut.ActionPresentationKt
 - <init>(kotlin.jvm.functions.Function1):V
 - f:acquire-ffnWhyY(java.lang.String):kotlinx.coroutines.flow.StateFlow
 - f:activeDemandCount():I
-- f:invalidate-J59Bxg4(java.lang.String):V
-- bs:invalidate-J59Bxg4$default(org.jetbrains.jewel.foundation.shortcut.ActionPresentationScheduler,java.lang.String,I,java.lang.Object):V
 - f:release-ffnWhyY(java.lang.String):V
 f:org.jetbrains.jewel.foundation.shortcut.ActionPresentationSchedulerKt
 - *sf:collectPresentationAsState(org.jetbrains.jewel.foundation.shortcut.JewelAction,org.jetbrains.jewel.foundation.shortcut.ActionPresentationScheduler,androidx.compose.runtime.Composer,I):androidx.compose.runtime.State
@@ -503,6 +501,7 @@ f:org.jetbrains.jewel.foundation.shortcut.JewelShortcutHostKt
 - f:getInvoker():org.jetbrains.jewel.foundation.shortcut.ActionInvoker
 - f:getOnDispatch():kotlin.jvm.functions.Function1
 - f:getPresentations():org.jetbrains.jewel.foundation.shortcut.ActionPresentationScheduler
+- f:getReactivePresentation():Z
 - f:getRegistry():org.jetbrains.jewel.foundation.shortcut.JewelActionRegistry
 - f:getResolverRootModifier():androidx.compose.ui.Modifier
 - f:isAwaitingSecondStroke():Z
@@ -517,6 +516,7 @@ f:org.jetbrains.jewel.foundation.shortcut.JewelShortcutHostKt
 - f:setContextProvider(kotlin.jvm.functions.Function0):V
 - f:setInvoker(org.jetbrains.jewel.foundation.shortcut.ActionInvoker):V
 - f:setOnDispatch(kotlin.jvm.functions.Function1):V
+- f:setReactivePresentation(Z):V
 - f:shortcutsFor-ffnWhyY(java.lang.String):java.util.List
 f:org.jetbrains.jewel.foundation.shortcut.JewelShortcutLocalsKt
 - *sf:ProvideJewelShortcutHost(org.jetbrains.jewel.foundation.shortcut.JewelShortcutHostState,kotlin.jvm.functions.Function2,androidx.compose.runtime.Composer,I):V
@@ -566,6 +566,9 @@ f:org.jetbrains.jewel.foundation.shortcut.JewelShortcutLocalsKt
 - equals(java.lang.Object):Z
 - f:getValue():java.lang.Object
 - hashCode():I
+f:org.jetbrains.jewel.foundation.shortcut.ReactivePresentationKt
+- *sf:collectPresentationAsState(org.jetbrains.jewel.foundation.shortcut.JewelAction,org.jetbrains.jewel.foundation.shortcut.JewelShortcutHostState,androidx.compose.runtime.Composer,I):androidx.compose.runtime.State
+- *sf:collectPresentationAsState(org.jetbrains.jewel.foundation.shortcut.JewelAction,org.jetbrains.jewel.foundation.shortcut.JewelShortcutHostState,kotlin.jvm.functions.Function1,androidx.compose.runtime.Composer,I):androidx.compose.runtime.State
 *f:org.jetbrains.jewel.foundation.shortcut.ShortcutDispatchEngine
 - sf:$stable:I
 - *sf:Companion:org.jetbrains.jewel.foundation.shortcut.ShortcutDispatchEngine$Companion

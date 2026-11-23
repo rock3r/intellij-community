@@ -1041,8 +1041,11 @@ package org.jetbrains.jewel.foundation.shortcut {
     ctor public ActionPresentationScheduler(kotlin.jvm.functions.Function1<? super org.jetbrains.jewel.foundation.shortcut.JewelActionId,org.jetbrains.jewel.foundation.shortcut.ActionPresentation> resolve);
     method public kotlinx.coroutines.flow.StateFlow<org.jetbrains.jewel.foundation.shortcut.ActionPresentation> acquire(String actionId);
     method public int activeDemandCount();
-    method public void invalidate(optional String? actionId);
+    method public kotlin.jvm.functions.Function1<org.jetbrains.jewel.foundation.shortcut.JewelActionId,kotlin.Unit>? getOnReleased();
+    method public kotlin.jvm.functions.Function2<org.jetbrains.jewel.foundation.shortcut.JewelActionId,kotlin.jvm.functions.Function0<org.jetbrains.jewel.foundation.shortcut.ActionPresentation>,org.jetbrains.jewel.foundation.shortcut.ActionPresentation>? getSampleWrapper();
     method public void release(String actionId);
+    method public void setOnReleased(kotlin.jvm.functions.Function1<? super org.jetbrains.jewel.foundation.shortcut.JewelActionId,kotlin.Unit>?);
+    method public void setSampleWrapper(kotlin.jvm.functions.Function2<? super org.jetbrains.jewel.foundation.shortcut.JewelActionId,? super kotlin.jvm.functions.Function0<org.jetbrains.jewel.foundation.shortcut.ActionPresentation>,org.jetbrains.jewel.foundation.shortcut.ActionPresentation>?);
   }
 
   public final class ActionPresentationSchedulerKt {
@@ -1406,6 +1409,7 @@ package org.jetbrains.jewel.foundation.shortcut {
     method public org.jetbrains.jewel.foundation.shortcut.ActionInvoker getInvoker();
     method public kotlin.jvm.functions.Function1<org.jetbrains.jewel.foundation.shortcut.DispatchDecision.Consumed,kotlin.Unit>? getOnDispatch();
     method public org.jetbrains.jewel.foundation.shortcut.ActionPresentationScheduler getPresentations();
+    method public boolean getReactivePresentation();
     method public org.jetbrains.jewel.foundation.shortcut.JewelActionRegistry? getRegistry();
     method public androidx.compose.ui.Modifier getResolverRootModifier();
     method public boolean isAwaitingSecondStroke();
@@ -1420,6 +1424,7 @@ package org.jetbrains.jewel.foundation.shortcut {
     method public void setContextProvider(kotlin.jvm.functions.Function0<? extends org.jetbrains.jewel.foundation.shortcut.ActionContext>);
     method public void setInvoker(org.jetbrains.jewel.foundation.shortcut.ActionInvoker);
     method public void setOnDispatch(kotlin.jvm.functions.Function1<? super org.jetbrains.jewel.foundation.shortcut.DispatchDecision.Consumed,kotlin.Unit>?);
+    method public void setReactivePresentation(boolean);
     method public java.util.List<org.jetbrains.jewel.foundation.shortcut.JewelKeySequence> shortcutsFor(String actionId);
     property public kotlin.jvm.functions.Function0<org.jetbrains.jewel.foundation.shortcut.ActionContext> contextProvider;
     property public org.jetbrains.jewel.foundation.shortcut.ActionEventSource events;
@@ -1427,6 +1432,7 @@ package org.jetbrains.jewel.foundation.shortcut {
     property public boolean isAwaitingSecondStroke;
     property public kotlin.jvm.functions.Function1<org.jetbrains.jewel.foundation.shortcut.DispatchDecision.Consumed,kotlin.Unit>? onDispatch;
     property public org.jetbrains.jewel.foundation.shortcut.ActionPresentationScheduler presentations;
+    property public boolean reactivePresentation;
     property public org.jetbrains.jewel.foundation.shortcut.JewelActionRegistry? registry;
     property public androidx.compose.ui.Modifier resolverRootModifier;
   }
@@ -1478,6 +1484,11 @@ package org.jetbrains.jewel.foundation.shortcut {
     method public org.jetbrains.jewel.foundation.shortcut.PresentationValue.Set<T> copy(optional T value);
     method public T getValue();
     property public T value;
+  }
+
+  public final class ReactivePresentationKt {
+    method @SuppressCompatibility @androidx.compose.runtime.Composable @org.jetbrains.annotations.ApiStatus.Experimental @org.jetbrains.jewel.foundation.ExperimentalJewelApi public static androidx.compose.runtime.State<org.jetbrains.jewel.foundation.shortcut.ActionPresentation> collectPresentationAsState(org.jetbrains.jewel.foundation.shortcut.JewelAction, org.jetbrains.jewel.foundation.shortcut.JewelShortcutHostState host);
+    method @SuppressCompatibility @androidx.compose.runtime.Composable @org.jetbrains.annotations.ApiStatus.Experimental @org.jetbrains.jewel.foundation.ExperimentalJewelApi public static <T> androidx.compose.runtime.State<T> collectPresentationAsState(org.jetbrains.jewel.foundation.shortcut.JewelAction, org.jetbrains.jewel.foundation.shortcut.JewelShortcutHostState host, kotlin.jvm.functions.Function1<? super org.jetbrains.jewel.foundation.shortcut.ActionPresentation,? extends T> selector);
   }
 
   @SuppressCompatibility @org.jetbrains.annotations.ApiStatus.Experimental @org.jetbrains.jewel.foundation.ExperimentalJewelApi public final class ShortcutDispatchEngine {

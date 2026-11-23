@@ -6,6 +6,7 @@ f:org.jetbrains.jewel.samples.showcase.ShowcaseActionComponents
 - f:getDelete():org.jetbrains.jewel.foundation.shortcut.JewelAction
 - f:getEditingGroup():org.jetbrains.jewel.foundation.shortcut.StaticJewelActionGroup
 - f:getHasSelection():org.jetbrains.jewel.foundation.shortcut.ActionContextKey
+- f:getIsOnline():org.jetbrains.jewel.foundation.shortcut.ActionContextKey
 - f:getMainGroup():org.jetbrains.jewel.foundation.shortcut.StaticJewelActionGroup
 - f:getMoreGroup():org.jetbrains.jewel.foundation.shortcut.StaticJewelActionGroup
 - f:getNoIcon():org.jetbrains.jewel.foundation.shortcut.JewelAction
@@ -13,6 +14,7 @@ f:org.jetbrains.jewel.samples.showcase.ShowcaseActionComponents
 - f:getRunOptionsGroup():org.jetbrains.jewel.foundation.shortcut.StaticJewelActionGroup
 - f:getSave():org.jetbrains.jewel.foundation.shortcut.JewelAction
 - f:getShowWhitespace():org.jetbrains.jewel.foundation.shortcut.JewelAction
+- f:getSync():org.jetbrains.jewel.foundation.shortcut.JewelAction
 - f:getTextAction():org.jetbrains.jewel.foundation.shortcut.JewelAction
 - f:getUnavailable():org.jetbrains.jewel.foundation.shortcut.JewelAction
 - f:getWordWrap():org.jetbrains.jewel.foundation.shortcut.JewelAction

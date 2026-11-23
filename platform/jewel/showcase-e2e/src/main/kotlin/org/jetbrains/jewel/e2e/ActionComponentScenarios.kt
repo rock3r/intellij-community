@@ -11,8 +11,11 @@ public object ActionComponentScenarios {
     public suspend fun runAll(automator: ShowcaseAutomator, failures: MutableList<String>) {
         automator.clickByContentDescription("Show Action Components")
         automator.waitForNode(ShowcaseE2eTags.ACTION_COMPONENTS_SAVE)
+        automator.waitForIdle()
         if (!automator.isEnabled(ShowcaseE2eTags.ACTION_COMPONENTS_SAVE)) {
+            scrollToVisible(automator, ShowcaseE2eTags.ACTION_COMPONENTS_COUNTERS, wheelClicksPerStep = 4)
             automator.click(ShowcaseE2eTags.ACTION_COMPONENTS_COUNTERS)
+            scrollToVisible(automator, ShowcaseE2eTags.ACTION_COMPONENTS_SAVE, wheelClicksPerStep = -6)
         }
         automator.waitUntil("initial Action Components surface focus enables Save") {
             automator.isEnabled(ShowcaseE2eTags.ACTION_COMPONENTS_SAVE)
@@ -23,6 +26,12 @@ public object ActionComponentScenarios {
             "ActionButton invokes via host and tracks binding enablement",
             ::restoreBaseline,
             ::actionButtonInvokesAndTracksEnablement,
+        )
+        automator.runIsolated(
+            failures,
+            "Flow-backed context drives Sync enablement reactively",
+            ::restoreOnlineToggle,
+            ::flowBackedContextDrivesSyncEnablement,
         )
         automator.runIsolated(
             failures,
@@ -52,7 +61,7 @@ public object ActionComponentScenarios {
 
     private suspend fun scrollToVisible(automator: ShowcaseAutomator, tag: String, wheelClicksPerStep: Int) {
         var attempts = 0
-        while (!automator.hasVisibleBounds(tag) && attempts < 12) {
+        while (!automator.hasVisibleBounds(tag) && attempts < 24) {
             automator.scrollWheel(ShowcaseE2eTags.ACTION_COMPONENTS_SCROLL_AREA, wheelClicksPerStep)
             automator.waitForIdle()
             attempts++
@@ -69,8 +78,10 @@ public object ActionComponentScenarios {
         }
         scrollToVisible(automator, ShowcaseE2eTags.ACTION_COMPONENTS_SAVE, wheelClicksPerStep = -6)
         if (!automator.isEnabled(ShowcaseE2eTags.ACTION_COMPONENTS_SAVE)) {
+            scrollToVisible(automator, ShowcaseE2eTags.ACTION_COMPONENTS_COUNTERS, wheelClicksPerStep = 4)
             automator.click(ShowcaseE2eTags.ACTION_COMPONENTS_COUNTERS)
             automator.waitForIdle()
+            scrollToVisible(automator, ShowcaseE2eTags.ACTION_COMPONENTS_SAVE, wheelClicksPerStep = -6)
         }
         if (!automator.isSelected(ShowcaseE2eTags.ACTION_COMPONENTS_DELETE_TOGGLE)) {
             automator.click(ShowcaseE2eTags.ACTION_COMPONENTS_DELETE_TOGGLE)
@@ -82,7 +93,18 @@ public object ActionComponentScenarios {
         restoreBaseline(automator)
     }
 
+    private suspend fun restoreOnlineToggle(automator: ShowcaseAutomator) {
+        restoreBaseline(automator)
+        if (!automator.isSelected(ShowcaseE2eTags.ACTION_COMPONENTS_ONLINE_TOGGLE)) {
+            automator.click(ShowcaseE2eTags.ACTION_COMPONENTS_ONLINE_TOGGLE)
+            automator.waitForIdle()
+        }
+    }
+
     public suspend fun actionButtonInvokesAndTracksEnablement(automator: ShowcaseAutomator): String? {
+        if (!automator.isEnabled(ShowcaseE2eTags.ACTION_COMPONENTS_SAVE)) {
+            return "expected 'Save' ActionButton to start enabled"
+        }
         if (automator.isEnabled(ShowcaseE2eTags.ACTION_COMPONENTS_UNAVAILABLE)) {
             return "expected unbound ActionButton 'Unavailable' to render disabled"
         }
@@ -201,6 +223,7 @@ public object ActionComponentScenarios {
         }
 
         // Clicking an unconsumed node inside the binding surface re-focuses it.
+        scrollToVisible(automator, ShowcaseE2eTags.ACTION_COMPONENTS_COUNTERS, wheelClicksPerStep = 4)
         automator.click(ShowcaseE2eTags.ACTION_COMPONENTS_COUNTERS)
         automator.waitUntil("'Save' ActionButton to recover enablement after clicking surface") {
             automator.isEnabled(ShowcaseE2eTags.ACTION_COMPONENTS_SAVE)
@@ -212,5 +235,32 @@ public object ActionComponentScenarios {
         val text = automator.textOf(ShowcaseE2eTags.ACTION_COMPONENTS_COUNTERS).orEmpty()
         val match = Regex("""\b${Regex.escape(label)} (\d+)""").find(text)
         return match?.groupValues?.get(1)?.toIntOrNull() ?: 0
+    }
+
+    public suspend fun flowBackedContextDrivesSyncEnablement(automator: ShowcaseAutomator): String? {
+        scrollToVisible(automator, ShowcaseE2eTags.ACTION_COMPONENTS_SYNC, wheelClicksPerStep = 4)
+        scrollToVisible(automator, ShowcaseE2eTags.ACTION_COMPONENTS_ONLINE_TOGGLE, wheelClicksPerStep = 4)
+        if (!automator.isEnabled(ShowcaseE2eTags.ACTION_COMPONENTS_SYNC)) {
+            return "expected 'Sync' ActionButton to start enabled while online"
+        }
+
+        val syncsBefore = counterValue(automator, "Sync")
+        automator.click(ShowcaseE2eTags.ACTION_COMPONENTS_SYNC)
+        automator.waitUntil("Sync fired counter to reach ${syncsBefore + 1}") {
+            counterValue(automator, "Sync") == syncsBefore + 1
+        }
+
+        // Flip connectivity Flow offline via checkbox and verify Sync disables.
+        automator.click(ShowcaseE2eTags.ACTION_COMPONENTS_ONLINE_TOGGLE)
+        automator.waitUntil("'Sync' ActionButton to become disabled offline") {
+            !automator.isEnabled(ShowcaseE2eTags.ACTION_COMPONENTS_SYNC)
+        }
+
+        // Restore online connectivity and verify Sync re-enables.
+        automator.click(ShowcaseE2eTags.ACTION_COMPONENTS_ONLINE_TOGGLE)
+        automator.waitUntil("'Sync' ActionButton to become enabled again online") {
+            automator.isEnabled(ShowcaseE2eTags.ACTION_COMPONENTS_SYNC)
+        }
+        return null
     }
 }

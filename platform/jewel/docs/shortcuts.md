@@ -155,12 +155,83 @@ SplitActionButton(Run, runConfigsGroup)
   host-interpreted icon slot, and `MenuDismissPolicy` — the four-state mirror of IJPL's
   `KeepPopupOnPerform`, carried as presentation state).
 - `collectPresentationAsState(selector)` observes one projection gated by that projection's own
-  equality, with demand-driven sampling (`ActionPresentationScheduler`), explicit failure rows
-  (`ActionResolution.Unregistered`, `NoFocusedBinding`, `HostUnavailable`), and re-resolved
-  invocation so a stale presentation can never trigger a gone binding.
+  equality with explicit failure rows (`ActionResolution.Unregistered`, `NoFocusedBinding`,
+  `HostUnavailable`), and execution always re-resolves so a stale presentation can never trigger a
+  gone binding.
+- Presentation is derived two ways, chosen by the host (`JewelShortcutHostState.reactivePresentation`),
+  and controls never see which — they call `action.collectPresentationAsState(host)` and read the result:
+  - **Standalone (the default): Compose-snapshot-reactive.** See the next section.
+  - **IJPL bridge: demand-driven and equality-gated** (`ActionPresentationScheduler`). Controls register
+    demand while composed; polls re-sample only on host signals (dispatches, the platform's action-update
+    timer, `invalidate()`); unchanged samples cause no recomposition. The bridge uses this because it
+    wraps the platform `DataContext`, which cannot be observed as Compose snapshot state.
 - `JewelShortcutHostState.events` emits one `ActionInvocation` per completed Jewel-owned invocation, and
   `ShortcutRepeatPolicy` (`OnceUntilRelease` vs `RepeatWhileHeld`) controls auto-repeat delivery per
   binding or claim.
+
+## Standalone presentation is Compose-snapshot-reactive
+
+Standalone, a control's presentation is a `derivedStateOf` over the focused bindings and the live
+`Modifier.provideData` values, so it updates **with no manual invalidation** when the snapshot state an
+`update` block reads changes, and **only** the affected controls recompose. There is no scheduler and no
+timer on this path.
+
+```kotlin
+// hasSelection is plain Compose state. No host.presentations.invalidate() anywhere:
+var hasSelection by remember { mutableStateOf(true) }
+
+Modifier
+    .provideData { set(HasSelection.name, hasSelection) }
+    .shortcut(Delete, update = { enabled = context[HasSelection] == true }) { deleteSelection() }
+
+ActionButton(Delete)   // re-derives — button and shortcut agree — the moment hasSelection flips
+```
+
+How it works: each control's presentation is `remember(host, id) { derivedStateOf { … } }` that resolves
+the focused binding for `id` and runs its `update` block against a **live** `ActionContext`. That
+context's `get(key)` reads through the focused providers per key, so evaluating `context[HasSelection]`
+transitively reads the `mutableStateOf` behind `provideData`. Compose then recomposes exactly the controls
+whose reads changed; `derivedStateOf` equality-gates the result, so an unchanged presentation recomposes
+nothing.
+
+**Per-key precision.** The live lookup resolves each key nearest-provider-first and stops at the first
+provider that supplies it, so a control reading an inner datum does not subscribe to outer data. Keep one
+datum per `provideData` block, and prefer `lazy(Key.name) { ... }` for hot or inner `provideData` entries:
+`set` evaluates eagerly whenever the walk visits that provider, whereas `lazy` evaluates only when the
+requested key matches, so outer-key and absent-key controls do not subscribe to a hot inner datum.
+
+### Feeding an asynchronous source into the context
+
+A value that is not itself Compose snapshot state — a connectivity `Flow`, a websocket, a poll — enters the
+reactive presentation **at the edge** with `collectAsState`/`produceState`, then `provideData`. Nothing else
+changes; still no manual invalidation:
+
+```kotlin
+val isOnline by connectivity.isOnline.collectAsState(initial = false)
+
+Modifier
+    .provideData { set(IsOnline.name, isOnline) }
+    .shortcut(Sync, update = { enabled = context[IsOnline] == true }) { sync() }
+```
+
+Even an imperative or callback-based source is brought in this way — wrap it in `produceState` and feed the
+result through `provideData`. Standalone has no manual-invalidation escape hatch, and needs none: the reactive
+derivation recomputes whenever the snapshot state it reads changes. (`invalidate()` is the host's internal
+presentation-cadence hook — the IJPL bridge re-samples on the platform's action-update timer — not an
+app-facing API.)
+
+### `update` reads only the context — deliberately
+
+An `update` block is a **non-`@Composable` pure predicate** (`ActionUpdateScope.() -> Unit`), and it stays
+that way on purpose. It is not the reactivity mechanism — the reactivity comes from evaluating the block
+inside the `derivedStateOf` — so making it composable would buy nothing and cost the guarantees that make it
+safe: being non-composable structurally forbids `remember`, effects, launched coroutines, and held state in
+enablement, the same fast, pure-predicate contract as `AnAction.update()`. The corollary is the guardrail:
+**enablement can be driven only by context values.** The derivation tracks the block's context reads and
+nothing else, so any other input a block might consult is inert — it will not trigger a re-derivation.
+Everything an action's enablement depends on must arrive through the context (via `provideData`, including
+the async-into-context pattern above). Dispatch evaluates the very same block imperatively against the
+current context, so the keystroke and the rendered control never disagree.
 
 ## Threading
 
@@ -235,9 +306,10 @@ showcase into two focused views:
 
 Implemented and tested: dispatch core (repeat policies and menu scopes), standalone resolver,
 keymap model + settings surface, presentation model (overrides, icons, failure rows, selector
-projections) + scheduler, action events, group model, `ActionButton`/`ToggleActionButton`/
-`ActionToolbar`/`ActionMenu`/`ActionGroupButton`/`SplitActionButton`, popup/menu shortcut
-propagation, the bridge claim lane, and the bridge action registry/invoker (attach-or-register,
-standard edit mappings, platform-routed invocation, platform-cadence presentation updates) with
-platform-level integration tests. Context-driven enablement and reactive standalone presentation
-follow in downstream layers.
+projections), the Compose-snapshot-reactive standalone presentation (live per-key context, per-control
+`derivedStateOf`, no manual invalidation) and the demand-driven scheduler the bridge rides, action
+events, group model, `ActionButton`/`ToggleActionButton`/`ActionToolbar`/`ActionMenu`/
+`ActionGroupButton`/`SplitActionButton`, popup/menu shortcut propagation, the bridge claim lane, and the
+bridge action registry/invoker (attach-or-register, standard edit mappings, platform-routed invocation,
+platform-cadence presentation updates) with platform-level integration tests. Remaining: the multi-OS
+conflict/IME proof-matrix rows, which need live per-OS validation.

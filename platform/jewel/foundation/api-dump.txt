@@ -713,6 +713,7 @@ f:org.jetbrains.jewel.foundation.shortcut.ActionPresentationKt
 f:org.jetbrains.jewel.foundation.shortcut.ActionPresentationSchedulerKt
 f:org.jetbrains.jewel.foundation.shortcut.JewelShortcutHostKt
 f:org.jetbrains.jewel.foundation.shortcut.JewelShortcutLocalsKt
+f:org.jetbrains.jewel.foundation.shortcut.ReactivePresentationKt
 f:org.jetbrains.jewel.foundation.shortcut.ShortcutModifiersKt
 f:org.jetbrains.jewel.foundation.shortcut.ShortcutSemanticsKt
 f:org.jetbrains.jewel.foundation.state.CommonStateBitMask

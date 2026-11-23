@@ -66,6 +66,8 @@ internal object ShowcaseTestTags {
     const val ACTION_COMPONENTS_DELETE: String = "ActionComponents.Delete"
     const val ACTION_COMPONENTS_UNAVAILABLE: String = "ActionComponents.Unavailable"
     const val ACTION_COMPONENTS_DELETE_TOGGLE: String = "ActionComponents.DeleteToggle"
+    const val ACTION_COMPONENTS_SYNC: String = "ActionComponents.Sync"
+    const val ACTION_COMPONENTS_ONLINE_TOGGLE: String = "ActionComponents.OnlineToggle"
     const val ACTION_COMPONENTS_WORD_WRAP: String = "ActionComponents.WordWrap"
     const val ACTION_COMPONENTS_MENU_BUTTON: String = "ActionComponents.MenuButton"
     const val ACTION_COMPONENTS_MENU_BUTTON_KEEP_OPEN: String = "ActionComponents.MenuButtonKeepOpen"

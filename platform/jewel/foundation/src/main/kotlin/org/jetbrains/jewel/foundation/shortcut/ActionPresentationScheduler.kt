@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import org.jetbrains.annotations.ApiStatus
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
+import org.jetbrains.jewel.foundation.InternalJewelApi
 
 /**
  * Demand-driven presentation sampling: controls never call an update from composition; they register demand for an
@@ -37,6 +38,24 @@ public class ActionPresentationScheduler(private val resolve: (JewelActionId) ->
 
     private val entries = ConcurrentHashMap<JewelActionId, Entry>()
 
+    /**
+     * Invoked after every [invalidate], so the owning host can keep a snapshot-state generation counter in step with
+     * the scheduler's own signals without every call site having to bump both. Set by [JewelShortcutHostState]; the
+     * bridge's off-thread invalidations gate the bump out on the host side.
+     */
+    internal var onInvalidated: (() -> Unit)? = null
+
+    /** Optional wrapper around [resolve] used by the IJPL bridge to track snapshot reads on demanded controls. */
+    @ApiStatus.Internal
+    @InternalJewelApi
+    public var sampleWrapper: ((JewelActionId, () -> ActionPresentation) -> ActionPresentation)? = null
+
+    /** Optional callback invoked when the last demand for an action ID drops to zero. */
+    @ApiStatus.Internal @InternalJewelApi public var onReleased: ((JewelActionId) -> Unit)? = null
+
+    private fun sample(actionId: JewelActionId): ActionPresentation =
+        sampleWrapper?.invoke(actionId) { resolve(actionId) } ?: resolve(actionId)
+
     /** Registers demand and returns the equality-gated sample flow. Pair with [release]. */
     public fun acquire(actionId: JewelActionId): StateFlow<ActionPresentation> {
         entries
@@ -46,7 +65,7 @@ public class ActionPresentationScheduler(private val resolve: (JewelActionId) ->
             }
 
         // Resolve initial sample outside any ConcurrentHashMap bucket lock to avoid reentrant contention.
-        val initial = resolve(actionId)
+        val initial = sample(actionId)
         var entry: Entry? = null
         entries.compute(actionId) { _, existing ->
             (existing ?: Entry(initial)).also {
@@ -59,19 +78,36 @@ public class ActionPresentationScheduler(private val resolve: (JewelActionId) ->
 
     /** Releases one demand registration for [actionId] and drops its sample flow when demand reaches zero. */
     public fun release(actionId: JewelActionId) {
+        var dropped = false
         entries.computeIfPresent(actionId) { _, entry ->
             entry.demand--
-            if (entry.demand <= 0) null else entry
+            if (entry.demand <= 0) {
+                dropped = true
+                null
+            } else {
+                entry
+            }
         }
+        if (dropped) onReleased?.invoke(actionId)
     }
 
-    /** Re-samples one action (or all with active demand) and publishes only changed samples. */
+    /**
+     * Re-samples one action (or all with active demand), publishes only changed samples, then runs [onInvalidated].
+     *
+     * This is the host/bridge presentation-cadence hook, **not** an app-author API. The IJPL bridge re-samples on the
+     * platform's action-update timer, and the standalone host re-samples on structural signals (binding registration,
+     * focus changes, dispatch). The standalone reactive path recomputes from the snapshot state its `update` blocks
+     * read on its own, so app code never needs to call this.
+     */
+    @ApiStatus.Internal
+    @InternalJewelApi
     public fun invalidate(actionId: JewelActionId? = null) {
         if (actionId != null) {
-            entries[actionId]?.let { it.flow.value = resolve(actionId) }
+            entries[actionId]?.let { it.flow.value = sample(actionId) }
         } else {
-            for ((id, entry) in entries) entry.flow.value = resolve(id)
+            for ((id, entry) in entries) entry.flow.value = sample(id)
         }
+        onInvalidated?.invoke()
     }
 
     /** Returns the number of action IDs currently observed by at least one collector. */

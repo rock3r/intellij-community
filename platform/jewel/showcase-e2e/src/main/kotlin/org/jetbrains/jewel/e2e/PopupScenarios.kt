@@ -76,6 +76,8 @@ public object ShowcaseE2eTags {
     public const val ACTION_COMPONENTS_DELETE: String = "ActionComponents.Delete"
     public const val ACTION_COMPONENTS_UNAVAILABLE: String = "ActionComponents.Unavailable"
     public const val ACTION_COMPONENTS_DELETE_TOGGLE: String = "ActionComponents.DeleteToggle"
+    public const val ACTION_COMPONENTS_SYNC: String = "ActionComponents.Sync"
+    public const val ACTION_COMPONENTS_ONLINE_TOGGLE: String = "ActionComponents.OnlineToggle"
     public const val ACTION_COMPONENTS_WORD_WRAP: String = "ActionComponents.WordWrap"
     public const val ACTION_COMPONENTS_MENU_BUTTON: String = "ActionComponents.MenuButton"
     public const val ACTION_COMPONENTS_MENU_BUTTON_KEEP_OPEN: String = "ActionComponents.MenuButtonKeepOpen"
