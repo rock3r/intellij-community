@@ -56,6 +56,35 @@ fun ModuleDependency.excludeCoroutines() {
     exclude(group = "org.jetbrains.kotlinx", module = "kotlinx-coroutines-core-jvm")
 }
 
-sourceSets { test { kotlin { srcDirs("ide-laf-bridge-tests/src/test/kotlin") } } }
+sourceSets {
+    test { kotlin { srcDirs("ide-laf-bridge-tests/src/test/kotlin") } }
 
-tasks.withType<Test>().configureEach { jvmArgs("--enable-native-access=ALL-UNNAMED") }
+    // Compile-only stubs for platform API introduced with IJPL-250885 but not yet present in the
+    // released IJP artifacts this build resolves. Never packaged; the platform's own classes win at
+    // runtime. Delete together with ijp-api-stubs/ once libs.versions.toml's `idea` version ships
+    // com.intellij.ide.KeyboardAwareContainer.
+    val ijpApiStubs by creating { kotlin.srcDir("ijp-api-stubs/src/main/kotlin") }
+
+    // Ensure monorepo :jb-icons-api precedes the older 262.x intellij.platform.core.ui.jar bundled in
+    // IU-2026.2.3 (which carries the pre-IconDescriptor SwingIconKt / IconManager signatures).
+    val jbIconsApi by configurations.creating { isTransitive = false }
+    main { compileClasspath = jbIconsApi + compileClasspath + ijpApiStubs.output }
+    test {
+        compileClasspath = jbIconsApi + compileClasspath + ijpApiStubs.output
+        runtimeClasspath = jbIconsApi + runtimeClasspath + ijpApiStubs.output
+    }
+}
+
+dependencies {
+    "jbIconsApi"(project(":jb-icons-api"))
+    // Satisfies the project-wide Compose compiler plugin's runtime check for the stubs-only compilation.
+    "ijpApiStubsCompileOnly"(compose.runtime)
+}
+
+tasks.withType<Test>().configureEach {
+    jvmArgs("--enable-native-access=ALL-UNNAMED")
+    // The platform-fixture integration tests under src/test/kotlin boot a real test application, which
+    // needs the in-monorepo platform; they run via Bazel (ideLafBridge-tests_test). The standalone build
+    // compiles them against the SDK but must not execute them.
+    exclude("**/JewelBridgeActionIntegrationTest*")
+}

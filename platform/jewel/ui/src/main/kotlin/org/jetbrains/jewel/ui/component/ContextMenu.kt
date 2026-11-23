@@ -30,6 +30,7 @@ import androidx.compose.ui.window.PopupProperties
 import androidx.compose.ui.window.rememberPopupPositionProviderAtPosition
 import java.awt.event.InputEvent
 import javax.swing.KeyStroke
+import org.jetbrains.jewel.foundation.shortcut.LocalJewelShortcutHost
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.styling.LocalMenuStyle
 import org.jetbrains.jewel.ui.component.styling.LocalPopupContainerStyle
@@ -84,20 +85,25 @@ internal fun ContextMenu(
     var inputModeManager: InputModeManager? by remember { mutableStateOf(null) }
     val menuController = remember(onDismissRequest) { DefaultMenuController(onDismissRequest = onDismissRequest) }
     val currentOnDismissRequest by rememberUpdatedState(onDismissRequest)
+    val shortcutHost = LocalJewelShortcutHost.current
 
     PopupContainer(
         modifier = modifier,
         popupPositionProvider = rememberPopupPositionProviderAtPosition(position, style.metrics.offset),
         onDismissRequest = { inputMode -> currentOnDismissRequest(inputMode) },
-        onPreviewKeyEvent = { false },
         popupProperties = PopupProperties(focusable = focusable),
         onKeyEvent = {
             val currentFocusManager = checkNotNull(focusManager) { "FocusManager must not be null" }
             val currentInputModeManager = checkNotNull(inputModeManager) { "InputModeManager must not be null" }
-            val swingKeyStroke = composeKeyEventToSwingKeyStroke(it)
-
-            menuController.findAndExecuteShortcut(swingKeyStroke)
-                ?: handlePopupMenuOnKeyEvent(it, currentFocusManager, currentInputModeManager, menuController)
+            // With a host, its preview hook has already resolved menu-local shortcuts; only the legacy
+            // host-less path may dispatch through the controller map, so the two can never race.
+            val menuLocal =
+                if (shortcutHost == null) {
+                    menuController.findAndExecuteShortcut(composeKeyEventToSwingKeyStroke(it))
+                } else {
+                    null
+                }
+            menuLocal ?: handlePopupMenuOnKeyEvent(it, currentFocusManager, currentInputModeManager, menuController)
         },
         useIntrinsicWidth = true,
         style = popupContainerStyle,
