@@ -13,6 +13,14 @@ f:org.jetbrains.jewel.bridge.JewelComposePanelWrapperKt
 - com.intellij.openapi.project.DumbAware
 - sf:$stable:I
 - <init>():V
+*f:org.jetbrains.jewel.bridge.actionSystem.IjActionContext
+- org.jetbrains.jewel.foundation.shortcut.ActionContext
+- sf:$stable:I
+- <init>(com.intellij.openapi.actionSystem.DataContext):V
+- get(org.jetbrains.jewel.foundation.shortcut.ActionContextKey):java.lang.Object
+f:org.jetbrains.jewel.bridge.actionSystem.IjActionContextKt
+- *sf:asActionContextKey(com.intellij.openapi.actionSystem.DataKey):org.jetbrains.jewel.foundation.shortcut.ActionContextKey
+- *sf:asDataKey(org.jetbrains.jewel.foundation.shortcut.ActionContextKey):com.intellij.openapi.actionSystem.DataKey
 *c:org.jetbrains.jewel.bridge.actionSystem.JewelActionBridgeAction
 - com.intellij.openapi.actionSystem.AnAction
 - sf:$stable:I

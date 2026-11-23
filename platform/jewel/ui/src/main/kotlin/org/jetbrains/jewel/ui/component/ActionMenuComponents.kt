@@ -18,6 +18,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.shape.ZeroCornerSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -31,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import org.jetbrains.annotations.ApiStatus
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import org.jetbrains.jewel.foundation.modifier.thenIf
+import org.jetbrains.jewel.foundation.shortcut.ActionContext
 import org.jetbrains.jewel.foundation.shortcut.ActionPresentation
 import org.jetbrains.jewel.foundation.shortcut.ActionTrigger
 import org.jetbrains.jewel.foundation.shortcut.JewelAction
@@ -73,8 +75,9 @@ public fun ActionMenu(
     keepPopupsForToggles: Boolean = false,
 ) {
     val host = LocalJewelShortcutHost.current ?: return
-    val entries = remember(group) { group.children() }
-    val presentations = collectLeafPresentations(host, entries)
+    val context = host.currentActionContext()
+    val entries = group.children(context)
+    val presentations = collectLeafPresentations(host, entries, context)
 
     PopupMenu(
         onDismissRequest = { _: InputMode ->
@@ -84,7 +87,7 @@ public fun ActionMenu(
         horizontalAlignment = horizontalAlignment,
         modifier = Modifier.testTag("Jewel.ActionMenu.Popup").then(modifier),
     ) {
-        actionEntries(host, entries, presentations, keepPopupsForToggles)
+        actionEntries(host, entries, presentations, context, keepPopupsForToggles)
     }
 }
 
@@ -92,21 +95,24 @@ public fun ActionMenu(
 private fun collectLeafPresentations(
     host: JewelShortcutHostState,
     entries: List<JewelMenuEntry>,
+    context: ActionContext,
 ): Map<JewelActionId, ActionPresentation> {
-    val leafActions = remember(entries) { flattenLeafActions(entries) }
+    val leafActions = remember(entries, context) { flattenLeafActions(entries, context) }
     val result = mutableMapOf<JewelActionId, ActionPresentation>()
     for (action in leafActions) {
-        val presentation by action.collectPresentationAsState(host.presentations)
-        result[action.id] = presentation
+        key(action.id) {
+            val presentation by action.collectPresentationAsState(host.presentations)
+            result[action.id] = presentation
+        }
     }
     return result
 }
 
-private fun flattenLeafActions(entries: List<JewelMenuEntry>): List<JewelAction> = buildList {
+private fun flattenLeafActions(entries: List<JewelMenuEntry>, context: ActionContext): List<JewelAction> = buildList {
     for (entry in entries) {
         when (entry) {
             is JewelMenuEntry.Action -> add(entry.action)
-            is JewelMenuEntry.Group -> addAll(flattenLeafActions(entry.group.children()))
+            is JewelMenuEntry.Group -> addAll(flattenLeafActions(entry.group.children(context), context))
             is JewelMenuEntry.Separator -> Unit
         }
     }
@@ -116,6 +122,7 @@ private fun MenuScope.actionEntries(
     host: JewelShortcutHostState,
     entries: List<JewelMenuEntry>,
     presentations: Map<JewelActionId, ActionPresentation>,
+    context: ActionContext,
     keepPopupsForToggles: Boolean,
 ) {
     for (entry in entries) {
@@ -144,13 +151,19 @@ private fun MenuScope.actionEntries(
                     if (entry.group.presentation.popup) {
                         submenu(
                             submenu = {
-                                actionEntries(host, entry.group.children(), presentations, keepPopupsForToggles)
+                                actionEntries(
+                                    host,
+                                    entry.group.children(context),
+                                    presentations,
+                                    context,
+                                    keepPopupsForToggles,
+                                )
                             }
                         ) {
                             Text(entry.group.presentation.text)
                         }
                     } else {
-                        actionEntries(host, entry.group.children(), presentations, keepPopupsForToggles)
+                        actionEntries(host, entry.group.children(context), presentations, context, keepPopupsForToggles)
                     }
                 }
         }

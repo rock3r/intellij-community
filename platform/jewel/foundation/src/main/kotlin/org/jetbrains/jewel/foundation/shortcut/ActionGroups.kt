@@ -37,6 +37,9 @@ public data class ActionGroupPresentation(
 /**
  * A dynamic content provider for menus and toolbars. Deliberately separate from shortcut dispatch: only leaf actions
  * have keymap bindings and focused handlers; a group is never an invokable leaf.
+ *
+ * [children] is expanded against the focused surface's [ActionContext], mirroring how an IJPL `ActionGroup.getChildren`
+ * sees the invoking `DataContext`: a static group ignores it, a dynamic one reads it to decide what to show.
  */
 @ApiStatus.Experimental
 @ExperimentalJewelApi
@@ -47,8 +50,8 @@ public interface JewelActionGroup {
     /** Static presentation metadata for this action group. */
     public val presentation: ActionGroupPresentation
 
-    /** Returns the ordered entries contained in this group. */
-    public fun children(): List<JewelMenuEntry>
+    /** Returns the ordered entries contained in this group for [context]. */
+    public fun children(context: ActionContext): List<JewelMenuEntry>
 }
 
 /** Placement hint for an action entry within a toolbar or menu. */
@@ -95,5 +98,5 @@ public class StaticJewelActionGroup(
     override val presentation: ActionGroupPresentation,
     private val entries: List<JewelMenuEntry>,
 ) : JewelActionGroup {
-    override fun children(): List<JewelMenuEntry> = entries
+    override fun children(context: ActionContext): List<JewelMenuEntry> = entries
 }

@@ -19,6 +19,20 @@ f:org.jetbrains.jewel.foundation.code.highlighting.CodeHighlighterKt
 - sf:INSTANCE:org.jetbrains.jewel.foundation.code.highlighting.NoOpCodeHighlighter
 - highlight(java.lang.String,java.lang.String):kotlinx.coroutines.flow.Flow
 - highlight-zTGadEY(java.lang.String,java.lang.String):kotlinx.coroutines.flow.Flow
+*:org.jetbrains.jewel.foundation.shortcut.ActionContext
+- *sf:Companion:org.jetbrains.jewel.foundation.shortcut.ActionContext$Companion
+- a:get(org.jetbrains.jewel.foundation.shortcut.ActionContextKey):java.lang.Object
+*f:org.jetbrains.jewel.foundation.shortcut.ActionContext$Companion
+- f:getEmpty():org.jetbrains.jewel.foundation.shortcut.ActionContext
+- f:of(java.util.Map):org.jetbrains.jewel.foundation.shortcut.ActionContext
+*f:org.jetbrains.jewel.foundation.shortcut.ActionContextKey
+- sf:$stable:I
+- *sf:Companion:org.jetbrains.jewel.foundation.shortcut.ActionContextKey$Companion
+- equals(java.lang.Object):Z
+- f:getName():java.lang.String
+- hashCode():I
+*f:org.jetbrains.jewel.foundation.shortcut.ActionContextKey$Companion
+- f:create(java.lang.String):org.jetbrains.jewel.foundation.shortcut.ActionContextKey
 *e:org.jetbrains.jewel.foundation.shortcut.ActionDispatchRejection
 - java.lang.Enum
 - sf:Disabled:org.jetbrains.jewel.foundation.shortcut.ActionDispatchRejection
@@ -331,7 +345,7 @@ f:org.jetbrains.jewel.foundation.shortcut.ActionPresentationSchedulerKt
 - f:getDefaultShortcuts():java.util.List
 - hashCode():I
 *:org.jetbrains.jewel.foundation.shortcut.JewelActionGroup
-- a:children():java.util.List
+- a:children(org.jetbrains.jewel.foundation.shortcut.ActionContext):java.util.List
 - a:getId-2iooA-o():java.lang.String
 - a:getPresentation():org.jetbrains.jewel.foundation.shortcut.ActionGroupPresentation
 *f:org.jetbrains.jewel.foundation.shortcut.JewelActionGroupId
@@ -474,6 +488,8 @@ f:org.jetbrains.jewel.foundation.shortcut.JewelShortcutHostKt
 - b:<init>(org.jetbrains.jewel.foundation.shortcut.JewelActionRegistry,kotlin.jvm.functions.Function0,I,kotlin.jvm.internal.DefaultConstructorMarker):V
 - f:cancelPendingChord():Z
 - f:claimsKeyDown-ZmokQxo(java.lang.Object):Z
+- f:currentActionContext():org.jetbrains.jewel.foundation.shortcut.ActionContext
+- f:getContextProvider():kotlin.jvm.functions.Function0
 - f:getEvents():org.jetbrains.jewel.foundation.shortcut.ActionEventSource
 - f:getInvoker():org.jetbrains.jewel.foundation.shortcut.ActionInvoker
 - f:getOnDispatch():kotlin.jvm.functions.Function1
@@ -485,9 +501,11 @@ f:org.jetbrains.jewel.foundation.shortcut.JewelShortcutHostKt
 - f:onPreviewKeyEvent-ZmokQxo(java.lang.Object):Z
 - f:openMenuShortcutScope():org.jetbrains.jewel.foundation.shortcut.MenuShortcutScope
 - f:presentationFor-ffnWhyY(java.lang.String):org.jetbrains.jewel.foundation.shortcut.ActionPresentation
+- f:presentationFor-nwx-PhA(java.lang.String,org.jetbrains.jewel.foundation.shortcut.ActionContext):org.jetbrains.jewel.foundation.shortcut.ActionPresentation
 - f:reset():V
 - f:resolveFocusedHandler-ffnWhyY(java.lang.String):kotlin.jvm.functions.Function0
 - f:runResolvedInvocation-ITNSzaE(java.lang.String,org.jetbrains.jewel.foundation.shortcut.ActionTrigger,kotlin.jvm.functions.Function0):V
+- f:setContextProvider(kotlin.jvm.functions.Function0):V
 - f:setInvoker(org.jetbrains.jewel.foundation.shortcut.ActionInvoker):V
 - f:setOnDispatch(kotlin.jvm.functions.Function1):V
 - f:shortcutsFor-ffnWhyY(java.lang.String):java.util.List
@@ -579,6 +597,6 @@ f:org.jetbrains.jewel.foundation.shortcut.ShortcutSemanticsKt
 *f:org.jetbrains.jewel.foundation.shortcut.StaticJewelActionGroup
 - org.jetbrains.jewel.foundation.shortcut.JewelActionGroup
 - sf:$stable:I
-- children():java.util.List
+- children(org.jetbrains.jewel.foundation.shortcut.ActionContext):java.util.List
 - getId-2iooA-o():java.lang.String
 - getPresentation():org.jetbrains.jewel.foundation.shortcut.ActionGroupPresentation

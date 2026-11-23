@@ -61,7 +61,12 @@ public open class JewelActionBridgeAction : AnAction() {
     override fun update(event: AnActionEvent) {
         val id = ActionManager.getInstance().getId(this)
         val host = if (id != null) jewelHostStateFor(event) else null
-        val presentation = if (id != null && host != null) host.presentationFor(JewelActionId(id)) else null
+        val presentation =
+            if (id != null && host != null) {
+                host.presentationFor(JewelActionId(id), IjActionContext(event.dataContext))
+            } else {
+                null
+            }
         if (presentation == null || presentation.resolution != ActionResolution.Resolved) {
             // Template visibility and text are preserved: a declared action stays discoverable in menus
             // while correctly refusing execution without a focused binding (or without a Jewel host).
