@@ -88,13 +88,25 @@ public class JewelShortcutHostState(
     private val engine: ShortcutDispatchEngine =
         ShortcutDispatchEngine(
             keymap = keymapProvider,
-            focusedBindings = { attachedRoots.flatMap(ShortcutResolverRootNode::engineBindings) },
+            focusedBindings = { resolveEngineBindings() },
             // Claims resolve only against the topmost attached root so outer surface claims cannot swallow keys
             // while a focusable popup is active (including bridge JBPopups whose AWT focus remains on the owner).
             focusedClaims = { attachedRoots.lastOrNull()?.engineClaims().orEmpty() },
             chordTimeoutMillis = chordTimeoutMillis,
             onPendingChordChanged = ::handlePendingChordChanged,
         )
+
+    private fun resolveEngineBindings(contextOverride: ActionContext? = null): List<EngineBinding> {
+        val roots = attachedRoots
+        if (roots.isEmpty()) return emptyList()
+        val effectiveContext =
+            when {
+                roots.none { it.hasDynamicBindings() } -> ActionContext.Empty
+                contextOverride != null -> contextOverride
+                else -> currentActionContext()
+            }
+        return roots.flatMap { it.engineBindings(effectiveContext) }
+    }
 
     private fun handlePendingChordChanged(pending: JewelKeyStroke?) {
         awaitingSecondStrokeState = pending != null
@@ -226,7 +238,6 @@ public class JewelShortcutHostState(
     public fun presentationFor(actionId: JewelActionId, context: ActionContext): ActionPresentation =
         samplePresentation(actionId, contextOverride = context)
 
-    @Suppress("UNUSED_PARAMETER")
     private fun samplePresentation(
         actionId: JewelActionId,
         contextOverride: ActionContext? = null,
@@ -241,7 +252,12 @@ public class JewelShortcutHostState(
         // it is the same layer, only recomputed, so a binding override still applies on top of it.
         val live = registry?.sampledPresentation(actionId)
 
-        val binding = engine.resolveFocusedBinding(actionId)
+        val binding =
+            if (contextOverride != null) {
+                engine.resolveFocusedBinding(actionId, resolveEngineBindings(contextOverride))
+            } else {
+                engine.resolveFocusedBinding(actionId)
+            }
         if (binding != null) {
             val base =
                 live?.copy(enabled = true, resolution = ActionResolution.Resolved)
@@ -574,18 +590,60 @@ public class ShortcutResolverRootNode(public var state: JewelShortcutHostState) 
     private fun <T : ShortcutRegistrarNode> sortedSnapshot(nodes: List<T>): List<T> =
         nodes.sortedBy(ShortcutRegistrarNode::nestingDepth)
 
-    internal fun engineBindings(): List<EngineBinding> =
-        bindingSnapshot.map { node ->
-            EngineBinding(
-                actionId = node.action.id,
-                enabled = node.enabled,
-                blocksOuterBindings = node.blocksOuterBindings,
-                origin = node.action.title,
-                repeatPolicy = node.repeatPolicy,
-                presentationOverride = node.presentationOverride,
-                onInvoke = node.onInvoke,
-            )
+    internal fun hasDynamicBindings(): Boolean = bindingSnapshot.any { it.update != null }
+
+    internal fun engineBindings(contextOverride: ActionContext? = null): List<EngineBinding> {
+        val snapshot = bindingSnapshot
+        // The context is needed only by bindings that derive their state from it, so build it at most once, and
+        // never when no binding has an update block: this runs on every dispatch and every presentation sample,
+        // and both the standalone tree traversal and the bridge data-context lookup that back it cost something.
+        val context =
+            when {
+                !snapshot.any { it.update != null } -> ActionContext.Empty
+                contextOverride != null -> contextOverride
+                else -> state.currentActionContext()
+            }
+        return snapshot.map { node ->
+            val update = node.update
+            if (update == null) {
+                EngineBinding(
+                    actionId = node.action.id,
+                    enabled = node.enabled,
+                    blocksOuterBindings = node.blocksOuterBindings,
+                    origin = node.action.title,
+                    repeatPolicy = node.repeatPolicy,
+                    presentationOverride = node.presentationOverride,
+                    onInvoke = node.onInvoke,
+                )
+            } else {
+                // Evaluate the AnAction.update()-equivalent block against the context, seeded from the static
+                // binding config so a block need only change what depends on the context. Its result supersedes
+                // both the static enablement (which gates dispatch) and the presentation override (rendering).
+                val base = node.presentationOverride
+                val scope =
+                    ActionUpdateScope(
+                        context = context,
+                        enabled = node.enabled,
+                        visible = (base.visible as? PresentationValue.Set)?.value ?: true,
+                        selected = (base.selected as? PresentationValue.Set)?.value,
+                    )
+                scope.update()
+                EngineBinding(
+                    actionId = node.action.id,
+                    enabled = scope.enabled,
+                    blocksOuterBindings = node.blocksOuterBindings,
+                    origin = node.action.title,
+                    repeatPolicy = node.repeatPolicy,
+                    presentationOverride =
+                        base.copy(
+                            visible = PresentationValue.Set(scope.visible),
+                            selected = scope.selected?.let { PresentationValue.Set(it) } ?: base.selected,
+                        ),
+                    onInvoke = node.onInvoke,
+                )
+            }
         }
+    }
 
     internal fun engineClaims(): List<EngineClaim> =
         claimSnapshot.map { node ->

@@ -554,4 +554,55 @@ internal class JewelBridgeActionIntegrationTest {
             actionManager.unregisterAction(nestedAction.id.value)
         }
     }
+
+    @Test
+    fun `bridge action update evaluates binding update against event dataContext`() {
+        val action = registerDeclared()
+        val selectionKey = org.jetbrains.jewel.foundation.shortcut.ActionContextKey.create<Boolean>("test.bridge.sel")
+        val updatedAction = JewelAction(JewelActionId(ACTION_ID), "Context Action")
+        compose.setContent {
+            Box(stateA.resolverRootModifier) {
+                Box(
+                    Modifier.shortcut(updatedAction, update = { enabled = context[selectionKey] == true }) { countA++ }
+                        .focusRequester(focusA)
+                        .focusable()
+                )
+            }
+        }
+        focusComposeNode(focusA)
+
+        var contextProviderCalls = 0
+        stateA.contextProvider = {
+            contextProviderCalls++
+            org.jetbrains.jewel.foundation.shortcut.ActionContext.Empty
+        }
+
+        fun updateWithSelection(selected: Boolean): Boolean {
+            var enabled = false
+            runInEdtAndWait {
+                val dataContext =
+                    com.intellij.openapi.actionSystem.impl.SimpleDataContext.builder()
+                        .add(PlatformCoreDataKeys.CONTEXT_COMPONENT, innerA)
+                        .add(JEWEL_SHORTCUT_HOST_STATE, stateA)
+                        .add(selectionKey.asDataKey(), selected)
+                        .build()
+                val event =
+                    AnActionEvent.createEvent(
+                        action,
+                        dataContext,
+                        null,
+                        com.intellij.openapi.actionSystem.ActionPlaces.UNKNOWN,
+                        com.intellij.openapi.actionSystem.ActionUiKind.NONE,
+                        null,
+                    )
+                action.update(event)
+                enabled = event.presentation.isEnabled
+            }
+            return enabled
+        }
+
+        assertTrue("enabled when event.dataContext sets key=true", updateWithSelection(true))
+        assertFalse("disabled when event.dataContext sets key=false", updateWithSelection(false))
+        assertEquals("AnAction.update must use event.dataContext instead of contextProvider", 0, contextProviderCalls)
+    }
 }

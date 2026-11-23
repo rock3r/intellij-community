@@ -136,7 +136,11 @@ public class ShortcutDispatchEngine(
         get() = pendingFirstStroke != null
 
     /** Innermost focused enabled binding for [actionId], or null. Used by hosts for presentation. */
-    public fun resolveFocusedBinding(actionId: JewelActionId): EngineBinding? = resolveBinding(actionId)
+    public fun resolveFocusedBinding(actionId: JewelActionId): EngineBinding? =
+        resolveBinding(actionId, focusedBindings())
+
+    internal fun resolveFocusedBinding(actionId: JewelActionId, bindings: List<EngineBinding>): EngineBinding? =
+        resolveBinding(actionId, bindings)
 
     /**
      * True when [onKeyDown] with [stroke] would consume it through the claim lane. This is the host-veto predicate (the
@@ -335,8 +339,11 @@ public class ShortcutDispatchEngine(
     }
 
     /** Innermost focused enabled binding; disabled entries fall through outward unless they block. */
-    private fun resolveBinding(actionId: JewelActionId): EngineBinding? {
-        for (binding in focusedBindings().asReversed()) {
+    private fun resolveBinding(
+        actionId: JewelActionId,
+        bindings: List<EngineBinding> = focusedBindings(),
+    ): EngineBinding? {
+        for (binding in bindings.asReversed()) {
             if (binding.actionId != actionId) continue
             if (binding.enabled) return binding
             if (binding.blocksOuterBindings) return null

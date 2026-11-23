@@ -1,6 +1,8 @@
 package org.jetbrains.jewel.foundation.actionSystem
 
 import androidx.compose.ui.node.ModifierNodeElement
+import androidx.compose.ui.node.traverseAncestors
+import org.jetbrains.jewel.foundation.shortcut.ShortcutResolverRootNode
 
 internal class DataProviderElement(val dataProvider: DataProviderContext.() -> Unit) :
     ModifierNodeElement<DataProviderNode>() {
@@ -8,6 +10,12 @@ internal class DataProviderElement(val dataProvider: DataProviderContext.() -> U
 
     override fun update(node: DataProviderNode) {
         node.dataProvider = dataProvider
+        if (node.hasFocus) {
+            node.traverseAncestors(ShortcutResolverRootNode.TraverseKey) { ancestor ->
+                (ancestor as? ShortcutResolverRootNode)?.state?.presentations?.invalidate()
+                false
+            }
+        }
     }
 
     override fun equals(other: Any?): Boolean {

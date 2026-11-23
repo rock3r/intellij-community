@@ -229,6 +229,15 @@ f:org.jetbrains.jewel.foundation.shortcut.ActionPresentationSchedulerKt
 - sf:INSTANCE:org.jetbrains.jewel.foundation.shortcut.ActionTrigger$Programmatic
 - equals(java.lang.Object):Z
 - hashCode():I
+*f:org.jetbrains.jewel.foundation.shortcut.ActionUpdateScope
+- sf:$stable:I
+- f:getContext():org.jetbrains.jewel.foundation.shortcut.ActionContext
+- f:getEnabled():Z
+- f:getSelected():java.lang.Boolean
+- f:getVisible():Z
+- f:setEnabled(Z):V
+- f:setSelected(java.lang.Boolean):V
+- f:setVisible(Z):V
 *f:org.jetbrains.jewel.foundation.shortcut.DefaultJewelActionRegistry
 - org.jetbrains.jewel.foundation.shortcut.JewelActionRegistry
 - sf:$stable:I
@@ -580,8 +589,8 @@ f:org.jetbrains.jewel.foundation.shortcut.ShortcutModifiersKt
 - *bs:claimKeyEvent$default(androidx.compose.ui.Modifier,kotlin.jvm.functions.Function1,Z,kotlin.jvm.functions.Function1,I,java.lang.Object):androidx.compose.ui.Modifier
 - *sf:claimShortcut(androidx.compose.ui.Modifier,org.jetbrains.jewel.foundation.shortcut.JewelKeySequence,Z,Z,org.jetbrains.jewel.foundation.shortcut.ShortcutRepeatPolicy,kotlin.jvm.functions.Function0):androidx.compose.ui.Modifier
 - *bs:claimShortcut$default(androidx.compose.ui.Modifier,org.jetbrains.jewel.foundation.shortcut.JewelKeySequence,Z,Z,org.jetbrains.jewel.foundation.shortcut.ShortcutRepeatPolicy,kotlin.jvm.functions.Function0,I,java.lang.Object):androidx.compose.ui.Modifier
-- *sf:shortcut(androidx.compose.ui.Modifier,org.jetbrains.jewel.foundation.shortcut.JewelAction,Z,Z,org.jetbrains.jewel.foundation.shortcut.ShortcutRepeatPolicy,org.jetbrains.jewel.foundation.shortcut.ActionPresentationOverride,kotlin.jvm.functions.Function0):androidx.compose.ui.Modifier
-- *bs:shortcut$default(androidx.compose.ui.Modifier,org.jetbrains.jewel.foundation.shortcut.JewelAction,Z,Z,org.jetbrains.jewel.foundation.shortcut.ShortcutRepeatPolicy,org.jetbrains.jewel.foundation.shortcut.ActionPresentationOverride,kotlin.jvm.functions.Function0,I,java.lang.Object):androidx.compose.ui.Modifier
+- *sf:shortcut(androidx.compose.ui.Modifier,org.jetbrains.jewel.foundation.shortcut.JewelAction,Z,Z,org.jetbrains.jewel.foundation.shortcut.ShortcutRepeatPolicy,org.jetbrains.jewel.foundation.shortcut.ActionPresentationOverride,kotlin.jvm.functions.Function1,kotlin.jvm.functions.Function0):androidx.compose.ui.Modifier
+- *bs:shortcut$default(androidx.compose.ui.Modifier,org.jetbrains.jewel.foundation.shortcut.JewelAction,Z,Z,org.jetbrains.jewel.foundation.shortcut.ShortcutRepeatPolicy,org.jetbrains.jewel.foundation.shortcut.ActionPresentationOverride,kotlin.jvm.functions.Function1,kotlin.jvm.functions.Function0,I,java.lang.Object):androidx.compose.ui.Modifier
 *e:org.jetbrains.jewel.foundation.shortcut.ShortcutRepeatPolicy
 - java.lang.Enum
 - sf:OnceUntilRelease:org.jetbrains.jewel.foundation.shortcut.ShortcutRepeatPolicy

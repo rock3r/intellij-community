@@ -5,6 +5,7 @@ f:org.jetbrains.jewel.samples.showcase.ShowcaseActionComponents
 - f:getArchive():org.jetbrains.jewel.foundation.shortcut.JewelAction
 - f:getDelete():org.jetbrains.jewel.foundation.shortcut.JewelAction
 - f:getEditingGroup():org.jetbrains.jewel.foundation.shortcut.StaticJewelActionGroup
+- f:getHasSelection():org.jetbrains.jewel.foundation.shortcut.ActionContextKey
 - f:getMainGroup():org.jetbrains.jewel.foundation.shortcut.StaticJewelActionGroup
 - f:getMoreGroup():org.jetbrains.jewel.foundation.shortcut.StaticJewelActionGroup
 - f:getNoIcon():org.jetbrains.jewel.foundation.shortcut.JewelAction
