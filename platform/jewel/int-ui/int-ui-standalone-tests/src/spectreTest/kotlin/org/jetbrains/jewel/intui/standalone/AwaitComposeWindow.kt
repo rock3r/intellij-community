@@ -20,10 +20,30 @@ import kotlinx.coroutines.delay
  */
 internal suspend fun AtomicReference<ComposeWindow?>.awaitWindow(timeout: Duration = 60.seconds): ComposeWindow {
     val start = TimeSource.Monotonic.markNow()
+    var dumpedSlow = false
     while (start.elapsedNow() < timeout) {
         val candidate = get()
         if (candidate != null && candidate.isShowingOnEdt()) {
             return candidate
+        }
+        if (!dumpedSlow && start.elapsedNow() >= 15.seconds) {
+            dumpedSlow = true
+            val sb = StringBuilder("=== DIAG SLOW awaitWindow (>15s) candidate=${candidate != null} ===\n")
+            for ((t, stack) in Thread.getAllStackTraces().entries.sortedBy { it.key.name }) {
+                if (
+                    t.name.contains("skiko", true) ||
+                        t.name.contains("AWT", true) ||
+                        t.name.contains("spectre", true) ||
+                        t.name.contains("main", true) ||
+                        stack.any { it.className.contains("skiko") || it.className.contains("compose") }
+                ) {
+                    sb.append("  THREAD [").append(t.name).append("] state=").append(t.state).append('\n')
+                    for (f in stack.take(25)) sb.append("    at ").append(f).append('\n')
+                }
+            }
+            sb.append("=== END DIAG SLOW awaitWindow ===\n")
+            print(sb.toString())
+            System.out.flush()
         }
         delay(100.milliseconds)
     }

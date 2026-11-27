@@ -20,11 +20,17 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.awt.ComposeWindow
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.focus.onFocusEvent
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.isAltPressed
+import androidx.compose.ui.input.key.isCtrlPressed
+import androidx.compose.ui.input.key.isMetaPressed
+import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
@@ -33,11 +39,24 @@ import androidx.compose.ui.window.application
 import dev.sebastiano.spectre.core.ComposeAutomator
 import dev.sebastiano.spectre.core.RobotDriver
 import dev.sebastiano.spectre.testing.runSpectreTest
+import java.awt.AWTEvent
+import java.awt.Component
+import java.awt.Container
+import java.awt.KeyboardFocusManager
 import java.awt.Point
 import java.awt.Rectangle
+import java.awt.Toolkit
+import java.awt.Window
+import java.awt.event.AWTEventListener
+import java.awt.event.FocusEvent
+import java.awt.event.InputMethodEvent
 import java.awt.event.KeyEvent
+import java.awt.event.MouseEvent
+import java.awt.event.WindowEvent
+import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
+import javax.swing.SwingUtilities
 import kotlin.concurrent.thread
 import kotlin.math.hypot
 import kotlin.test.assertEquals
@@ -55,6 +74,7 @@ import org.jetbrains.jewel.ui.component.EditableComboBox
 import org.jetbrains.jewel.ui.component.PopupContainer
 import org.jetbrains.jewel.ui.component.PopupMenu
 import org.jetbrains.jewel.ui.component.SpeedSearchArea
+import org.jetbrains.jewel.ui.component.SpeedSearchState
 import org.jetbrains.jewel.ui.component.Text
 import org.jetbrains.jewel.ui.component.gotit.GotItButtons
 import org.jetbrains.jewel.ui.component.gotit.GotItTooltip
@@ -86,6 +106,279 @@ private val hostGainedFocus = AtomicBoolean(false)
  * the location when it measures, by which point the window is on screen.
  */
 private val hostWindow = AtomicReference<ComposeWindow?>(null)
+
+private val activeDiag = AtomicReference<DiagCollector?>(null)
+
+private val printedBaselinePass = AtomicBoolean(false)
+
+private class DiagCollector(val label: String) {
+    private val startNanos = System.nanoTime()
+    val events = CopyOnWriteArrayList<String>()
+    private val marks = CopyOnWriteArrayList<Pair<String, Long>>()
+    val speedSearchState = AtomicReference<SpeedSearchState?>(null)
+    val comboSawEscapePreview = AtomicBoolean(false)
+    val comboSawEscapeKey = AtomicBoolean(false)
+    val hostSawEscapePreview = AtomicBoolean(false)
+    private var awtListener: AWTEventListener? = null
+
+    fun elapsedMs(): Long = (System.nanoTime() - startNanos) / 1_000_000
+
+    fun mark(name: String) {
+        val ms = elapsedMs()
+        marks.add(name to ms)
+        events.add("[t=${ms}ms] MARK $name")
+    }
+
+    fun timingSummary(): String = marks.joinToString(" ") { "${it.first}=${it.second}ms" }
+
+    fun log(msg: String) {
+        val elapsedMs = elapsedMs()
+        events.add("[t=${elapsedMs}ms] $msg")
+    }
+
+    fun installAwtListener() {
+        val listener = AWTEventListener { event ->
+            when (event) {
+                is KeyEvent -> {
+                    val idName =
+                        when (event.id) {
+                            KeyEvent.KEY_PRESSED -> "PRESSED"
+                            KeyEvent.KEY_TYPED -> "TYPED"
+                            KeyEvent.KEY_RELEASED -> "RELEASED"
+                            else -> "ID_${event.id}"
+                        }
+                    val src = event.component
+                    val kfm = KeyboardFocusManager.getCurrentKeyboardFocusManager()
+                    val w = hostWindow.get()
+                    log(
+                        "AWT_KEY $idName vk=${event.keyCode} ch=0x${event.keyChar.code.toString(16)} " +
+                            "mods=0x${event.modifiersEx.toString(16)} cons=${event.isConsumed} " +
+                            "src=${describeComp(src)} kfmFO=${describeComp(kfm.focusOwner)} " +
+                            "winFoc=${w?.isFocused} winFO=${describeComp(w?.focusOwner)}"
+                    )
+                }
+                is FocusEvent -> {
+                    val idName = if (event.id == FocusEvent.FOCUS_GAINED) "GAINED" else "LOST"
+                    log(
+                        "AWT_FOCUS $idName temp=${event.isTemporary} cause=${event.cause} " +
+                            "src=${describeComp(event.component)} opp=${describeComp(event.oppositeComponent)}"
+                    )
+                }
+                is WindowEvent -> {
+                    val idName =
+                        when (event.id) {
+                            WindowEvent.WINDOW_OPENED -> "OPENED"
+                            WindowEvent.WINDOW_CLOSED -> "CLOSED"
+                            WindowEvent.WINDOW_ACTIVATED -> "ACTIVATED"
+                            WindowEvent.WINDOW_DEACTIVATED -> "DEACTIVATED"
+                            WindowEvent.WINDOW_GAINED_FOCUS -> "GAINED_FOCUS"
+                            WindowEvent.WINDOW_LOST_FOCUS -> "LOST_FOCUS"
+                            else -> "WIN_${event.id}"
+                        }
+                    log("AWT_WIN $idName win=${describeComp(event.window)} opp=${describeComp(event.oppositeWindow)}")
+                }
+                is InputMethodEvent -> {
+                    log(
+                        "AWT_IME id=${event.id} cons=${event.isConsumed} committed=${event.committedCharacterCount} " +
+                            "src=${describeComp(event.source as? Component)}"
+                    )
+                }
+                is MouseEvent -> {
+                    if (event.id == MouseEvent.MOUSE_PRESSED || event.id == MouseEvent.MOUSE_RELEASED) {
+                        val idName = if (event.id == MouseEvent.MOUSE_PRESSED) "M_PRESS" else "M_REL"
+                        log("AWT_$idName (${event.x},${event.y}) src=${describeComp(event.component)}")
+                    }
+                }
+            }
+        }
+        awtListener = listener
+        Toolkit.getDefaultToolkit()
+            .addAWTEventListener(
+                listener,
+                AWTEvent.KEY_EVENT_MASK or
+                    AWTEvent.FOCUS_EVENT_MASK or
+                    AWTEvent.WINDOW_EVENT_MASK or
+                    AWTEvent.WINDOW_FOCUS_EVENT_MASK or
+                    AWTEvent.INPUT_METHOD_EVENT_MASK or
+                    AWTEvent.MOUSE_EVENT_MASK,
+            )
+    }
+
+    fun uninstallAwtListener() {
+        awtListener?.let { Toolkit.getDefaultToolkit().removeAWTEventListener(it) }
+        awtListener = null
+    }
+
+    fun snapshot(stage: String, window: ComposeWindow, automator: ComposeAutomator?, includeTree: Boolean = false) {
+        val sb = StringBuilder("SNAP[$stage] ")
+        SwingUtilities.invokeAndWait {
+            val kfm = KeyboardFocusManager.getCurrentKeyboardFocusManager()
+            sb.append("winFoc=").append(window.isFocused)
+            sb.append(" winAct=").append(window.isActive)
+            sb.append(" winShow=").append(window.isShowing)
+            sb.append(" winFO=").append(describeComp(window.focusOwner))
+            sb.append(" winMostRecentFO=").append(describeComp(window.mostRecentFocusOwner))
+            sb.append(" kfmFO=").append(describeComp(kfm.focusOwner))
+            sb.append(" kfmPermFO=").append(describeComp(kfm.permanentFocusOwner))
+            sb.append(" kfmFocWin=").append(describeComp(kfm.focusedWindow))
+            sb.append(" kfmActWin=").append(describeComp(kfm.activeWindow))
+            sb.append(" renderApi=").append(runCatching { window.renderApi }.getOrElse { it.javaClass.simpleName })
+            sb.append(" dpi=").append(runCatching { window.graphicsConfiguration?.defaultTransform?.scaleX }.getOrNull())
+            sb.append(" allWins=").append(Window.getWindows().count { it.isShowing })
+            sb.append("/").append(Window.getWindows().size)
+            sb.append(" scene=[").append(inspectComposeScene(window)).append("]")
+            if (includeTree) {
+                sb.append("\n  ENV os=").append(System.getProperty("os.name"))
+                    .append(" ").append(System.getProperty("os.version"))
+                    .append(" java=").append(System.getProperty("java.version"))
+                    .append(" ").append(System.getProperty("java.vendor"))
+                    .append(" loc=").append(System.getProperty("user.language")).append("_")
+                    .append(System.getProperty("user.country"))
+                sb.append("\n  TREE: ")
+                dumpTree(window, sb, "")
+                sb.append("\n  WINDOWS: ")
+                for (w in Window.getWindows()) {
+                    sb.append(describeComp(w))
+                        .append("(show=").append(w.isShowing)
+                        .append(",vis=").append(w.isVisible)
+                        .append(",foc=").append(w.isFocused)
+                        .append(",fo=").append(describeComp(w.focusOwner))
+                        .append(") ")
+                }
+            }
+        }
+        val ss = speedSearchState.get()
+        if (ss != null) {
+            sb.append(" ss(vis=").append(ss.isVisible)
+            sb.append(",searchText='").append(ss.searchText)
+            sb.append("',tf='").append(ss.searchState.textFieldState.text)
+            sb.append("',hasMatches=").append(ss.hasMatches)
+            sb.append(",matches=").append(ss.matchingIndexes).append(")")
+        }
+        if (automator != null) {
+            runCatching {
+                val popupNodes = automator.findByTestTag(POPUP_TAG)
+                val searchNodes = automator.findByTestTag(SEARCH_INPUT_TAG)
+                val openNodes = automator.findByTestTag(OPEN_TAG)
+                sb.append(" sem(popup=").append(popupNodes.size)
+                sb.append(",search=").append(searchNodes.size)
+                sb.append(",searchText='").append(searchNodes.firstOrNull()?.editableText)
+                sb.append("',searchFoc=").append(searchNodes.firstOrNull()?.isFocused)
+                sb.append(",openFoc=").append(openNodes.firstOrNull()?.isFocused).append(")")
+            }.onFailure { sb.append(" semErr=").append(it.javaClass.simpleName) }
+        }
+        log(sb.toString())
+    }
+
+    fun dump(header: String) {
+        val sb = StringBuilder()
+        sb.appendLine("=== $header [$label] (comboEscPrev=${comboSawEscapePreview.get()} comboEscKey=${comboSawEscapeKey.get()} hostEscPrev=${hostSawEscapePreview.get()} hostEsc=${hostSawEscape.get()}) ===")
+        for (line in events) {
+            sb.appendLine("  $line")
+        }
+        sb.appendLine("=== END $header [$label] ===")
+        print(sb.toString())
+        System.out.flush()
+    }
+}
+
+private fun describeComp(c: Component?): String {
+    if (c == null) return "null"
+    val simple = c.javaClass.name.substringAfterLast('.')
+    val kl = runCatching { c.keyListeners.size }.getOrDefault(-1)
+    val iml = runCatching { c.inputMethodListeners.size }.getOrDefault(-1)
+    return "$simple@${Integer.toHexString(System.identityHashCode(c))}(foc=${c.isFocusable},fo=${c.isFocusOwner},kl=$kl,iml=$iml)"
+}
+
+private fun dumpTree(c: Component, sb: StringBuilder, indent: String) {
+    sb.append(indent).append(describeComp(c)).append("; ")
+    if (c is Container) {
+        for (child in c.components) {
+            dumpTree(child, sb, "$indent  ")
+        }
+    }
+}
+
+private fun readField(obj: Any?, name: String): Any? {
+    if (obj == null) return null
+    var cls: Class<*>? = obj.javaClass
+    while (cls != null) {
+        try {
+            val f = cls.getDeclaredField(name)
+            f.isAccessible = true
+            return f.get(obj)
+        } catch (_: NoSuchFieldException) {
+            cls = cls.superclass
+        }
+    }
+    return null
+}
+
+private fun inspectComposeScene(window: ComposeWindow): String =
+    runCatching {
+        val panel = readField(window, "composePanel")
+        val container = readField(panel, "_composeContainer")
+        val mediator = readField(container, "mediator")
+        val inv = readField(mediator, "invisibleComponent") as? Component
+        val imr = readField(mediator, "currentInputMethodRequests")
+        val sceneDelegate = readField(mediator, "scene\$delegate") as? Lazy<*>
+        val scene = if (sceneDelegate?.isInitialized() == true) sceneDelegate.value else null
+        val focusedLayer = readField(scene, "focusedLayer")
+        val layers = readField(scene, "layers") as? Collection<*>
+        val mainOwner = readField(scene, "mainOwner")
+        val focusOwner = mainOwner?.javaClass?.methods?.firstOrNull { it.name == "getFocusOwner" && it.parameterCount == 0 }?.invoke(mainOwner)
+        val activeTarget = readField(focusOwner, "activeFocusTargetNode")
+        val invMgr = readField(focusOwner, "focusInvalidationManager")
+        val hasPendingInv = invMgr?.javaClass?.methods?.firstOrNull { it.name == "hasPendingInvalidation" && it.parameterCount == 0 }?.invoke(invMgr)
+        "invFoc=${inv?.isFocusable},invFO=${inv?.isFocusOwner},imr=${imr != null}," +
+            "scene=${scene?.javaClass?.simpleName},layers=${layers?.size},focusedLayer=${focusedLayer != null}," +
+            "activeTarget=${activeTarget != null},pendingInv=$hasPendingInv"
+    }.getOrElse { "err=${it.javaClass.simpleName}:${it.message}" }
+
+private fun inspectRenderAndRecomposer(window: ComposeWindow): String =
+    runCatching {
+        val panel = readField(window, "composePanel")
+        val container = readField(panel, "_composeContainer")
+        val mediator = readField(container, "mediator")
+        val frameRecomposer = readField(mediator, "frameRecomposer")
+        val recomposer = readField(frameRecomposer, "recomposer")
+        val hasPendingWork = recomposer?.javaClass?.methods?.firstOrNull { it.name == "getHasPendingWork" && it.parameterCount == 0 }?.invoke(recomposer)
+        val frameClock = readField(frameRecomposer, "frameClock")
+        val hasAwaiters = frameClock?.javaClass?.methods?.firstOrNull { it.name == "getHasAwaiters" && it.parameterCount == 0 }?.invoke(frameClock)
+        val contentComp = mediator?.javaClass?.methods?.firstOrNull { it.name == "getContentComponent" && it.parameterCount == 0 }?.invoke(mediator)
+        val frameDriverMgr = readField(contentComp, "frameDriverManager")
+        val frameDriver = readField(frameDriverMgr, "current")
+        val producer = readField(frameDriver, "producer")
+        val renderer = readField(producer, "renderer")
+        val scheduler = readField(frameDriver, "scheduler")
+        val frameDisp = readField(scheduler, "frameDispatcher")
+        val frameScheduled = readField(frameDisp, "frameScheduled")
+        val renderInfo = runCatching { frameDriver?.javaClass?.methods?.firstOrNull { it.name == "getRenderInfo" && it.parameterCount == 0 }?.invoke(frameDriver) }.getOrNull()?.toString()?.replace("\n", " | ")
+        val renderApi = runCatching { contentComp?.javaClass?.methods?.firstOrNull { it.name == "getRenderApi" && it.parameterCount == 0 }?.invoke(contentComp) }.getOrNull()
+        val isShowing = (contentComp as? Component)?.isShowing
+        "recompPending=$hasPendingWork clockAwaiters=$hasAwaiters renderApi=$renderApi env=${System.getenv("SKIKO_RENDER_API")} prop=${System.getProperty("skiko.renderApi")} " +
+            "renderer=${renderer?.javaClass?.simpleName} frameScheduled=$frameScheduled skiaShowing=$isShowing renderInfo=[$renderInfo]"
+    }.getOrElse { "err=${it.javaClass.simpleName}:${it.message}" }
+
+private fun dumpThreads(): String {
+    val sb = StringBuilder()
+    for ((t, stack) in Thread.getAllStackTraces().entries.sortedBy { it.key.name }) {
+        val name = t.name
+        val interesting =
+            name.contains("skiko", ignoreCase = true) ||
+                name.contains("AWT", ignoreCase = true) ||
+                name.contains("spectre", ignoreCase = true) ||
+                name.contains("DefaultDispatcher", ignoreCase = true) ||
+                name.contains("main", ignoreCase = true) ||
+                stack.any { it.className.contains("skiko") || it.className.contains("compose") }
+        if (!interesting) continue
+        sb.append("  THREAD [").append(name).append("] state=").append(t.state).append('\n')
+        for (frame in stack.take(25)) {
+            sb.append("    at ").append(frame).append('\n')
+        }
+    }
+    return sb.toString()
+}
 
 /**
  * Reports whether the submenu sits next to the item that opened it, rather than next to the window origin.
@@ -355,10 +648,16 @@ private val CASES =
         Case(
             name = "speedSearchCombo(escape#1)",
             open = { a, _ ->
+                val diag = activeDiag.get()
+                diag?.mark("before_click")
                 a.click(a.waitForNode(tag = OPEN_TAG))
+                diag?.mark("after_click")
                 a.waitForNode(tag = POPUP_TAG)
+                diag?.mark("after_popup")
                 a.typeText("Alpha")
+                diag?.mark("after_type")
                 a.waitForNode(tag = SEARCH_INPUT_TAG)
+                diag?.mark("after_search")
             },
             measure = {
                 "popupOpen=" + it.hasTag(POPUP_TAG) + " searchOpen=" + it.hasTag(SEARCH_INPUT_TAG) + " " + host()
@@ -383,8 +682,11 @@ class PopupRendererParitySpectreTest {
             )
         }
 
+        val order = System.getenv("JEWEL_DIAG_ORDER") ?: "master"
+        val casesToRun = if (order == "pre1485") CASES.filterNot { it.name == "submenuAlignment" } else CASES
+
         val divergences = mutableListOf<String>()
-        for (case in CASES) {
+        for (case in casesToRun) {
             val withCompose = measure(custom = false, case = case)
             val withJDialog = measure(custom = true, case = case)
             if (withCompose != withJDialog) {
@@ -410,30 +712,98 @@ class PopupRendererParitySpectreTest {
     private suspend fun measure(custom: Boolean, case: Case): String {
         val previousRenderer = JewelFlags.useCustomPopupRenderer
         JewelFlags.useCustomPopupRenderer = custom
+        val isSpeedSearch = case.name == "speedSearchCombo(escape#1)"
+        val diag = DiagCollector("${label(custom)}:${case.name}")
+        if (isSpeedSearch) {
+            activeDiag.set(diag)
+            diag.installAwtListener()
+        }
         val app = MatrixApp(case.content)
         try {
+            diag.mark("start")
             app.start()
             val window = app.awaitWindow()
+            diag.mark("awaitWindow")
             hostWindow.set(window)
             val driver = RobotDriver.synthetic(window)
             val automator = ComposeAutomator.inProcess(driver)
             case.open(automator, driver)
             automator.waitForIdle()
+            diag.mark("waitForIdle")
             hostSawEscape.set(false)
             hostGainedFocus.set(false)
 
             for (key in case.keys) {
                 automator.pressKey(key)
+                diag.mark("pressKey_$key")
                 delay(250.milliseconds)
             }
             delay(1500.milliseconds)
+            diag.mark("afterDelays")
             automator.refreshWindows()
 
             val result = case.measure(automator)
+            diag.mark("measured")
             println("PARITY renderer=" + label(custom) + " case=" + case.name + " " + result)
+            if (case.name == "control(noPopup)" && !custom) {
+                println("DIAG_RENDER_INFO ${inspectRenderAndRecomposer(window)}")
+            }
+            val unexpectedSpeedSearch = isSpeedSearch && result != "popupOpen=true searchOpen=false hostSawEscape=false"
+            val unexpectedCombo = case.name == "comboBox" && result != "popupOpen=false hostSawEscape=false"
+            val unexpectedOther = case.expect != null && result != case.expect
+            if (isSpeedSearch) {
+                println("DIAG_TIMING [${diag.label}] ${diag.timingSummary()}")
+            }
+            if (unexpectedSpeedSearch || unexpectedCombo || unexpectedOther) {
+                diag.snapshot("POST_FAILURE", window, automator, includeTree = true)
+                diag.log("RENDER_AND_RECOMPOSER: ${inspectRenderAndRecomposer(window)}")
+                diag.log("THREAD_DUMP_AT_FAILURE:\n${dumpThreads()}")
+                // Wait up to 10s WITHOUT sending another key to see if Compose spontaneously recomposes when the stall clears
+                val waitStart = System.nanoTime()
+                var clearedAtMs = -1L
+                while ((System.nanoTime() - waitStart) / 1_000_000 < 10_000L) {
+                    delay(250.milliseconds)
+                    automator.refreshWindows()
+                    val nowResult = case.measure(automator)
+                    if (nowResult != result) {
+                        clearedAtMs = (System.nanoTime() - waitStart) / 1_000_000
+                        diag.log("SPONTANEOUS_CHANGE after +${clearedAtMs}ms -> [$nowResult]")
+                        break
+                    }
+                }
+                if (clearedAtMs < 0) {
+                    diag.log("NO_SPONTANEOUS_CHANGE after +10000ms; RENDER_AND_RECOMPOSER: ${inspectRenderAndRecomposer(window)}")
+                    diag.log("THREAD_DUMP_AFTER_10S:\n${dumpThreads()}")
+                } else {
+                    diag.snapshot("AFTER_SPONTANEOUS_CHANGE", window, automator)
+                }
+                diag.dump("DIAG FAILURE TRACE")
+            }
             return result
         } finally {
+            diag.uninstallAwtListener()
+            if (isSpeedSearch) activeDiag.compareAndSet(diag, null)
+            val stopStartNanos = System.nanoTime()
+            val stopDone = AtomicBoolean(false)
+            val watchdog =
+                thread(name = "diag-stop-watchdog", isDaemon = true) {
+                    try {
+                        Thread.sleep(200L)
+                        if (!stopDone.get()) {
+                            println("=== DIAG SLOW STOP (>200ms) [${diag.label}] ===\n${dumpThreads()}=== END DIAG SLOW STOP ===")
+                            System.out.flush()
+                        }
+                    } catch (_: InterruptedException) {
+                        // normal stop
+                    }
+                }
             app.stop()
+            stopDone.set(true)
+            watchdog.interrupt()
+            val stopMs = (System.nanoTime() - stopStartNanos) / 1_000_000
+            if (isSpeedSearch || stopMs >= 200L) {
+                println("DIAG_STOP [${diag.label}] stopMs=$stopMs totalWithStopMs=${diag.elapsedMs()}")
+            }
             JewelFlags.useCustomPopupRenderer = previousRenderer
         }
     }
@@ -530,6 +900,7 @@ private fun RawPopup(focusable: Boolean = true, dismissOnBackPress: Boolean = tr
 @Composable
 private fun SpeedSearchCombo() {
     val state = rememberSpeedSearchState()
+    activeDiag.get()?.speedSearchState?.set(state)
     SpeedSearchArea(state = state, dismissOnLoseFocus = false) {
         SpeedSearchableComboBox(
             items = listOf("Alpha", "Beta", "Gamma"),
